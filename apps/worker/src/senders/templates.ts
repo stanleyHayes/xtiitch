@@ -46,7 +46,8 @@ export function renderNotificationText(message: OutboundMessage): string {
         "Your order handover is complete. Thank you.",
         design,
       );
-    case "new_order_owner": {
+    case "new_order_owner":
+    case "new_order_owner_push": {
       const customer = stringPayload(message.payload.customer);
       const who = customer ? ` from ${customer}` : "";
       const item = design ? ` (${design})` : "";
@@ -94,6 +95,45 @@ function renderSubscriptionReminder(message: OutboundMessage): string {
     message.payload.renewal_at,
     " on ",
   )}. Amount due: ${amount}.${repay}`;
+}
+
+// A push notification is two fields, not one line of text: the title is what
+// shows on a locked screen, the body is what shows when it expands. Writing
+// them separately is why the lock screen can say "New order" rather than the
+// first forty characters of a sentence.
+export type PushNotificationText = { title: string; body: string };
+
+export function renderPushNotification(
+  message: OutboundMessage,
+): PushNotificationText {
+  if (message.kind === "new_order_owner_push") {
+    const customer = stringPayload(message.payload.customer);
+    const design = stringPayload(message.payload.design);
+    const amount = message.payload.amount_minor;
+    // Bespoke orders carry no agreed price yet, so the amount is omitted
+    // rather than shown as zero.
+    const price =
+      typeof amount === "number" && Number.isFinite(amount) && amount > 0
+        ? new Intl.NumberFormat("en-GH", {
+            style: "currency",
+            currency: "GHS",
+          }).format(amount / 100)
+        : "";
+    // Most specific first: who ordered, what, for how much. Any of the three
+    // can be missing, so they are joined rather than templated.
+    const parts = [customer, design, price].filter((part) => part !== "");
+    return {
+      title: "New order",
+      body:
+        parts.length > 0
+          ? parts.join(" · ")
+          : "You have a new order. Open Xtiitch to see it.",
+    };
+  }
+
+  // Every other kind reuses the SMS wording; the app is not the primary
+  // channel for those, and one vocabulary is easier to keep true than two.
+  return { title: "Xtiitch", body: renderNotificationText(message) };
 }
 
 export function maskRecipient(recipient: string): string {

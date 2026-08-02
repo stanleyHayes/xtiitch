@@ -318,8 +318,12 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		IDs:          ids.UUIDGenerator{},
 	})
 
+	// One repository backs both ports: the message log and the push devices are
+	// the same table family and share the tenant-scope handling.
+	notificationRepository := postgres.NewNotificationRepository(db)
 	notificationService := notifyapp.NewService(notifyapp.Dependencies{
-		Messages: postgres.NewNotificationRepository(db),
+		Messages: notificationRepository,
+		Devices:  notificationRepository,
 	})
 
 	// §14 analytics & reports: read-only insight over data the other modules

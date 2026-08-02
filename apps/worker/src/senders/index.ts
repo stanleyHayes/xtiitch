@@ -3,5 +3,6 @@ export type { NotificationSenderFactoryConfig } from "./types";
 export * from "./routed";
 export * from "./whatsapp";
 export * from "./sms";
+export * from "./push";
 export * from "./http";
 export * from "./templates";

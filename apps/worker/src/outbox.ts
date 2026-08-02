@@ -32,6 +32,25 @@ export type NotificationSender = {
   send(message: OutboundMessage): Promise<NotificationSendResult | undefined>;
 };
 
+// PermanentSendError marks a failure that retrying cannot fix — a push token
+// the provider says no longer exists, a message the provider refuses as
+// malformed. Without it every such message would burn its five attempts over
+// an hour of exponential backoff before dying anyway, and the outbox would
+// spend that hour re-sending to an address that will never accept it.
+export class PermanentSendError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PermanentSendError";
+  }
+}
+
+// DeviceTokenSink lets a push transport retire a token the provider has
+// declared dead. Separate from OutboxStore so the drain loop's test doubles do
+// not have to know about devices.
+export type DeviceTokenSink = {
+  forgetPushToken(token: string): Promise<void>;
+};
+
 export type OutboxStore = {
   claimDueMessages(batchSize: number, leaseSeconds: number): Promise<OutboundMessage[]>;
   markSent(messageId: string, result?: NotificationSendResult): Promise<void>;
@@ -137,6 +156,23 @@ export class PostgresOutboxStore implements OutboxStore {
     return nextStatus;
   }
 
+  // forgetPushToken retires a device the push provider has told us no longer
+  // exists — the app was deleted, or the OS reissued its token. Deleting is
+  // right rather than flagging: the token is the only thing that identifies the
+  // row, it can never become valid again, and the device re-registers itself on
+  // the next launch if it is still in use.
+  //
+  // Runs under the transport bypass like every other worker query: the worker
+  // holds the token but no tenant context, and the token is globally unique, so
+  // this deletes exactly the one device the provider named.
+  async forgetPushToken(token: string): Promise<void> {
+    await this.withTransportBypass(async (client) => {
+      await client.query(`delete from push_device_tokens where token = $1`, [
+        token,
+      ]);
+    });
+  }
+
   async close(): Promise<void> {
     await this.pool.end();
   }
@@ -174,7 +210,11 @@ export async function drainOutbox(args: {
       await args.store.markSent(message.messageId, result ?? undefined);
       summary.sent += 1;
     } catch (error) {
-      const terminal = message.attempts >= args.retryPolicy.maxAttempts;
+      // A permanent failure is terminal on its first occurrence; everything
+      // else gets the full attempt budget.
+      const terminal =
+        error instanceof PermanentSendError ||
+        message.attempts >= args.retryPolicy.maxAttempts;
       const status = await args.store.markFailed(
         message,
         errorMessage(error),

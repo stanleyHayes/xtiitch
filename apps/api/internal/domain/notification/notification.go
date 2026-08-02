@@ -13,11 +13,16 @@ type Channel string
 const (
 	ChannelWhatsApp Channel = "whatsapp"
 	ChannelSMS      Channel = "sms"
+	// ChannelPush is a notification to the mobile app itself. Unlike the other
+	// two the recipient is not a phone number but an Expo push token, which
+	// identifies an app installation rather than a person — see
+	// push_device_tokens.
+	ChannelPush Channel = "push"
 )
 
 // Valid reports whether the channel is one the system knows.
 func (c Channel) Valid() bool {
-	return c == ChannelWhatsApp || c == ChannelSMS
+	return c == ChannelWhatsApp || c == ChannelSMS || c == ChannelPush
 }
 
 // Reply-To addresses for automated email. Every automated message is SENT from
@@ -54,6 +59,19 @@ const (
 	// price negotiation. Recipient is the owner's phone (business_users.phone).
 	KindNewOrderOwner Kind = "new_order_owner"
 
+	// KindNewOrderOwnerPush is the same event as KindNewOrderOwner delivered to
+	// the mobile app, and it is a SEPARATE kind rather than the same kind on a
+	// different channel — deliberately.
+	//
+	// Two shipped queries read the outbox by kind alone. The dashboard badge
+	// counts new_order_owner rows, and the owner-email claim
+	// (owner_order_email_repository.go) takes one email per new_order_owner row.
+	// Push fans out one row PER DEVICE, so reusing the kind would multiply both:
+	// a three-device owner would see a badge of 3 for one order and receive
+	// three copies of the same email. Giving push its own kind leaves both
+	// queries correct without touching them.
+	KindNewOrderOwnerPush Kind = "new_order_owner_push"
+
 	// KindSubscriptionRenewalUpcoming reminds a business that its subscription is
 	// about to renew (a few days ahead) with a one-tap re-pay call to action. It
 	// is the MoMo-aware nudge: a mobile-money authorization cannot be silently
@@ -71,6 +89,7 @@ func (k Kind) Valid() bool {
 	switch k {
 	case KindOrderConfirmed, KindOrderStageAdvanced, KindOrderFulfilled, KindBookingConfirmed,
 		KindBalancePaid, KindHandoverDispatched, KindHandoverCompleted, KindNewOrderOwner,
+		KindNewOrderOwnerPush,
 		KindSubscriptionRenewalUpcoming, KindSubscriptionRenewalPastDue:
 		return true
 	default:
@@ -93,6 +112,15 @@ func DedupKey(kind Kind, reference string) string {
 // with DedupKey to derive the outbox idempotency key.
 func StageAdvanceReference(orderID, stageID string) string {
 	return orderID + "@" + stageID
+}
+
+// OwnerPushReference builds the reference for a new-order push: one message per
+// (order, device). The token has to be part of the key because push fans out
+// across every device the business has registered — keying on the order alone
+// would let the first device dedupe away every other device's copy. Pair it
+// with DedupKey to derive the outbox idempotency key.
+func OwnerPushReference(orderID, token string) string {
+	return orderID + "@" + token
 }
 
 // SubscriptionReminderReference builds the reference for a renewal reminder: a

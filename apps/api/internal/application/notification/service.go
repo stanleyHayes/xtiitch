@@ -14,14 +14,16 @@ import (
 
 type Service struct {
 	messages ports.NotificationRepository
+	devices  ports.PushDeviceRepository
 }
 
 type Dependencies struct {
 	Messages ports.NotificationRepository
+	Devices  ports.PushDeviceRepository
 }
 
 func NewService(deps Dependencies) Service {
-	return Service{messages: deps.Messages}
+	return Service{messages: deps.Messages, devices: deps.Devices}
 }
 
 // ListMessages returns the business's notification log, most recent first.

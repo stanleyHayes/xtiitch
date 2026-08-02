@@ -249,6 +249,13 @@ services:
         value: Xtiitch
       - key: ARKESEL_API_KEY
         sync: false
+      # Push notifications to the mobile app, via Expo. Deliberately has no
+      # required credential: Expo accepts unauthenticated sends, so push works
+      # as soon as this deploys. EXPO_ACCESS_TOKEN is only needed if the Expo
+      # project turns on enhanced security — and it must stay UNSET until then,
+      # because Expo answers a wrong token with 401 rather than ignoring it.
+      - key: EXPO_ACCESS_TOKEN
+        sync: false
 
   # ──────────────────────────────────────────────────────────────────────────
   # DEV API — same code, tracking the `dev` branch, wired to the dev database

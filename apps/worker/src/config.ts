@@ -33,6 +33,19 @@ export type ArkeselSmsConfig = {
   timeoutMs: number;
 };
 
+// Expo push service (https://docs.expo.dev/push-notifications). Notifications
+// to the mobile app go here; Expo fans out to APNs and FCM.
+//
+// accessToken is USUALLY EMPTY and that is correct — Expo accepts unauthenticated
+// sends by default, and only requires a token when a project turns on enhanced
+// security. It must stay empty unless one is actually configured, because Expo
+// answers a wrong token with 401 rather than ignoring it.
+export type ExpoPushConfig = {
+  endpoint: string;
+  accessToken: string;
+  timeoutMs: number;
+};
+
 export type WorkerConfig = {
   databaseUrl: string;
   redisConnection: RedisOptions;
@@ -61,6 +74,7 @@ export type WorkerConfig = {
   notificationHttp?: NotificationHttpConfig;
   whatsappCloud?: WhatsAppCloudConfig;
   arkesel?: ArkeselSmsConfig;
+  expoPush?: ExpoPushConfig;
 };
 
 const defaultDatabaseUrl =
@@ -124,6 +138,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
     notificationHttp: parseNotificationHttpConfig(notificationTransport, env),
     whatsappCloud: parseWhatsAppCloudConfig(notificationTransport, env),
     arkesel: parseArkeselSmsConfig(notificationTransport, env),
+    expoPush: parseExpoPushConfig(notificationTransport, env),
   };
 
   validateProductionWorkerConfig(config, env);
@@ -262,6 +277,27 @@ function parseArkeselSmsConfig(
     apiKey,
     senderId,
     timeoutMs: parsePositiveInteger(env.ARKESEL_TIMEOUT_MS, 10_000),
+  };
+}
+
+// Expo push rides alongside the whatsapp_cloud transport, like Arkesel does.
+// Unlike Arkesel it is ALWAYS configured rather than conditional on
+// credentials, because Expo needs none: leaving push unrouted would make every
+// queued notification fail with "no notification sender configured for channel
+// push" and die after five attempts.
+function parseExpoPushConfig(
+  transport: NotificationTransportName,
+  env: NodeJS.ProcessEnv,
+): ExpoPushConfig | undefined {
+  if (transport !== "whatsapp_cloud") {
+    return undefined;
+  }
+  return {
+    endpoint: (
+      env.EXPO_PUSH_ENDPOINT ?? "https://exp.host/--/api/v2/push/send"
+    ).trim(),
+    accessToken: (env.EXPO_ACCESS_TOKEN ?? "").trim(),
+    timeoutMs: parsePositiveInteger(env.EXPO_PUSH_TIMEOUT_MS, 10_000),
   };
 }
 

@@ -5,7 +5,11 @@ export function assertSendable(message: OutboundMessage): void {
   if (message.recipient.trim() === "") {
     throw new Error("notification recipient is missing");
   }
-  if (message.channel !== "whatsapp" && message.channel !== "sms") {
+  if (
+    message.channel !== "whatsapp" &&
+    message.channel !== "sms" &&
+    message.channel !== "push"
+  ) {
     throw new Error(`unsupported notification channel: ${message.channel}`);
   }
 }

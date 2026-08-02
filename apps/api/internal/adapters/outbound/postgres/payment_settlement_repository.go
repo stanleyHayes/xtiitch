@@ -213,7 +213,12 @@ func confirmOrderOnPayment(ctx context.Context, tx pgx.Tx, businessID, orderID s
 	// Also alert the store owner that a new order landed (by SMS), so they can
 	// action it — especially a bespoke order needing a direct price negotiation.
 	// No-op when the owner has no phone on file.
-	return enqueueOwnerNewOrderNotification(ctx, tx, businessID, orderID)
+	if err := enqueueOwnerNewOrderNotification(ctx, tx, businessID, orderID); err != nil {
+		return err
+	}
+	// And push it to the mobile app, which is the only one of the three channels
+	// that reaches her on the device she works on while the app is closed.
+	return enqueueOwnerNewOrderPushNotifications(ctx, tx, businessID, orderID)
 }
 
 func applyPendingPromotionRedemptionsForOrder(ctx context.Context, tx pgx.Tx, businessID, orderID string) error {
@@ -234,7 +239,32 @@ func voidPendingPromotionRedemptionsForOrder(ctx context.Context, tx pgx.Tx, bus
 	return err
 }
 
+// applyPendingAffiliateAttributionForOrder turns a pending attribution into a
+// real commission when the order is paid for.
+//
+// It runs under the row-level-security bypass, and it has to. Settlement is
+// tenant-scoped, but `affiliates` is visible only to the business that owns the
+// affiliate (owner_business_id) and `affiliate_programmes` only to the business
+// that owns the programme. A PLATFORM-owned affiliate on the platform's default
+// programme — which is what an affiliate signing up through Xtiitch gets — has
+// neither, so under tenant scope both tables read as empty and the two inner
+// joins below silently produce no row.
+//
+// Silently is the problem. The reservation still moves to 'converted', because
+// reservations ARE tenant-visible, so the commission is lost AND the reservation
+// is spent, leaving nothing to retry and no error to notice. Verified against
+// the app role: under tenant scope those two tables return zero rows.
+//
+// The bypass is safe here because the statement scopes itself: the UPDATE filters
+// on the business and order passed in, and every conversion column comes from
+// that reservation. Tenant scoping is restored before returning, since the
+// caller's transaction continues under it.
 func applyPendingAffiliateAttributionForOrder(ctx context.Context, tx pgx.Tx, businessID, orderID string) error {
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return err
+	}
+	defer func() { _ = clearTenantBypass(ctx, tx) }()
+
 	_, err := tx.Exec(ctx, `
 		with reservation as (
 			update affiliate_attribution_reservations
@@ -261,23 +291,30 @@ func applyPendingAffiliateAttributionForOrder(ctx context.Context, tx pgx.Tx, bu
 			hold_until,
 			metadata
 		)
+		-- Every column below is qualified on purpose. affiliate_id, business_id,
+		-- commission_model and commission_rate all exist on more than one of the
+		-- three relations in scope, and Postgres resolves an unqualified name at
+		-- PARSE time — so a bare reference does not fail only when a reservation
+		-- exists, it fails on every settlement, taking the whole confirming
+		-- transaction with it. Qualifying the rest as well keeps that true if a
+		-- column is later added to affiliates or affiliate_programmes.
 		select
-			affiliate_id,
-			affiliate_click_id,
-			business_id,
-			order_id,
-			gross_minor,
-			commission_minor,
-			commission_model,
-			commission_rate,
+			reservation.affiliate_id,
+			reservation.affiliate_click_id,
+			reservation.business_id,
+			reservation.order_id,
+			reservation.gross_minor,
+			reservation.commission_minor,
+			reservation.commission_model,
+			reservation.commission_rate,
 			affiliate.affiliate_programme_id,
 			programme.owner_type,
 			programme.owner_type,
-			attribution_model,
+			reservation.attribution_model,
 			'pending',
 			now() + make_interval(days => programme.hold_days),
-			metadata || jsonb_build_object(
-				'reservation_id', reservation_id::text,
+			reservation.metadata || jsonb_build_object(
+				'reservation_id', reservation.reservation_id::text,
 				'source', 'payment_success'
 			)
 		from reservation

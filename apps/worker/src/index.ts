@@ -63,6 +63,11 @@ const sender = createNotificationSender({
   http: config.notificationHttp,
   whatsappCloud: config.whatsappCloud,
   arkesel: config.arkesel,
+  expoPush: config.expoPush,
+  // The outbox store doubles as the device sink: it already holds a pool and
+  // the bypass helper, so retiring a dead push token needs no second
+  // connection.
+  devices: store,
 });
 const internalClient = config.internalApi
   ? new InternalApiClient(config.internalApi)

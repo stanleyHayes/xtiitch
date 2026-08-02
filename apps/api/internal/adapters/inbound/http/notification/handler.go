@@ -16,6 +16,9 @@ type Service interface {
 	ListMessages(ctx context.Context, scope common.TenantScope) ([]ports.MessageSummary, error)
 	UnreadOwnerAlerts(ctx context.Context, scope common.TenantScope, userID common.ID) (int, error)
 	MarkRead(ctx context.Context, scope common.TenantScope, userID common.ID) error
+	RegisterDevice(ctx context.Context, scope common.TenantScope, userID common.ID, token, platform, deviceName string) (ports.PushDeviceRecord, error)
+	UnregisterDevice(ctx context.Context, scope common.TenantScope, token string) error
+	ListDevices(ctx context.Context, scope common.TenantScope, userID common.ID) ([]ports.PushDeviceRecord, error)
 }
 
 type Handler struct {
@@ -33,6 +36,11 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Get("/notifications", handler.list)
 		// Opening the messages view clears this operator's badge.
 		protected.Post("/notifications/read", handler.markRead)
+		// Push device registration for the mobile app. Registering is repeated on
+		// every launch, so it is a plain POST that upserts rather than a create.
+		protected.Get("/notifications/devices", handler.listDevices)
+		protected.Post("/notifications/devices", handler.registerDevice)
+		protected.Post("/notifications/devices/unregister", handler.unregisterDevice)
 	})
 }
 
