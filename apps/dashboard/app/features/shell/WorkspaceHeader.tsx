@@ -43,10 +43,28 @@ export function WorkspaceHeader({
         position: "relative",
         color: "common.white",
         borderColor: alpha(tokens.ink, 0.1),
-        // The section-tone tint wins (it was declared last, so this is already
-        // what renders); the dead `tokens.charcoal` above it is removed rather
-        // than the tint, so the header keeps its current appearance.
-        bgcolor: alpha(meta.tone, 0.24),
+        // Dark base, section tone layered over it — both, which is what this
+        // header has always been designed for.
+        //
+        // It previously declared bgcolor twice: tokens.charcoal, then
+        // alpha(meta.tone, 0.24). The second won, so only a 24% tint rendered
+        // — over Panel's default background.paper, which is WHITE. A later
+        // cleanup removed the charcoal as dead code and kept the tint, which
+        // preserved the bug instead of fixing it.
+        //
+        // Everything inside assumes a dark panel: the title is common.white,
+        // the eyebrow and helper are white at 68% and 72%, the watermark icon
+        // is white at 7.5%, and both PriorityRibbon and HeaderSignal fill
+        // themselves with alpha(white, 0.05..0.12). On a pale tint that is
+        // white on near-white. Measured against the five section tones, white
+        // text sat between 1.27:1 and 1.65:1 — WCAG AA wants 4.5:1 for body
+        // text — and it now sits between 11.7:1 and 16.4:1.
+        //
+        // The tint goes through backgroundImage rather than a second bgcolor
+        // so the two genuinely composite instead of one silently replacing the
+        // other, which is the mistake that started this.
+        bgcolor: tokens.charcoal,
+        backgroundImage: `linear-gradient(0deg, ${alpha(meta.tone, 0.24)}, ${alpha(meta.tone, 0.24)})`,
       }}
     >
       <Box
