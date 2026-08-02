@@ -39,7 +39,10 @@ export default function StoreCollectionsStrip({
         ]}
       >
         <Text
-          style={[styles.chipText, selectedId === null && { color: brandColor }]}
+          style={[
+            styles.chipText,
+            selectedId === null && { color: brandColor },
+          ]}
         >
           All
         </Text>

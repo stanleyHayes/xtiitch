@@ -24,7 +24,10 @@ export async function requestSignInOtp(
   try {
     await fetch(`${apiBaseUrl()}/auth/business/otp/request`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
       body: JSON.stringify({
         business_handle: businessHandle.trim(),
         whatsapp_number: whatsappNumber.trim(),
@@ -57,7 +60,10 @@ export async function verifySignInOtp(
   try {
     const response = await fetch(`${apiBaseUrl()}/auth/business/otp/verify`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
       body: JSON.stringify({
         business_handle: businessHandle.trim(),
         whatsapp_number: whatsappNumber.trim(),
@@ -65,14 +71,18 @@ export async function verifySignInOtp(
       }),
     });
     if (!response.ok) {
-      const payload = (await response.json().catch(() => null)) as
-        | { error?: string }
-        | null;
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string;
+      } | null;
       return { ok: false, error: mapOtpError(response.status, payload?.error) };
     }
     const data = (await response.json()) as OtpVerifyResponse;
     if (data.mfa_required && data.mfa_challenge_token) {
-      return { ok: true, mfa: "required", challenge_token: data.mfa_challenge_token };
+      return {
+        ok: true,
+        mfa: "required",
+        challenge_token: data.mfa_challenge_token,
+      };
     }
     const session: BusinessSession = {
       ...data,
@@ -81,7 +91,10 @@ export async function verifySignInOtp(
     await persistSession(session);
     return { ok: true, session };
   } catch {
-    return { ok: false, error: "Network error — check your connection and retry." };
+    return {
+      ok: false,
+      error: "Network error — check your connection and retry.",
+    };
   }
 }
 
@@ -96,7 +109,11 @@ function mapOtpError(status: number, code?: string): string {
   if (code === "code_expired") {
     return "That code expired. Request a new one and try again.";
   }
-  if (code === "too_many_attempts" || code === "account_locked" || status === 429) {
+  if (
+    code === "too_many_attempts" ||
+    code === "account_locked" ||
+    status === 429
+  ) {
     return "Too many attempts — request a new code in a few minutes.";
   }
   if (code === "invalid_phone") {

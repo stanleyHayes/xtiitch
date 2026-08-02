@@ -54,7 +54,10 @@ export function canMarkReceived(order: CustomerOrder): boolean {
 // `error` verbatim when ok is false.
 export type ActionOutcome = { ok: true } | { ok: false; error: string };
 
-async function readError(response: Response, fallback: string): Promise<string> {
+async function readError(
+  response: Response,
+  fallback: string,
+): Promise<string> {
   const payload = (await response.json().catch(() => null)) as {
     error?: string;
   } | null;
@@ -111,7 +114,10 @@ export async function requestOrderPaymentLink(
     };
   } catch (error) {
     if (error instanceof CustomerSessionExpiredError) throw error;
-    return { ok: false, error: "Network error — check your connection and retry." };
+    return {
+      ok: false,
+      error: "Network error — check your connection and retry.",
+    };
   }
 }
 
@@ -154,7 +160,10 @@ export async function markBasketReceived(
     return { ok: true };
   } catch (error) {
     if (error instanceof CustomerSessionExpiredError) throw error;
-    return { ok: false, error: "Network error — check your connection and retry." };
+    return {
+      ok: false,
+      error: "Network error — check your connection and retry.",
+    };
   }
 }
 
@@ -170,6 +179,9 @@ async function postOrderAction(
     return { ok: true };
   } catch (error) {
     if (error instanceof CustomerSessionExpiredError) throw error;
-    return { ok: false, error: "Network error — check your connection and retry." };
+    return {
+      ok: false,
+      error: "Network error — check your connection and retry.",
+    };
   }
 }

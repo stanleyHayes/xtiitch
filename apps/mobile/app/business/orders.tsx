@@ -105,13 +105,20 @@ export default function BusinessOrdersScreen() {
       style={styles.screen}
       contentContainerStyle={styles.content}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.burgundy} />
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={palette.burgundy}
+        />
       }
     >
       <Stack.Screen
         options={{
           headerRight: () => (
-            <Pressable onPress={() => router.push("/business/new-order")} hitSlop={10}>
+            <Pressable
+              onPress={() => router.push("/business/new-order")}
+              hitSlop={10}
+            >
               <Text style={styles.headerAction}>+ New</Text>
             </Pressable>
           ),
@@ -136,7 +143,12 @@ export default function BusinessOrdersScreen() {
                 {tab.label}
               </Text>
               <View style={[styles.tabBadge, active && styles.tabBadgeActive]}>
-                <Text style={[styles.tabBadgeText, active && styles.tabBadgeTextActive]}>
+                <Text
+                  style={[
+                    styles.tabBadgeText,
+                    active && styles.tabBadgeTextActive,
+                  ]}
+                >
                   {count}
                 </Text>
               </View>
@@ -165,54 +177,68 @@ export default function BusinessOrdersScreen() {
   );
 }
 
-const makeStyles = (palette: Palette) => StyleSheet.create({
-  screen: { flex: 1, backgroundColor: palette.cream },
-  content: { padding: spacing(3), paddingBottom: spacing(6) },
-  headerAction: {
-    color: palette.onAccent,
-    fontFamily: fonts.body,
-    fontWeight: "800",
-    fontSize: 14,
-  },
-  tabs: { flexDirection: "row", gap: spacing(1), marginBottom: spacing(2.5) },
-  tab: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing(0.75),
-    borderRadius: radius.pill,
-    borderWidth: 1.5,
-    borderColor: palette.softBorder,
-    paddingHorizontal: spacing(1.75),
-    paddingVertical: spacing(0.75),
-    backgroundColor: palette.white,
-  },
-  tabActive: { borderColor: palette.burgundy, backgroundColor: palette.burgundy },
-  tabText: { fontFamily: fonts.body, fontSize: 14, fontWeight: "700", color: palette.ink },
-  tabTextActive: { color: palette.onAccent },
-  tabBadge: {
-    minWidth: 20,
-    alignItems: "center",
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing(0.5),
-    backgroundColor: "rgba(21,17,26,0.08)",
-  },
-  tabBadgeActive: { backgroundColor: "rgba(255,255,255,0.25)" },
-  tabBadgeText: { fontFamily: fonts.body, fontSize: 12, fontWeight: "800", color: palette.ink },
-  tabBadgeTextActive: { color: palette.onAccent },
-  list: { gap: spacing(1.5) },
-  empty: {
-    backgroundColor: palette.panel,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: palette.softBorder,
-    padding: spacing(3),
-    alignItems: "center",
-  },
-  emptyTitle: { fontFamily: fonts.display, fontSize: 18, color: palette.ink },
-  emptyHint: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    color: palette.mutedText,
-    marginTop: spacing(0.75),
-  },
-});
+const makeStyles = (palette: Palette) =>
+  StyleSheet.create({
+    screen: { flex: 1, backgroundColor: palette.cream },
+    content: { padding: spacing(3), paddingBottom: spacing(6) },
+    headerAction: {
+      color: palette.onAccent,
+      fontFamily: fonts.body,
+      fontWeight: "800",
+      fontSize: 14,
+    },
+    tabs: { flexDirection: "row", gap: spacing(1), marginBottom: spacing(2.5) },
+    tab: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing(0.75),
+      borderRadius: radius.pill,
+      borderWidth: 1.5,
+      borderColor: palette.softBorder,
+      paddingHorizontal: spacing(1.75),
+      paddingVertical: spacing(0.75),
+      backgroundColor: palette.white,
+    },
+    tabActive: {
+      borderColor: palette.burgundy,
+      backgroundColor: palette.burgundy,
+    },
+    tabText: {
+      fontFamily: fonts.body,
+      fontSize: 14,
+      fontWeight: "700",
+      color: palette.ink,
+    },
+    tabTextActive: { color: palette.onAccent },
+    tabBadge: {
+      minWidth: 20,
+      alignItems: "center",
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing(0.5),
+      backgroundColor: "rgba(21,17,26,0.08)",
+    },
+    tabBadgeActive: { backgroundColor: "rgba(255,255,255,0.25)" },
+    tabBadgeText: {
+      fontFamily: fonts.body,
+      fontSize: 12,
+      fontWeight: "800",
+      color: palette.ink,
+    },
+    tabBadgeTextActive: { color: palette.onAccent },
+    list: { gap: spacing(1.5) },
+    empty: {
+      backgroundColor: palette.panel,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: palette.softBorder,
+      padding: spacing(3),
+      alignItems: "center",
+    },
+    emptyTitle: { fontFamily: fonts.display, fontSize: 18, color: palette.ink },
+    emptyHint: {
+      fontFamily: fonts.body,
+      fontSize: 14,
+      color: palette.mutedText,
+      marginTop: spacing(0.75),
+    },
+  });

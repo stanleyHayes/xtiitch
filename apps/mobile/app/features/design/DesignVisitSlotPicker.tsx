@@ -1,11 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { AvailabilitySlot } from "../../../src/api";
 import { fonts, radius, spacing, type Palette } from "../../../src/theme";
 import { useTheme } from "../../../src/theme-mode";
@@ -101,7 +95,9 @@ export default function DesignVisitSlotPicker({
           );
         })}
       </View>
-      <Text style={styles.selected}>Selected: {formatVisitSlot(activeSlot)}</Text>
+      <Text style={styles.selected}>
+        Selected: {formatVisitSlot(activeSlot)}
+      </Text>
     </View>
   );
 }
@@ -140,7 +136,7 @@ const makeStyles = (palette: Palette) =>
     },
     chipActive: {
       borderColor: palette.burgundy,
-      backgroundColor: "rgba(128,0,32,0.06)",
+      backgroundColor: palette.wineTint,
     },
     dayText: {
       fontFamily: fonts.body,

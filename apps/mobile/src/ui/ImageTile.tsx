@@ -23,7 +23,9 @@ export function ImageTile({
     return <Image source={{ uri }} style={[{ borderRadius }, style]} />;
   }
   return (
-    <View style={[{ backgroundColor: from, borderRadius }, styles.swatch, style]}>
+    <View
+      style={[{ backgroundColor: from, borderRadius }, styles.swatch, style]}
+    >
       <View style={[styles.swatchBar, { backgroundColor: to }]} />
     </View>
   );

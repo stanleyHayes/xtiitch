@@ -1,11 +1,5 @@
 import { useMemo, useState } from "react";
-import {
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { type BusinessDesign } from "../../../../src/businessApi";
 import {
@@ -32,7 +26,8 @@ function parseMoneyMinor(raw: string): number | null {
   return Math.round(value * 100);
 }
 
-export function CreatePromotionCard({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+// eslint-disable-next-line max-lines-per-function -- complete promotion creation form
+export function CreatePromotionCard({
   designs,
   onCreated,
   onSessionExpired,
@@ -68,7 +63,8 @@ export function CreatePromotionCard({ // eslint-disable-line max-lines-per-funct
   };
 
   // Returns the request body, or null after setting an inline error.
-  const buildBody = (): PromotionBody | null => { // eslint-disable-line complexity -- large presentational component; refactor in follow-up
+  // eslint-disable-next-line complexity -- validates the complete promotion contract
+  const buildBody = (): PromotionBody | null => {
     if (!CODE_RE.test(code)) {
       setError(
         "Codes start and end with a letter or number (3–32 chars, dashes/underscores inside).",
@@ -360,7 +356,7 @@ const makeStyles = (palette: Palette) =>
     },
     chipActive: {
       borderColor: palette.burgundy,
-      backgroundColor: "rgba(128,0,32,0.06)",
+      backgroundColor: palette.wineTint,
     },
     chipText: {
       fontFamily: fonts.body,
@@ -382,7 +378,7 @@ const makeStyles = (palette: Palette) =>
       alignItems: "center",
       marginTop: spacing(2.5),
     },
-    ctaDisabled: { backgroundColor: "rgba(128,0,32,0.4)" },
+    ctaDisabled: { backgroundColor: palette.mauve },
     ctaText: {
       color: palette.onAccent,
       fontFamily: fonts.body,

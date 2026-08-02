@@ -33,7 +33,8 @@ export default function DesignField({
         placeholder={placeholder}
         placeholderTextColor={palette.mutedText}
         autoCapitalize={
-          autoCapitalize ?? (keyboardType === "email-address" ? "none" : "words")
+          autoCapitalize ??
+          (keyboardType === "email-address" ? "none" : "words")
         }
         autoCorrect={false}
         keyboardType={keyboardType}

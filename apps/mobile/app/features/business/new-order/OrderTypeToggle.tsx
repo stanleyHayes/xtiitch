@@ -56,7 +56,7 @@ const makeStyles = (palette: Palette) =>
     },
     pillActive: {
       borderColor: palette.burgundy,
-      backgroundColor: "rgba(128,0,32,0.06)",
+      backgroundColor: palette.wineTint,
     },
     pillText: {
       fontFamily: fonts.body,

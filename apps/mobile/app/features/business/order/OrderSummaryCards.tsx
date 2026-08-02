@@ -8,7 +8,13 @@ import {
   paymentStatusLabel,
   type BusinessOrder,
 } from "../../../../src/businessApi";
-import { fonts, radius, shadow, spacing, type Palette } from "../../../../src/theme";
+import {
+  fonts,
+  radius,
+  shadow,
+  spacing,
+  type Palette,
+} from "../../../../src/theme";
 import { useTheme } from "../../../../src/theme-mode";
 import OrderDetailRow from "./OrderDetailRow";
 
@@ -41,10 +47,13 @@ export function OrderHeaderCard({ order }: { order: BusinessOrder }) {
     <View style={styles.headerCard}>
       <Text style={styles.design}>{order.design_title}</Text>
       <View style={[styles.statusPill, { backgroundColor: tone }]}>
-        <Text style={styles.statusPillText}>{order.stage_name || order.status}</Text>
+        <Text style={styles.statusPillText}>
+          {order.stage_name || order.status}
+        </Text>
       </View>
       <Text style={styles.meta}>
-        {order.order_type} · {order.channel} · {formatOrderDate(order.created_at)}
+        {order.order_type} · {order.channel} ·{" "}
+        {formatOrderDate(order.created_at)}
       </Text>
     </View>
   );
@@ -69,7 +78,9 @@ export function CustomerCard({ order }: { order: BusinessOrder }) {
       <OrderDetailRow
         label="Email"
         value={order.customer_email || "—"}
-        href={order.customer_email ? `mailto:${order.customer_email}` : undefined}
+        href={
+          order.customer_email ? `mailto:${order.customer_email}` : undefined
+        }
       />
       {whatsapp ? (
         <OrderDetailRow
@@ -90,7 +101,11 @@ export function PaymentCard({ order }: { order: BusinessOrder }) {
   const balanceTone = balance > 0 ? palette.warning : palette.success;
   return (
     <View style={styles.card}>
-      <OrderDetailRow label="Agreed total" value={formatOrderTotal(order)} strong />
+      <OrderDetailRow
+        label="Agreed total"
+        value={formatOrderTotal(order)}
+        strong
+      />
       <OrderDetailRow label="Settled" value={formatGHS(order.settled_minor)} />
       <OrderDetailRow
         label="Balance due"
@@ -98,7 +113,10 @@ export function PaymentCard({ order }: { order: BusinessOrder }) {
         strong={target !== null && balance > 0}
         tone={target === null ? undefined : balanceTone}
       />
-      <OrderDetailRow label="Payment status" value={paymentStatusLabel(order)} />
+      <OrderDetailRow
+        label="Payment status"
+        value={paymentStatusLabel(order)}
+      />
     </View>
   );
 }
@@ -189,7 +207,7 @@ const makeStyles = (palette: Palette) =>
       alignItems: "center",
       marginTop: spacing(3),
     },
-    ctaDisabled: { backgroundColor: "rgba(128,0,32,0.4)" },
+    ctaDisabled: { backgroundColor: palette.mauve },
     ctaText: {
       color: palette.onAccent,
       fontFamily: fonts.body,

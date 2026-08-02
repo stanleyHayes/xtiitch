@@ -122,7 +122,7 @@ const makeStyles = (palette: Palette) =>
     },
     optionActive: {
       borderColor: palette.burgundy,
-      backgroundColor: "rgba(128,0,32,0.06)",
+      backgroundColor: palette.wineTint,
     },
     optionText: {
       fontFamily: fonts.body,

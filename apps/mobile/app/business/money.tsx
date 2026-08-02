@@ -1,10 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import {
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-} from "react-native";
+import { RefreshControl, ScrollView, StyleSheet, Text } from "react-native";
 import { Stack, useFocusEffect, useRouter } from "expo-router";
 
 import { loadSession } from "../../src/auth";
@@ -27,6 +22,7 @@ import {
 } from "../features/business/money/MoneyLists";
 import { PeriodChips } from "../features/business/money/PeriodChips";
 import { SummaryCards } from "../features/business/money/SummaryCards";
+import { PayoutSetupCard } from "../features/business/money/PayoutSetupCard";
 
 export default function BusinessMoneyScreen() {
   const { palette } = useTheme();
@@ -146,6 +142,8 @@ export default function BusinessMoneyScreen() {
     >
       <Stack.Screen options={{ title: "Money" }} />
 
+      <PayoutSetupCard />
+
       <PeriodChips period={period} onSelect={onSelectPeriod} />
 
       {summary ? (
@@ -156,10 +154,7 @@ export default function BusinessMoneyScreen() {
       ) : null}
 
       <Text style={styles.sectionLabel}>Log a taking</Text>
-      <LogTakingCard
-        onLogged={() => fetchData(period)}
-        onExpired={toLogin}
-      />
+      <LogTakingCard onLogged={() => fetchData(period)} onExpired={toLogin} />
 
       <TransactionsList transactions={transactions} />
       <TakingsList takings={takings} />

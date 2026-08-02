@@ -37,7 +37,9 @@ export default function TrackHandoverPanel({
   return (
     <View style={styles.panel}>
       <View style={styles.headRow}>
-        <Text style={styles.method}>{formatHandoverMethod(handover.method)}</Text>
+        <Text style={styles.method}>
+          {formatHandoverMethod(handover.method)}
+        </Text>
         <View style={styles.statusChip}>
           <Text style={styles.statusChipText}>
             {formatHandoverStatus(handover.status)}
@@ -59,7 +61,9 @@ export default function TrackHandoverPanel({
       {handover.courier ? (
         <Text style={styles.detail}>Courier: {handover.courier}</Text>
       ) : null}
-      {handover.note ? <Text style={styles.detail}>{handover.note}</Text> : null}
+      {handover.note ? (
+        <Text style={styles.detail}>{handover.note}</Text>
+      ) : null}
     </View>
   );
 }
@@ -86,7 +90,7 @@ const makeStyles = (palette: Palette) =>
       color: palette.ink,
     },
     statusChip: {
-      backgroundColor: "rgba(128,0,32,0.08)",
+      backgroundColor: palette.wineTint,
       borderRadius: radius.pill,
       paddingHorizontal: spacing(1.25),
       paddingVertical: 2,

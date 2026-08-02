@@ -64,10 +64,14 @@ const makeStyles = (palette: Palette) =>
     },
     designCardActive: {
       borderColor: palette.burgundy,
-      backgroundColor: "rgba(128,0,32,0.04)",
+      backgroundColor: palette.wineTint,
     },
     designThumb: { width: 52, height: 52 },
-    designTitle: { fontFamily: fonts.display, fontSize: 17, color: palette.ink },
+    designTitle: {
+      fontFamily: fonts.display,
+      fontSize: 17,
+      color: palette.ink,
+    },
     designStatus: {
       fontFamily: fonts.body,
       fontSize: 12,

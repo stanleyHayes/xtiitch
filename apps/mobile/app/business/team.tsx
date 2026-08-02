@@ -161,7 +161,9 @@ export default function TeamScreen() {
         <Text style={styles.sectionLabel}>Members</Text>
       </View>
 
-      {actionError ? <Text style={styles.actionError}>{actionError}</Text> : null}
+      {actionError ? (
+        <Text style={styles.actionError}>{actionError}</Text>
+      ) : null}
 
       {list.length === 0 ? (
         <View style={styles.empty}>
@@ -186,43 +188,44 @@ export default function TeamScreen() {
   );
 }
 
-const makeStyles = (palette: Palette) => StyleSheet.create({
-  screen: { flex: 1, backgroundColor: palette.cream },
-  content: { padding: spacing(3), paddingBottom: spacing(6) },
-  sectionHead: {
-    marginTop: spacing(3.5),
-    marginBottom: spacing(1.5),
-  },
-  sectionLabel: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 1.5,
-    textTransform: "uppercase",
-    color: palette.mutedText,
-  },
-  memberList: { gap: spacing(1.5) },
-  actionError: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    color: palette.danger,
-    marginBottom: spacing(1.5),
-  },
-  empty: {
-    backgroundColor: palette.panel,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: palette.softBorder,
-    padding: spacing(3),
-    alignItems: "center",
-  },
-  emptyTitle: { fontFamily: fonts.display, fontSize: 18, color: palette.ink },
-  emptyHint: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    color: palette.mutedText,
-    textAlign: "center",
-    marginTop: spacing(0.75),
-    lineHeight: 20,
-  },
-});
+const makeStyles = (palette: Palette) =>
+  StyleSheet.create({
+    screen: { flex: 1, backgroundColor: palette.cream },
+    content: { padding: spacing(3), paddingBottom: spacing(6) },
+    sectionHead: {
+      marginTop: spacing(3.5),
+      marginBottom: spacing(1.5),
+    },
+    sectionLabel: {
+      fontFamily: fonts.body,
+      fontSize: 12,
+      fontWeight: "800",
+      letterSpacing: 1.5,
+      textTransform: "uppercase",
+      color: palette.mutedText,
+    },
+    memberList: { gap: spacing(1.5) },
+    actionError: {
+      fontFamily: fonts.body,
+      fontSize: 14,
+      color: palette.danger,
+      marginBottom: spacing(1.5),
+    },
+    empty: {
+      backgroundColor: palette.panel,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: palette.softBorder,
+      padding: spacing(3),
+      alignItems: "center",
+    },
+    emptyTitle: { fontFamily: fonts.display, fontSize: 18, color: palette.ink },
+    emptyHint: {
+      fontFamily: fonts.body,
+      fontSize: 14,
+      color: palette.mutedText,
+      textAlign: "center",
+      marginTop: spacing(0.75),
+      lineHeight: 20,
+    },
+  });

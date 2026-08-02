@@ -13,9 +13,12 @@
 //   GET  /v1/customer/me                Bearer → profile
 //   GET  /v1/customer/orders            Bearer → { orders: [...] }
 // (paths carry the /v1 prefix via apiBaseUrl(), same as src/api.ts.)
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
-import { apiBaseUrl } from "./api";
+import { apiBaseUrl } from "./api-base";
+import {
+  deleteSessionValue,
+  getSessionValue,
+  setSessionValue,
+} from "./session-storage";
 
 const STORAGE_KEY = "xtiitch.customer.session.v1";
 
@@ -41,20 +44,6 @@ export type CustomerProfile = {
   whatsapp_phone: string;
 };
 
-// The order model + order actions (pay-now, close, mark-received) live in
-// customerOrders.ts (file-size budget); re-exported so existing imports from
-// "./customerAuth" keep working.
-export {
-  canMarkReceived,
-  closeOrder,
-  fetchCustomerOrders,
-  isPayableDraft,
-  markBasketReceived,
-  markOrderReceived,
-  requestOrderPaymentLink,
-} from "./customerOrders";
-export type { ActionOutcome, CustomerOrder } from "./customerOrders";
-
 // undefined = not yet read from storage; null = read, no session.
 let cached: CustomerSession | null | undefined;
 
@@ -66,7 +55,7 @@ function isExpired(session: CustomerSession): boolean {
 export async function loadSession(): Promise<CustomerSession | null> {
   if (cached !== undefined) return cached;
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
+    const raw = await getSessionValue(STORAGE_KEY);
     const parsed = raw ? (JSON.parse(raw) as CustomerSession) : null;
     cached = parsed && !isExpired(parsed) ? parsed : null;
   } catch {
@@ -79,9 +68,9 @@ async function persist(session: CustomerSession | null): Promise<void> {
   cached = session;
   try {
     if (session) {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+      await setSessionValue(STORAGE_KEY, JSON.stringify(session));
     } else {
-      await AsyncStorage.removeItem(STORAGE_KEY);
+      await deleteSessionValue(STORAGE_KEY);
     }
   } catch {
     // Best effort — an unwritable store still keeps the in-memory session.
@@ -158,7 +147,10 @@ export async function verifyOtp(
       const payload = (await response.json().catch(() => null)) as {
         error?: string;
       } | null;
-      return { ok: false, error: mapVerifyError(response.status, payload?.error) };
+      return {
+        ok: false,
+        error: mapVerifyError(response.status, payload?.error),
+      };
     }
     const session = (await response.json()) as CustomerSession;
     await persist(session);
@@ -234,7 +226,9 @@ export type UpdateProfileInput = {
 
 export async function updateCustomerProfile(
   input: UpdateProfileInput,
-): Promise<{ ok: true; profile: CustomerProfile } | { ok: false; error: string }> {
+): Promise<
+  { ok: true; profile: CustomerProfile } | { ok: false; error: string }
+> {
   try {
     const response = await authedFetch("/customer/me", {
       method: "PATCH",
@@ -245,12 +239,18 @@ export async function updateCustomerProfile(
       const payload = (await response.json().catch(() => null)) as {
         error?: string;
       } | null;
-      return { ok: false, error: payload?.error ?? "Could not save your details." };
+      return {
+        ok: false,
+        error: payload?.error ?? "Could not save your details.",
+      };
     }
     return { ok: true, profile: (await response.json()) as CustomerProfile };
   } catch (error) {
     if (error instanceof CustomerSessionExpiredError) throw error;
-    return { ok: false, error: "Network error — check your connection and retry." };
+    return {
+      ok: false,
+      error: "Network error — check your connection and retry.",
+    };
   }
 }
 

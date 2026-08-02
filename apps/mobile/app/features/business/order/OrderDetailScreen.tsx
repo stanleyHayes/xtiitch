@@ -1,11 +1,11 @@
 import { useCallback, useState, useMemo } from "react";
+import { RefreshControl, ScrollView, StyleSheet, Text } from "react-native";
 import {
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-} from "react-native";
-import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+  Stack,
+  useFocusEffect,
+  useLocalSearchParams,
+  useRouter,
+} from "expo-router";
 
 import { api, type Tracking } from "../../../../src/api";
 import { loadSession } from "../../../../src/auth";
@@ -64,7 +64,9 @@ function useOrderAdvance({
       onExpired();
       return;
     } else {
-      onError("Couldn't advance this order right now. Pull to refresh and try again.");
+      onError(
+        "Couldn't advance this order right now. Pull to refresh and try again.",
+      );
     }
     setAdvancing(false);
   };
@@ -72,6 +74,7 @@ function useOrderAdvance({
   return { advancing, advance };
 }
 
+// eslint-disable-next-line max-lines-per-function -- complete order workspace
 export default function OrderDetailScreen() {
   const { palette } = useTheme();
   const styles = useMemo(() => makeStyles(palette), [palette]);
@@ -86,7 +89,10 @@ export default function OrderDetailScreen() {
   const [fetchError, setFetchError] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const toLogin = useCallback(() => router.replace("/business/login"), [router]);
+  const toLogin = useCallback(
+    () => router.replace("/business/login"),
+    [router],
+  );
   const { advancing, advance } = useOrderAdvance({
     id,
     onTracking: setTracking,
@@ -111,7 +117,8 @@ export default function OrderDetailScreen() {
       return;
     }
     setFetchError(false);
-    const match = ordersResult.data.orders.find((o) => o.order_id === id) ?? null;
+    const match =
+      ordersResult.data.orders.find((o) => o.order_id === id) ?? null;
     setOrder(match);
     setNotFound(!match);
     if (trackingResult.ok) setTracking(trackingResult.data);
@@ -232,7 +239,11 @@ export default function OrderDetailScreen() {
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      <AdvanceFooter status={order.status} advancing={advancing} onAdvance={advance} />
+      <AdvanceFooter
+        status={order.status}
+        advancing={advancing}
+        onAdvance={advance}
+      />
     </ScrollView>
   );
 }

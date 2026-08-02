@@ -41,10 +41,7 @@ export function InviteForm({
 
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   const canSubmit =
-    name.trim().length > 1 &&
-    emailValid &&
-    password.length >= 8 &&
-    !submitting;
+    name.trim().length > 1 && emailValid && password.length >= 8 && !submitting;
 
   const submit = async () => {
     if (!canSubmit) return;
@@ -198,90 +195,91 @@ function Field({
   );
 }
 
-const makeStyles = (palette: Palette) => StyleSheet.create({
-  card: {
-    backgroundColor: palette.white,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: palette.softBorder,
-    padding: spacing(2.5),
-  },
-  title: {
-    fontFamily: fonts.display,
-    fontSize: 20,
-    fontWeight: "700",
-    color: palette.ink,
-  },
-  hint: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    color: palette.mutedText,
-    marginTop: spacing(0.5),
-    lineHeight: 19,
-  },
-  form: { gap: spacing(1.75), marginTop: spacing(2) },
-  fieldLabel: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    fontWeight: "700",
-    color: palette.ink,
-    marginBottom: spacing(0.75),
-  },
-  input: {
-    backgroundColor: palette.white,
-    borderWidth: 1,
-    borderColor: palette.softBorder,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing(2),
-    paddingVertical: spacing(1.75),
-    fontFamily: fonts.body,
-    fontSize: 15,
-    color: palette.ink,
-  },
-  roleRow: { flexDirection: "row", gap: spacing(1) },
-  roleChip: {
-    borderWidth: 1.5,
-    borderColor: palette.softBorder,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing(2),
-    paddingVertical: spacing(1),
-    backgroundColor: palette.white,
-  },
-  roleChipActive: {
-    borderColor: palette.burgundy,
-    backgroundColor: "rgba(128,0,32,0.06)",
-  },
-  roleChipText: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    fontWeight: "700",
-    color: palette.ink,
-  },
-  roleChipTextActive: { color: palette.burgundy },
-  success: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    color: palette.success,
-    marginTop: spacing(2),
-  },
-  error: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    color: palette.danger,
-    marginTop: spacing(2),
-  },
-  cta: {
-    backgroundColor: palette.burgundy,
-    borderRadius: radius.pill,
-    paddingVertical: spacing(2),
-    alignItems: "center",
-    marginTop: spacing(2.5),
-  },
-  ctaDisabled: { backgroundColor: "rgba(128,0,32,0.4)" },
-  ctaText: {
-    color: palette.onAccent,
-    fontFamily: fonts.body,
-    fontSize: 16,
-    fontWeight: "800",
-  },
-});
+const makeStyles = (palette: Palette) =>
+  StyleSheet.create({
+    card: {
+      backgroundColor: palette.white,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: palette.softBorder,
+      padding: spacing(2.5),
+    },
+    title: {
+      fontFamily: fonts.display,
+      fontSize: 20,
+      fontWeight: "700",
+      color: palette.ink,
+    },
+    hint: {
+      fontFamily: fonts.body,
+      fontSize: 13,
+      color: palette.mutedText,
+      marginTop: spacing(0.5),
+      lineHeight: 19,
+    },
+    form: { gap: spacing(1.75), marginTop: spacing(2) },
+    fieldLabel: {
+      fontFamily: fonts.body,
+      fontSize: 13,
+      fontWeight: "700",
+      color: palette.ink,
+      marginBottom: spacing(0.75),
+    },
+    input: {
+      backgroundColor: palette.white,
+      borderWidth: 1,
+      borderColor: palette.softBorder,
+      borderRadius: radius.md,
+      paddingHorizontal: spacing(2),
+      paddingVertical: spacing(1.75),
+      fontFamily: fonts.body,
+      fontSize: 15,
+      color: palette.ink,
+    },
+    roleRow: { flexDirection: "row", gap: spacing(1) },
+    roleChip: {
+      borderWidth: 1.5,
+      borderColor: palette.softBorder,
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing(2),
+      paddingVertical: spacing(1),
+      backgroundColor: palette.white,
+    },
+    roleChipActive: {
+      borderColor: palette.burgundy,
+      backgroundColor: palette.wineTint,
+    },
+    roleChipText: {
+      fontFamily: fonts.body,
+      fontSize: 14,
+      fontWeight: "700",
+      color: palette.ink,
+    },
+    roleChipTextActive: { color: palette.burgundy },
+    success: {
+      fontFamily: fonts.body,
+      fontSize: 14,
+      color: palette.success,
+      marginTop: spacing(2),
+    },
+    error: {
+      fontFamily: fonts.body,
+      fontSize: 14,
+      color: palette.danger,
+      marginTop: spacing(2),
+    },
+    cta: {
+      backgroundColor: palette.burgundy,
+      borderRadius: radius.pill,
+      paddingVertical: spacing(2),
+      alignItems: "center",
+      marginTop: spacing(2.5),
+    },
+    ctaDisabled: { backgroundColor: palette.mauve },
+    ctaText: {
+      color: palette.onAccent,
+      fontFamily: fonts.body,
+      fontSize: 16,
+      fontWeight: "800",
+    },
+  });

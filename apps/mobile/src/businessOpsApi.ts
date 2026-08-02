@@ -124,6 +124,34 @@ export type AvailabilityWindow = {
 };
 
 export const businessOpsApi = {
+  profile: () =>
+    request<{
+      name: string;
+      handle: string;
+      verification_status: string;
+      payout_ready: boolean;
+      settlement_bank: string;
+      settlement_account: string;
+      settlement_account_name: string;
+      plan: string;
+    }>("/businesses/me"),
+  requestPayoutOTP: (settlementAccount: string) =>
+    request<null>("/businesses/me/payout-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ settlement_account: settlementAccount }),
+    }),
+  savePayout: (input: {
+    settlement_bank: string;
+    settlement_account: string;
+    settlement_account_name: string;
+    otp_code: string;
+  }) =>
+    request<{ payout_status: string }>("/businesses/me/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }),
   moneySummary: (query?: MoneyQuery) =>
     request<MoneySummary>(`/money/summary${moneyQueryString(query)}`),
   moneyTransactions: (query?: MoneyQuery) =>
@@ -140,14 +168,15 @@ export const businessOpsApi = {
     ),
   // Log a cash / offline sale so the books are complete (201).
   logTaking: (input: LogTakingInput) =>
-    request<{ taking_id: string; commission_minor: number; commission_status: string }>(
-      "/money/takings",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-      },
-    ),
+    request<{
+      taking_id: string;
+      commission_minor: number;
+      commission_status: string;
+    }>("/money/takings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }),
   bookings: () => request<{ bookings: BookingSummary[] }>("/bookings"),
   cancelBooking: (bookingId: string) =>
     request<{ status: string }>(

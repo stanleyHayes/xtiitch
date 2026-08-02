@@ -94,7 +94,10 @@ export default function MarketplaceFilterBar({
           <Pressable
             key={option.key}
             onPress={() => onSortChange(option.key)}
-            style={[styles.sortChip, sort === option.key && styles.sortChipActive]}
+            style={[
+              styles.sortChip,
+              sort === option.key && styles.sortChipActive,
+            ]}
           >
             <Text
               style={[

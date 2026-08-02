@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import type { MeasurementField } from "../../../../src/api";
-import { businessApi, type MeasurementSource } from "../../../../src/businessApi";
+import {
+  businessApi,
+  type MeasurementSource,
+} from "../../../../src/businessApi";
 import { fonts, radius, spacing, type Palette } from "../../../../src/theme";
 import { useTheme } from "../../../../src/theme-mode";
 
@@ -58,7 +61,11 @@ export default function OrderMeasurementsCard({
     }
     setSaving(true);
     setError(null);
-    const result = await businessApi.recordMeasurements(orderId, source, entered);
+    const result = await businessApi.recordMeasurements(
+      orderId,
+      source,
+      entered,
+    );
     setSaving(false);
     if (result.ok) {
       setExpanded(false);
@@ -68,7 +75,9 @@ export default function OrderMeasurementsCard({
     } else if (result.expired) {
       onExpired();
     } else {
-      setError("Couldn't save those measurements. Check the values and try again.");
+      setError(
+        "Couldn't save those measurements. Check the values and try again.",
+      );
     }
   };
 
@@ -259,5 +268,5 @@ const makeStyles = (palette: Palette) =>
       fontSize: 14,
       color: palette.danger,
     },
-    ctaDisabled: { backgroundColor: "rgba(128,0,32,0.4)" },
+    ctaDisabled: { backgroundColor: palette.mauve },
   });

@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { formatGHS } from "../../../src/api";
-import type { CustomerOrder } from "../../../src/customerAuth";
+import type { CustomerOrder } from "../../../src/customerOrders";
 import { fonts, radius, spacing, type Palette } from "../../../src/theme";
 import { useTheme } from "../../../src/theme-mode";
 import { CenterState } from "../../../src/ui";

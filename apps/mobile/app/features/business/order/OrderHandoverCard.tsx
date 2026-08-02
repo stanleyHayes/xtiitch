@@ -40,14 +40,18 @@ export default function OrderHandoverCard({
           </Text>
         </View>
       </View>
-      {recipient ? <OrderDetailRow label="Recipient" value={recipient} /> : null}
+      {recipient ? (
+        <OrderDetailRow label="Recipient" value={recipient} />
+      ) : null}
       {handover.courier ? (
         <OrderDetailRow label="Courier" value={handover.courier} />
       ) : null}
       {isDelivery && handover.address ? (
         <Text style={styles.detail}>{handover.address}</Text>
       ) : null}
-      {handover.note ? <Text style={styles.detail}>{handover.note}</Text> : null}
+      {handover.note ? (
+        <Text style={styles.detail}>{handover.note}</Text>
+      ) : null}
     </View>
   );
 }
@@ -75,7 +79,7 @@ const makeStyles = (palette: Palette) =>
       color: palette.ink,
     },
     chip: {
-      backgroundColor: "rgba(128,0,32,0.08)",
+      backgroundColor: palette.wineTint,
       borderRadius: radius.pill,
       paddingHorizontal: spacing(1.25),
       paddingVertical: 2,

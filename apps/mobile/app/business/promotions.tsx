@@ -48,7 +48,8 @@ function fullBodyFrom(
   };
 }
 
-export default function BusinessPromotionsScreen() { // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+// eslint-disable-next-line max-lines-per-function -- complete promotions workspace
+export default function BusinessPromotionsScreen() {
   const { palette } = useTheme();
   const styles = useMemo(() => makeStyles(palette), [palette]);
   const router = useRouter();
@@ -239,37 +240,38 @@ export default function BusinessPromotionsScreen() { // eslint-disable-line max-
   );
 }
 
-const makeStyles = (palette: Palette) => StyleSheet.create({
-  screen: { flex: 1, backgroundColor: palette.cream },
-  content: { padding: spacing(3), paddingBottom: spacing(6) },
-  sectionHead: {
-    marginTop: spacing(3.5),
-    marginBottom: spacing(1.5),
-  },
-  sectionLabel: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 1.5,
-    textTransform: "uppercase",
-    color: palette.mutedText,
-  },
-  list: { gap: spacing(1.5) },
-  empty: {
-    backgroundColor: palette.panel,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: palette.softBorder,
-    padding: spacing(3),
-    alignItems: "center",
-  },
-  emptyTitle: { fontFamily: fonts.display, fontSize: 18, color: palette.ink },
-  emptyHint: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    color: palette.mutedText,
-    textAlign: "center",
-    marginTop: spacing(0.75),
-    lineHeight: 20,
-  },
-});
+const makeStyles = (palette: Palette) =>
+  StyleSheet.create({
+    screen: { flex: 1, backgroundColor: palette.cream },
+    content: { padding: spacing(3), paddingBottom: spacing(6) },
+    sectionHead: {
+      marginTop: spacing(3.5),
+      marginBottom: spacing(1.5),
+    },
+    sectionLabel: {
+      fontFamily: fonts.body,
+      fontSize: 12,
+      fontWeight: "800",
+      letterSpacing: 1.5,
+      textTransform: "uppercase",
+      color: palette.mutedText,
+    },
+    list: { gap: spacing(1.5) },
+    empty: {
+      backgroundColor: palette.panel,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: palette.softBorder,
+      padding: spacing(3),
+      alignItems: "center",
+    },
+    emptyTitle: { fontFamily: fonts.display, fontSize: 18, color: palette.ink },
+    emptyHint: {
+      fontFamily: fonts.body,
+      fontSize: 14,
+      color: palette.mutedText,
+      textAlign: "center",
+      marginTop: spacing(0.75),
+      lineHeight: 20,
+    },
+  });

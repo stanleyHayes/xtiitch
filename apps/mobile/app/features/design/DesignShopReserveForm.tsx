@@ -158,7 +158,7 @@ const makeStyles = (palette: Palette) =>
       alignItems: "center",
       marginTop: spacing(2.5),
     },
-    ctaDisabled: { backgroundColor: "rgba(128,0,32,0.4)" },
+    ctaDisabled: { backgroundColor: palette.mauve },
     ctaText: {
       color: palette.onAccent,
       fontFamily: fonts.body,

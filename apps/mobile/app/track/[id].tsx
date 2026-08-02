@@ -23,7 +23,9 @@ function progressPercent(tracking: Tracking): number {
   const hasCurrent = tracking.stages.some((stage) => stage.is_current);
   return Math.min(
     100,
-    Math.round(((completed + (hasCurrent ? 0.5 : 0)) / tracking.stages.length) * 100),
+    Math.round(
+      ((completed + (hasCurrent ? 0.5 : 0)) / tracking.stages.length) * 100,
+    ),
   );
 }
 
@@ -117,79 +119,90 @@ export default function TrackScreen() {
   );
 }
 
-const makeStyles = (palette: Palette) => StyleSheet.create({
-  screen: { flex: 1, backgroundColor: palette.cream },
-  content: { padding: spacing(3), paddingBottom: spacing(6) },
-  headerCard: {
-    backgroundColor: palette.white,
-    borderRadius: radius.lg,
-    padding: spacing(3),
-    ...shadow.card,
-  },
-  store: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 1,
-    textTransform: "uppercase",
-    color: palette.gold,
-  },
-  design: {
-    fontFamily: fonts.display,
-    fontSize: 24,
-    color: palette.ink,
-    fontWeight: "700",
-    marginTop: spacing(0.5),
-  },
-  statusPill: {
-    alignSelf: "flex-start",
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing(2),
-    paddingVertical: spacing(0.75),
-    marginTop: spacing(1.5),
-  },
-  statusPillText: { color: palette.onAccent, fontFamily: fonts.body, fontWeight: "800", fontSize: 13 },
-  orderId: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    color: palette.mutedText,
-    marginTop: spacing(1.5),
-  },
-  sectionLabel: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 1.5,
-    textTransform: "uppercase",
-    color: palette.mutedText,
-    marginTop: spacing(3),
-    marginBottom: spacing(1.5),
-  },
-  progressHeader: { marginBottom: spacing(1) },
-  progressText: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    fontWeight: "700",
-    color: palette.ink,
-  },
-  progressTrack: {
-    height: 8,
-    borderRadius: radius.pill,
-    backgroundColor: palette.softBorder,
-    overflow: "hidden",
-    marginBottom: spacing(2),
-  },
-  progressBar: {
-    height: "100%",
-    borderRadius: radius.pill,
-  },
-  refresh: {
-    borderWidth: 1.5,
-    borderColor: palette.burgundy,
-    borderRadius: radius.pill,
-    paddingVertical: spacing(1.75),
-    alignItems: "center",
-    marginTop: spacing(3),
-  },
-  refreshText: { color: palette.burgundy, fontFamily: fonts.body, fontSize: 15, fontWeight: "800" },
-});
+const makeStyles = (palette: Palette) =>
+  StyleSheet.create({
+    screen: { flex: 1, backgroundColor: palette.cream },
+    content: { padding: spacing(3), paddingBottom: spacing(6) },
+    headerCard: {
+      backgroundColor: palette.white,
+      borderRadius: radius.lg,
+      padding: spacing(3),
+      ...shadow.card,
+    },
+    store: {
+      fontFamily: fonts.body,
+      fontSize: 12,
+      fontWeight: "800",
+      letterSpacing: 1,
+      textTransform: "uppercase",
+      color: palette.gold,
+    },
+    design: {
+      fontFamily: fonts.display,
+      fontSize: 24,
+      color: palette.ink,
+      fontWeight: "700",
+      marginTop: spacing(0.5),
+    },
+    statusPill: {
+      alignSelf: "flex-start",
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing(2),
+      paddingVertical: spacing(0.75),
+      marginTop: spacing(1.5),
+    },
+    statusPillText: {
+      color: palette.onAccent,
+      fontFamily: fonts.body,
+      fontWeight: "800",
+      fontSize: 13,
+    },
+    orderId: {
+      fontFamily: fonts.body,
+      fontSize: 12,
+      color: palette.mutedText,
+      marginTop: spacing(1.5),
+    },
+    sectionLabel: {
+      fontFamily: fonts.body,
+      fontSize: 12,
+      fontWeight: "800",
+      letterSpacing: 1.5,
+      textTransform: "uppercase",
+      color: palette.mutedText,
+      marginTop: spacing(3),
+      marginBottom: spacing(1.5),
+    },
+    progressHeader: { marginBottom: spacing(1) },
+    progressText: {
+      fontFamily: fonts.body,
+      fontSize: 14,
+      fontWeight: "700",
+      color: palette.ink,
+    },
+    progressTrack: {
+      height: 8,
+      borderRadius: radius.pill,
+      backgroundColor: palette.softBorder,
+      overflow: "hidden",
+      marginBottom: spacing(2),
+    },
+    progressBar: {
+      height: "100%",
+      borderRadius: radius.pill,
+    },
+    refresh: {
+      borderWidth: 1.5,
+      borderColor: palette.burgundy,
+      borderRadius: radius.pill,
+      paddingVertical: spacing(1.75),
+      alignItems: "center",
+      marginTop: spacing(3),
+    },
+    refreshText: {
+      color: palette.burgundy,
+      fontFamily: fonts.body,
+      fontSize: 15,
+      fontWeight: "800",
+    },
+  });

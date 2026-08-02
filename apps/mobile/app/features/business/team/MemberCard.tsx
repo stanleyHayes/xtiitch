@@ -85,48 +85,49 @@ export function MemberCard({
   );
 }
 
-const makeStyles = (palette: Palette) => StyleSheet.create({
-  card: {
-    backgroundColor: palette.white,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: palette.softBorder,
-    padding: spacing(2),
-  },
-  topRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: spacing(1.5),
-  },
-  identity: { flex: 1, gap: spacing(0.25) },
-  name: {
-    fontFamily: fonts.body,
-    fontSize: 15,
-    fontWeight: "800",
-    color: palette.ink,
-  },
-  contact: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    color: palette.mutedText,
-  },
-  badges: { alignItems: "flex-end", gap: spacing(0.75) },
-  pill: {
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing(1.25),
-    paddingVertical: spacing(0.5),
-  },
-  inactivePill: { backgroundColor: "rgba(192,57,43,0.12)" },
-  pillText: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    fontWeight: "800",
-    textTransform: "capitalize",
-  },
-  toggleText: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    fontWeight: "800",
-    marginTop: spacing(1.5),
-  },
-});
+const makeStyles = (palette: Palette) =>
+  StyleSheet.create({
+    card: {
+      backgroundColor: palette.white,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: palette.softBorder,
+      padding: spacing(2),
+    },
+    topRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      gap: spacing(1.5),
+    },
+    identity: { flex: 1, gap: spacing(0.25) },
+    name: {
+      fontFamily: fonts.body,
+      fontSize: 15,
+      fontWeight: "800",
+      color: palette.ink,
+    },
+    contact: {
+      fontFamily: fonts.body,
+      fontSize: 13,
+      color: palette.mutedText,
+    },
+    badges: { alignItems: "flex-end", gap: spacing(0.75) },
+    pill: {
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing(1.25),
+      paddingVertical: spacing(0.5),
+    },
+    inactivePill: { backgroundColor: "rgba(192,57,43,0.12)" },
+    pillText: {
+      fontFamily: fonts.body,
+      fontSize: 12,
+      fontWeight: "800",
+      textTransform: "capitalize",
+    },
+    toggleText: {
+      fontFamily: fonts.body,
+      fontSize: 14,
+      fontWeight: "800",
+      marginTop: spacing(1.5),
+    },
+  });

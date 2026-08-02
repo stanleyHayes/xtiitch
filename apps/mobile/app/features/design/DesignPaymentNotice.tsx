@@ -14,8 +14,8 @@ export default function DesignPaymentNotice() {
     <View style={styles.notice}>
       <Text style={styles.text}>
         Payments show as <Text style={styles.strong}>XCreativs</Text>, not
-        Xtiitch. Xtiitch is a product of XCreativs Technologies, which
-        handles all payments and legals for Xtiitch — so{" "}
+        Xtiitch. Xtiitch is a product of XCreativs Technologies, which handles
+        all payments and legals for Xtiitch — so{" "}
         <Text style={styles.strong}>XCreativs</Text> is the name you&apos;ll see
         while paying and on your statement.
       </Text>

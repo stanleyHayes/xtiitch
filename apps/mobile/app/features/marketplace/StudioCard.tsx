@@ -3,7 +3,13 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { formatGHS } from "../../../src/api";
 import type { Shop, ShopDesign } from "../../../src/marketplaceApi";
-import { fonts, radius, shadow, spacing, type Palette } from "../../../src/theme";
+import {
+  fonts,
+  radius,
+  shadow,
+  spacing,
+  type Palette,
+} from "../../../src/theme";
 import { useTheme } from "../../../src/theme-mode";
 import { ImageTile } from "../../../src/ui";
 
@@ -70,7 +76,9 @@ export default function StudioCard({
               <Text style={styles.designTitle} numberOfLines={1}>
                 {design.title}
               </Text>
-              <Text style={styles.designPrice}>{formatGHS(design.price_minor)}</Text>
+              <Text style={styles.designPrice}>
+                {formatGHS(design.price_minor)}
+              </Text>
             </Pressable>
           ))}
         </View>

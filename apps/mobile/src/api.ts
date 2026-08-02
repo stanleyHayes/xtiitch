@@ -4,11 +4,9 @@
 // unit-tested helper in surfaces.mjs; point it at the API with
 // EXPO_PUBLIC_XTIITCH_API_URL (must include the `/v1` prefix), e.g.
 // `http://localhost:8085/v1`.
-import { resolveApiBaseUrl } from "./surfaces.mjs";
-// Function-level-only use below (never at module top level) — customerAuth
-// imports apiBaseUrl from this module, so this import must stay lazy to keep
-// the cycle safe (same pattern as customerAuth ↔ customerOrders).
+import { apiBaseUrl } from "./api-base";
 import { loadSession } from "./customerAuth";
+export { apiBaseUrl } from "./api-base";
 
 export type StoreSettings = {
   bespoke_enabled: boolean;
@@ -169,16 +167,6 @@ export type ApiResult<T> =
   | { ok: true; data: T }
   | { ok: false; status: number; error: string };
 
-export function apiBaseUrl(): string {
-  // Direct `process.env.EXPO_PUBLIC_*` access so babel-preset-expo inlines the
-  // value at build time on native; the shared helper applies normalisation and
-  // the localhost fallback.
-  return resolveApiBaseUrl({
-    EXPO_PUBLIC_XTIITCH_API_URL: process.env.EXPO_PUBLIC_XTIITCH_API_URL,
-    XTIITCH_API_URL: process.env.XTIITCH_API_URL,
-  });
-}
-
 const enc = encodeURIComponent;
 
 async function getJSON<T>(path: string): Promise<ApiResult<T>> {
@@ -203,7 +191,10 @@ async function getJSON<T>(path: string): Promise<ApiResult<T>> {
   }
 }
 
-async function postJSON<T>(path: string, input: unknown): Promise<ApiResult<T>> {
+async function postJSON<T>(
+  path: string,
+  input: unknown,
+): Promise<ApiResult<T>> {
   try {
     // Attach the customer Bearer token when a session exists, so orders placed
     // while signed in are bound to the customer (and show in "Your orders").
@@ -226,9 +217,9 @@ async function postJSON<T>(path: string, input: unknown): Promise<ApiResult<T>> 
       body: JSON.stringify(input),
     });
     if (!response.ok) {
-      const payload = (await response
-        .json()
-        .catch(() => null)) as { error?: string } | null;
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string;
+      } | null;
       return {
         ok: false,
         status: response.status,
@@ -246,11 +237,10 @@ async function postJSON<T>(path: string, input: unknown): Promise<ApiResult<T>> 
 }
 
 export const api = {
-  store: (handle: string) => getJSON<StorePage>(`/public/stores/${enc(handle)}`),
+  store: (handle: string) =>
+    getJSON<StorePage>(`/public/stores/${enc(handle)}`),
   search: (handle: string, query: string) =>
-    getJSON<StorePage>(
-      `/public/stores/${enc(handle)}/search?q=${enc(query)}`,
-    ),
+    getJSON<StorePage>(`/public/stores/${enc(handle)}/search?q=${enc(query)}`),
   design: (handle: string) => getJSON<Design>(`/public/designs/${enc(handle)}`),
   sponsored: () => getJSON<SponsoredResponse>(`/public/sponsored`),
   tracking: (orderId: string) =>

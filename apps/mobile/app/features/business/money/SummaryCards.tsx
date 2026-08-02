@@ -22,10 +22,7 @@ export function SummaryCards({ summary }: { summary: MoneySummary }) {
           label="Through platform"
           value={formatGHS(summary.through_platform_minor)}
         />
-        <Kpi
-          label="Commission"
-          value={formatGHS(summary.commission_minor)}
-        />
+        <Kpi label="Commission" value={formatGHS(summary.commission_minor)} />
         <Kpi
           label="Manual takings"
           value={formatGHS(summary.manual_takings_minor)}

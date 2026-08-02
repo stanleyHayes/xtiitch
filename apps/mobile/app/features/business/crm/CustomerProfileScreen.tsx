@@ -26,7 +26,8 @@ import { useTheme } from "../../../../src/theme-mode";
 import CrmOrderRow from "./CrmOrderRow";
 import MeasurementCard from "./MeasurementCard";
 
-export default function CustomerProfileScreen() { // eslint-disable-line max-lines-per-function, complexity -- large presentational component; refactor in follow-up
+// eslint-disable-next-line max-lines-per-function, complexity -- complete CRM profile workspace
+export default function CustomerProfileScreen() {
   const { palette } = useTheme();
   const styles = useMemo(() => makeStyles(palette), [palette]);
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -131,11 +132,15 @@ export default function CustomerProfileScreen() { // eslint-disable-line max-lin
 
       <View style={styles.card}>
         <Text style={styles.name}>{profile.name}</Text>
-        {profile.phone ? <Text style={styles.contact}>{profile.phone}</Text> : null}
+        {profile.phone ? (
+          <Text style={styles.contact}>{profile.phone}</Text>
+        ) : null}
         {profile.whatsapp ? (
           <Text style={styles.contact}>WhatsApp {profile.whatsapp}</Text>
         ) : null}
-        {profile.email ? <Text style={styles.contact}>{profile.email}</Text> : null}
+        {profile.email ? (
+          <Text style={styles.contact}>{profile.email}</Text>
+        ) : null}
         {profile.source ? (
           <Text style={styles.source}>Source: {profile.source}</Text>
         ) : null}
@@ -171,7 +176,9 @@ export default function CustomerProfileScreen() { // eslint-disable-line max-lin
       </View>
       {profile.orders.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyHint}>No orders from this customer yet.</Text>
+          <Text style={styles.emptyHint}>
+            No orders from this customer yet.
+          </Text>
         </View>
       ) : (
         <View style={styles.list}>

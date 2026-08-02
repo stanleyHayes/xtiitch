@@ -21,7 +21,8 @@ import { useTheme } from "../../src/theme-mode";
 import ArrangeHandoverCard from "../features/business/handovers/ArrangeHandoverCard";
 import HandoverRow from "../features/business/handovers/HandoverRow";
 
-export default function HandoversScreen() { // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+// eslint-disable-next-line max-lines-per-function -- complete handover workspace
+export default function HandoversScreen() {
   const { palette } = useTheme();
   const styles = useMemo(() => makeStyles(palette), [palette]);
   const router = useRouter();

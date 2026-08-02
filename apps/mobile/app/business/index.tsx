@@ -1,13 +1,13 @@
-import { useCallback, useState, useMemo } from "react";
+import { useCallback, useState, useMemo, type ComponentProps } from "react";
 import {
   Pressable,
   RefreshControl,
   ScrollView,
-  StyleSheet,
   Text,
   View,
 } from "react-native";
 import { Stack, useFocusEffect, useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 
 import { formatGHS } from "../../src/api";
 import { loadSession, logout, type BusinessSession } from "../../src/auth";
@@ -18,10 +18,11 @@ import {
   type BusinessProfile,
 } from "../../src/businessApi";
 import { CenterState, OrderRow } from "../../src/ui";
-import { fonts, radius, spacing, type Palette } from "../../src/theme";
 import { useTheme } from "../../src/theme-mode";
+import { makeStyles } from "./business-dashboard.styles";
+import { Kpi } from "./business-dashboard-kpi";
 
-export default function BusinessDashboardScreen() { // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+export default function BusinessDashboardScreen() {
   const { palette } = useTheme();
   const styles = useMemo(() => makeStyles(palette), [palette]);
   const router = useRouter();
@@ -113,6 +114,8 @@ export default function BusinessDashboardScreen() { // eslint-disable-line max-l
     0,
   );
   const recent = list.slice(0, 4);
+  const canManage = profile?.role === "owner" || profile?.role === "admin";
+  const menuItems = MENU_ITEMS.filter((item) => canManage || item.staffVisible);
 
   return (
     <ScrollView
@@ -137,22 +140,22 @@ export default function BusinessDashboardScreen() { // eslint-disable-line max-l
         }}
       />
 
-      <View style={styles.greeting}>
-        <Text style={styles.hello}>{session?.business_handle}</Text>
-        <Text style={styles.role}>
-          Signed in{profile?.role ? ` · ${profile.role}` : ""}
-        </Text>
-      </View>
+      <StudioGreeting
+        handle={session?.business_handle ?? "Studio"}
+        role={profile?.role}
+      />
 
       <View style={styles.kpiRow}>
         <Kpi label="Total orders" value={String(list.length)} />
         <Kpi label="Open" value={String(openCount)} tone={palette.warning} />
-        <Kpi
-          label="Settled"
-          value={formatGHS(settledMinor)}
-          tone={palette.success}
-          wide
-        />
+        {canManage ? (
+          <Kpi
+            label="Settled"
+            value={formatGHS(settledMinor)}
+            tone={palette.success}
+            wide
+          />
+        ) : null}
       </View>
 
       <Pressable
@@ -167,11 +170,156 @@ export default function BusinessDashboardScreen() { // eslint-disable-line max-l
 
       <RecentOrders orders={recent} />
 
+      <ManageGrid items={menuItems} />
+    </ScrollView>
+  );
+}
+
+// Business-lane sections beyond orders — one tile per route under
+// app/business/. Keep titles short; the hint says what lives inside.
+type IconName = ComponentProps<typeof Ionicons>["name"];
+const MENU_ITEMS: {
+  href: string;
+  title: string;
+  hint: string;
+  icon: IconName;
+  staffVisible?: boolean;
+}[] = [
+  {
+    href: "/business/catalogue",
+    title: "Catalogue",
+    hint: "Designs & collections",
+    icon: "shirt-outline",
+  },
+  {
+    href: "/business/store-settings",
+    title: "Store settings",
+    hint: "Services, layout & fees",
+    icon: "options-outline",
+  },
+  {
+    href: "/business/measurements",
+    title: "Measurements",
+    hint: "Bespoke fit template",
+    icon: "resize-outline",
+  },
+  {
+    href: "/business/money",
+    title: "Money",
+    hint: "Income, transactions & takings",
+    icon: "wallet-outline",
+  },
+  {
+    href: "/business/reports",
+    title: "Reports",
+    hint: "Sales & studio pulse",
+    icon: "stats-chart-outline",
+  },
+  {
+    href: "/business/bookings",
+    title: "Bookings",
+    hint: "Appointments & availability",
+    icon: "calendar-outline",
+    staffVisible: true,
+  },
+  {
+    href: "/business/handovers",
+    title: "Handovers",
+    hint: "Pickups & deliveries",
+    icon: "cube-outline",
+    staffVisible: true,
+  },
+  {
+    href: "/business/customers",
+    title: "Customers",
+    hint: "CRM list & profiles",
+    icon: "people-outline",
+    staffVisible: true,
+  },
+  {
+    href: "/business/promotions",
+    title: "Promotions",
+    hint: "Discount codes",
+    icon: "pricetag-outline",
+  },
+  {
+    href: "/business/affiliates",
+    title: "Affiliates",
+    hint: "Creator partnerships",
+    icon: "megaphone-outline",
+  },
+  {
+    href: "/business/waitlist",
+    title: "Waitlist",
+    hint: "Design demand",
+    icon: "hourglass-outline",
+    staffVisible: true,
+  },
+  {
+    href: "/business/team",
+    title: "Team",
+    hint: "Members & roles",
+    icon: "person-add-outline",
+  },
+  {
+    href: "/business/account",
+    title: "Account & security",
+    hint: "Profile, password & MFA",
+    icon: "shield-checkmark-outline",
+    staffVisible: true,
+  },
+  {
+    href: "/business/billing",
+    title: "Plan & billing",
+    hint: "Package and renewal",
+    icon: "card-outline",
+  },
+  {
+    href: "/business/notifications",
+    title: "Notifications",
+    hint: "Message log",
+    icon: "notifications-outline",
+    staffVisible: true,
+  },
+  {
+    href: "/business/help",
+    title: "Help centre",
+    hint: "Guides and support",
+    icon: "help-buoy-outline",
+    staffVisible: true,
+  },
+];
+
+function StudioGreeting({ handle, role }: { handle: string; role?: string }) {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
+  return (
+    <View style={styles.greeting}>
+      <View style={styles.greetingMark}>
+        <Ionicons name="cut-outline" size={30} color={palette.gold} />
+      </View>
+      <View style={styles.greetingCopy}>
+        <Text style={styles.eyebrow}>STUDIO DESK</Text>
+        <Text style={styles.hello}>{handle}</Text>
+        <Text style={styles.role}>
+          {role ? `${role} workspace` : "Signed in"}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function ManageGrid({ items }: { items: typeof MENU_ITEMS }) {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
+  const router = useRouter();
+  return (
+    <>
       <View style={styles.sectionHead}>
         <Text style={styles.sectionLabel}>Manage</Text>
       </View>
       <View style={styles.menuGrid}>
-        {MENU_ITEMS.map((item) => (
+        {items.map((item) => (
           <Pressable
             key={item.href}
             style={({ pressed }) => [
@@ -180,27 +328,23 @@ export default function BusinessDashboardScreen() { // eslint-disable-line max-l
             ]}
             onPress={() => router.push(item.href)}
           >
+            <View style={styles.menuIcon}>
+              <Ionicons name={item.icon} size={20} color={palette.burgundy} />
+            </View>
             <Text style={styles.menuTitle}>{item.title}</Text>
             <Text style={styles.menuHint}>{item.hint}</Text>
+            <Ionicons
+              name="arrow-forward"
+              size={16}
+              color={palette.mauve}
+              style={styles.menuArrow}
+            />
           </Pressable>
         ))}
       </View>
-    </ScrollView>
+    </>
   );
 }
-
-// Business-lane sections beyond orders — one tile per route under
-// app/business/. Keep titles short; the hint says what lives inside.
-const MENU_ITEMS: { href: string; title: string; hint: string }[] = [
-  { href: "/business/money", title: "Money", hint: "Income, transactions & takings" },
-  { href: "/business/bookings", title: "Bookings", hint: "Appointments & availability" },
-  { href: "/business/handovers", title: "Handovers", hint: "Pickups & deliveries" },
-  { href: "/business/customers", title: "Customers", hint: "CRM list & profiles" },
-  { href: "/business/promotions", title: "Promotions", hint: "Discount codes" },
-  { href: "/business/waitlist", title: "Waitlist", hint: "Design demand" },
-  { href: "/business/team", title: "Team", hint: "Members & roles" },
-  { href: "/business/notifications", title: "Notifications", hint: "Message log" },
-];
 
 function RecentOrders({ orders }: { orders: BusinessOrder[] }) {
   const { palette } = useTheme();
@@ -236,151 +380,3 @@ function RecentOrders({ orders }: { orders: BusinessOrder[] }) {
     </>
   );
 }
-
-function Kpi({
-  label,
-  value,
-  tone,
-  wide,
-}: {
-  label: string;
-  value: string;
-  tone?: string;
-  wide?: boolean;
-}) {
-  const { palette } = useTheme();
-  const styles = useMemo(() => makeStyles(palette), [palette]);
-  return (
-    <View style={[styles.kpi, wide && styles.kpiWide]}>
-      <Text style={[styles.kpiValue, tone ? { color: tone } : null]}>
-        {value}
-      </Text>
-      <Text style={styles.kpiLabel}>{label}</Text>
-    </View>
-  );
-}
-
-const makeStyles = (palette: Palette) => StyleSheet.create({
-  screen: { flex: 1, backgroundColor: palette.cream },
-  content: { padding: spacing(3), paddingBottom: spacing(6) },
-  signOut: {
-    color: palette.onAccent,
-    fontFamily: fonts.body,
-    fontWeight: "700",
-    fontSize: 14,
-  },
-  greeting: { marginBottom: spacing(2.5) },
-  hello: {
-    fontFamily: fonts.display,
-    fontSize: 28,
-    color: palette.ink,
-    fontWeight: "700",
-  },
-  role: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    color: palette.mutedText,
-    textTransform: "capitalize",
-    marginTop: spacing(0.25),
-  },
-  kpiRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing(1.5) },
-  kpi: {
-    flexGrow: 1,
-    flexBasis: "30%",
-    backgroundColor: palette.white,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: palette.softBorder,
-    padding: spacing(2),
-  },
-  kpiWide: { flexBasis: "100%" },
-  newOrderCta: {
-    backgroundColor: palette.burgundy,
-    borderRadius: radius.pill,
-    paddingVertical: spacing(1.75),
-    alignItems: "center",
-    marginTop: spacing(2),
-  },
-  newOrderCtaText: {
-    color: palette.onAccent,
-    fontFamily: fonts.body,
-    fontSize: 15,
-    fontWeight: "800",
-  },
-  kpiValue: {
-    fontFamily: fonts.display,
-    fontSize: 26,
-    fontWeight: "700",
-    color: palette.ink,
-  },
-  kpiLabel: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 0.6,
-    textTransform: "uppercase",
-    color: palette.mutedText,
-    marginTop: spacing(0.5),
-  },
-  sectionHead: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: spacing(3.5),
-    marginBottom: spacing(1.5),
-  },
-  sectionLabel: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 1.5,
-    textTransform: "uppercase",
-    color: palette.mutedText,
-  },
-  viewAll: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    fontWeight: "700",
-    color: palette.burgundy,
-  },
-  orderList: { gap: spacing(1.5) },
-  menuGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing(1.5) },
-  menuItem: {
-    flexGrow: 1,
-    flexBasis: "44%",
-    backgroundColor: palette.white,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: palette.softBorder,
-    padding: spacing(2),
-  },
-  menuTitle: {
-    fontFamily: fonts.body,
-    fontSize: 15,
-    fontWeight: "800",
-    color: palette.ink,
-  },
-  menuHint: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    color: palette.mutedText,
-    marginTop: spacing(0.5),
-  },
-  empty: {
-    backgroundColor: palette.panel,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: palette.softBorder,
-    padding: spacing(3),
-    alignItems: "center",
-  },
-  emptyTitle: { fontFamily: fonts.display, fontSize: 18, color: palette.ink },
-  emptyHint: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    color: palette.mutedText,
-    textAlign: "center",
-    marginTop: spacing(0.75),
-    lineHeight: 20,
-  },
-});

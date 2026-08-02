@@ -56,7 +56,8 @@ export default function MarketplaceScreen() {
     [state],
   );
   const studios = useMemo(
-    () => visibleStudios(state.phase === "ready" ? state.shops : [], search, sort),
+    () =>
+      visibleStudios(state.phase === "ready" ? state.shops : [], search, sort),
     [state, search, sort],
   );
   const designList = useMemo(

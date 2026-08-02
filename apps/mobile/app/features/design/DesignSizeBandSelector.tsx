@@ -76,7 +76,7 @@ const makeStyles = (palette: Palette) =>
     },
     bandActive: {
       borderColor: palette.burgundy,
-      backgroundColor: "rgba(128,0,32,0.06)",
+      backgroundColor: palette.wineTint,
     },
     bandLabel: {
       fontFamily: fonts.body,

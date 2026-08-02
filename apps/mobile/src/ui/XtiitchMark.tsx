@@ -16,12 +16,40 @@ export function XtiitchMark({
   return (
     <View style={{ alignItems: "center" }} accessibilityElementsHidden>
       <View style={{ flexDirection: "row", gap }}>
-        <View style={{ width: dot, height: dot, borderRadius: dot / 2, backgroundColor: color }} />
-        <View style={{ width: dot, height: dot, borderRadius: dot / 2, backgroundColor: color }} />
+        <View
+          style={{
+            width: dot,
+            height: dot,
+            borderRadius: dot / 2,
+            backgroundColor: color,
+          }}
+        />
+        <View
+          style={{
+            width: dot,
+            height: dot,
+            borderRadius: dot / 2,
+            backgroundColor: color,
+          }}
+        />
       </View>
       <View style={{ flexDirection: "row", gap, marginTop: size * 0.07 }}>
-        <View style={{ width: barW, height: barH, borderRadius: barW / 2, backgroundColor: color }} />
-        <View style={{ width: barW, height: barH, borderRadius: barW / 2, backgroundColor: color }} />
+        <View
+          style={{
+            width: barW,
+            height: barH,
+            borderRadius: barW / 2,
+            backgroundColor: color,
+          }}
+        />
+        <View
+          style={{
+            width: barW,
+            height: barH,
+            borderRadius: barW / 2,
+            backgroundColor: color,
+          }}
+        />
       </View>
     </View>
   );

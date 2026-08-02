@@ -1,11 +1,5 @@
 import { useCallback, useState, useMemo } from "react";
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 
 import { loadSession } from "../../src/auth";
@@ -26,7 +20,8 @@ import {
   type NewOrderType,
 } from "../features/business/new-order/OrderTypeToggle";
 
-export default function NewOrderScreen() { // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+// eslint-disable-next-line max-lines-per-function -- complete walk-in order workspace
+export default function NewOrderScreen() {
   const { palette } = useTheme();
   const styles = useMemo(() => makeStyles(palette), [palette]);
   const router = useRouter();
@@ -237,7 +232,11 @@ export default function NewOrderScreen() { // eslint-disable-line max-lines-per-
       <OrderTypeToggle value={orderType} onChange={selectOrderType} />
 
       <Text style={styles.sectionLabel}>Design</Text>
-      <DesignPicker designs={designs} designId={designId} onSelect={setDesignId} />
+      <DesignPicker
+        designs={designs}
+        designId={designId}
+        onSelect={setDesignId}
+      />
 
       {orderType === "ready" && bands.length > 0 ? (
         <>
@@ -339,58 +338,59 @@ export default function NewOrderScreen() { // eslint-disable-line max-lines-per-
   );
 }
 
-const makeStyles = (palette: Palette) => StyleSheet.create({
-  screen: { flex: 1, backgroundColor: palette.cream },
-  content: { padding: spacing(3), paddingBottom: spacing(6) },
-  sectionLabel: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 1.5,
-    textTransform: "uppercase",
-    color: palette.mutedText,
-    marginTop: spacing(2.5),
-    marginBottom: spacing(1.5),
-  },
-  bandRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing(1) },
-  band: {
-    borderWidth: 1.5,
-    borderColor: palette.softBorder,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing(2),
-    paddingVertical: spacing(1),
-    backgroundColor: palette.white,
-  },
-  bandActive: {
-    borderColor: palette.burgundy,
-    backgroundColor: "rgba(128,0,32,0.06)",
-  },
-  bandText: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    fontWeight: "700",
-    color: palette.ink,
-  },
-  bandTextActive: { color: palette.burgundy },
-  form: { gap: spacing(1.75) },
-  error: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    color: palette.danger,
-    marginTop: spacing(2),
-  },
-  cta: {
-    backgroundColor: palette.burgundy,
-    borderRadius: radius.pill,
-    paddingVertical: spacing(2),
-    alignItems: "center",
-    marginTop: spacing(3),
-  },
-  ctaDisabled: { backgroundColor: "rgba(128,0,32,0.4)" },
-  ctaText: {
-    color: palette.onAccent,
-    fontFamily: fonts.body,
-    fontSize: 16,
-    fontWeight: "800",
-  },
-});
+const makeStyles = (palette: Palette) =>
+  StyleSheet.create({
+    screen: { flex: 1, backgroundColor: palette.cream },
+    content: { padding: spacing(3), paddingBottom: spacing(6) },
+    sectionLabel: {
+      fontFamily: fonts.body,
+      fontSize: 12,
+      fontWeight: "800",
+      letterSpacing: 1.5,
+      textTransform: "uppercase",
+      color: palette.mutedText,
+      marginTop: spacing(2.5),
+      marginBottom: spacing(1.5),
+    },
+    bandRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing(1) },
+    band: {
+      borderWidth: 1.5,
+      borderColor: palette.softBorder,
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing(2),
+      paddingVertical: spacing(1),
+      backgroundColor: palette.white,
+    },
+    bandActive: {
+      borderColor: palette.burgundy,
+      backgroundColor: palette.wineTint,
+    },
+    bandText: {
+      fontFamily: fonts.body,
+      fontSize: 14,
+      fontWeight: "700",
+      color: palette.ink,
+    },
+    bandTextActive: { color: palette.burgundy },
+    form: { gap: spacing(1.75) },
+    error: {
+      fontFamily: fonts.body,
+      fontSize: 14,
+      color: palette.danger,
+      marginTop: spacing(2),
+    },
+    cta: {
+      backgroundColor: palette.burgundy,
+      borderRadius: radius.pill,
+      paddingVertical: spacing(2),
+      alignItems: "center",
+      marginTop: spacing(3),
+    },
+    ctaDisabled: { backgroundColor: palette.mauve },
+    ctaText: {
+      color: palette.onAccent,
+      fontFamily: fonts.body,
+      fontSize: 16,
+      fontWeight: "800",
+    },
+  });

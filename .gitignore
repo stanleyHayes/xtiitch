@@ -13,6 +13,10 @@ prod.credentials.txt
 
 # Build output
 dist/
+# Expo web exports land in named siblings of dist/ — dist-redesign-final and
+# friends — which `dist/` does not match. Three of them, 18 MB in total, were
+# sitting untracked and would have gone into history on the next wide `git add`.
+dist-*/
 build/
 .react-router/
 .turbo/

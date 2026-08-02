@@ -7,7 +7,12 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { Stack, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import {
+  Stack,
+  useLocalSearchParams,
+  useNavigation,
+  useRouter,
+} from "expo-router";
 
 import { api, type StorePage } from "../../src/api";
 import { CenterState } from "../../src/ui";
@@ -139,13 +144,13 @@ export default function StoreScreen() {
             pressed && { backgroundColor: palette.burgundyDeep },
           ]}
         >
-          <Text style={styles.searchButtonText}>
-            {searching ? "…" : "Go"}
-          </Text>
+          <Text style={styles.searchButtonText}>{searching ? "…" : "Go"}</Text>
         </Pressable>
       </View>
 
-      {searchError ? <Text style={styles.searchError}>{searchError}</Text> : null}
+      {searchError ? (
+        <Text style={styles.searchError}>{searchError}</Text>
+      ) : null}
 
       {showCollections ? (
         <StoreCollectionsStrip
@@ -174,43 +179,44 @@ export default function StoreScreen() {
   );
 }
 
-const makeStyles = (palette: Palette) => StyleSheet.create({
-  screen: { flex: 1, backgroundColor: palette.cream },
-  content: { padding: spacing(3), paddingBottom: spacing(5) },
-  searchRow: {
-    flexDirection: "row",
-    gap: spacing(1.25),
-    marginBottom: spacing(2.5),
-  },
-  search: {
-    flex: 1,
-    backgroundColor: palette.white,
-    borderWidth: 1,
-    borderColor: palette.softBorder,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing(2),
-    paddingVertical: spacing(1.5),
-    fontFamily: fonts.body,
-    fontSize: 15,
-    color: palette.ink,
-  },
-  searchButton: {
-    backgroundColor: palette.burgundy,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing(2.5),
-    justifyContent: "center",
-  },
-  searchButtonText: {
-    color: palette.onAccent,
-    fontFamily: fonts.body,
-    fontWeight: "800",
-    fontSize: 15,
-  },
-  searchError: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    color: palette.danger,
-    marginTop: -spacing(1.25),
-    marginBottom: spacing(2),
-  },
-});
+const makeStyles = (palette: Palette) =>
+  StyleSheet.create({
+    screen: { flex: 1, backgroundColor: palette.cream },
+    content: { padding: spacing(3), paddingBottom: spacing(5) },
+    searchRow: {
+      flexDirection: "row",
+      gap: spacing(1.25),
+      marginBottom: spacing(2.5),
+    },
+    search: {
+      flex: 1,
+      backgroundColor: palette.white,
+      borderWidth: 1,
+      borderColor: palette.softBorder,
+      borderRadius: radius.md,
+      paddingHorizontal: spacing(2),
+      paddingVertical: spacing(1.5),
+      fontFamily: fonts.body,
+      fontSize: 15,
+      color: palette.ink,
+    },
+    searchButton: {
+      backgroundColor: palette.burgundy,
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing(2.5),
+      justifyContent: "center",
+    },
+    searchButtonText: {
+      color: palette.onAccent,
+      fontFamily: fonts.body,
+      fontWeight: "800",
+      fontSize: 15,
+    },
+    searchError: {
+      fontFamily: fonts.body,
+      fontSize: 13,
+      color: palette.danger,
+      marginTop: -spacing(1.25),
+      marginBottom: spacing(2),
+    },
+  });

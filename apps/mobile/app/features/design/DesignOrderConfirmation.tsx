@@ -2,7 +2,13 @@ import { useMemo, useState } from "react";
 import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { formatGHS, type PlaceOrderResult } from "../../../src/api";
 import { checkoutSupport } from "../../../src/checkoutSupport";
-import { fonts, radius, shadow, spacing, type Palette } from "../../../src/theme";
+import {
+  fonts,
+  radius,
+  shadow,
+  spacing,
+  type Palette,
+} from "../../../src/theme";
 import { useTheme } from "../../../src/theme-mode";
 
 type DesignOrderConfirmationProps = {
@@ -92,10 +98,14 @@ export default function DesignOrderConfirmation({
         <Pressable
           style={styles.cta}
           onPress={() => {
-            void Linking.openURL(order.authorization_url).catch(() => undefined);
+            void Linking.openURL(order.authorization_url).catch(
+              () => undefined,
+            );
           }}
         >
-          <Text style={styles.ctaText}>Pay {formatGHS(order.amount_minor)}</Text>
+          <Text style={styles.ctaText}>
+            Pay {formatGHS(order.amount_minor)}
+          </Text>
         </Pressable>
       ) : (
         // No Paystack URL (e.g. nothing to collect) — the web flow redirects

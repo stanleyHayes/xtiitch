@@ -7,7 +7,11 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { businessApi, type BusinessOrder, type CollectBalanceResult } from "../../../../src/businessApi";
+import {
+  businessApi,
+  type BusinessOrder,
+  type CollectBalanceResult,
+} from "../../../../src/businessApi";
 import { formatGHS } from "../../../../src/api";
 import { fonts, radius, spacing, type Palette } from "../../../../src/theme";
 import { useTheme } from "../../../../src/theme-mode";
@@ -112,7 +116,10 @@ export default function OrderPaymentActions({
                 <Pressable
                   disabled={savingTotal}
                   onPress={saveTotal}
-                  style={[styles.smallPrimary, savingTotal && styles.ctaDisabled]}
+                  style={[
+                    styles.smallPrimary,
+                    savingTotal && styles.ctaDisabled,
+                  ]}
                 >
                   <Text style={styles.smallPrimaryText}>
                     {savingTotal ? "…" : "Save"}
@@ -340,7 +347,11 @@ const makeStyles = (palette: Palette) =>
       color: palette.success,
       fontWeight: "700",
     },
-    reference: { fontFamily: fonts.body, fontSize: 12, color: palette.mutedText },
+    reference: {
+      fontFamily: fonts.body,
+      fontSize: 12,
+      color: palette.mutedText,
+    },
     methodRow: { flexDirection: "row", gap: spacing(1) },
     method: {
       flex: 1,
@@ -353,7 +364,7 @@ const makeStyles = (palette: Palette) =>
     },
     methodActive: {
       borderColor: palette.burgundy,
-      backgroundColor: "rgba(128,0,32,0.06)",
+      backgroundColor: palette.wineTint,
     },
     methodText: {
       fontFamily: fonts.body,
@@ -362,5 +373,5 @@ const makeStyles = (palette: Palette) =>
       color: palette.ink,
     },
     methodTextActive: { color: palette.burgundy },
-    ctaDisabled: { backgroundColor: "rgba(128,0,32,0.4)" },
+    ctaDisabled: { backgroundColor: palette.mauve },
   });

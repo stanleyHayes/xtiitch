@@ -9,7 +9,13 @@ import {
   type PlaceOrderResult,
   type StoreSummary,
 } from "../../../src/api";
-import { fonts, radius, shadow, spacing, type Palette } from "../../../src/theme";
+import {
+  fonts,
+  radius,
+  shadow,
+  spacing,
+  type Palette,
+} from "../../../src/theme";
 import { useTheme } from "../../../src/theme-mode";
 import { bespokeRoutes, resolveDepositMinor } from "./bespoke-routes";
 import DesignHomeVisitForm from "./DesignHomeVisitForm";
@@ -42,7 +48,8 @@ export default function DesignBespokePanel({
     [store, depositLabel, visitSlots],
   );
   const [selectedMode, setSelectedMode] = useState<CustomSizeMode | null>(null);
-  const activeRoute = routes.find((route) => route.mode === selectedMode) ?? null;
+  const activeRoute =
+    routes.find((route) => route.mode === selectedMode) ?? null;
 
   // Server-priced preview of the bespoke line the active route's form submits
   // (kind "bespoke" + its size mode). The quote endpoint only accepts
@@ -75,9 +82,7 @@ export default function DesignBespokePanel({
         <Text style={styles.depositValue}>{depositLabel}</Text>
       </View>
 
-      <Text style={styles.routesLabel}>
-        How would you like to be measured?
-      </Text>
+      <Text style={styles.routesLabel}>How would you like to be measured?</Text>
       <View style={styles.routeList}>
         {routes.map((route) => {
           const selected = route.mode === selectedMode;
@@ -244,7 +249,7 @@ const makeStyles = (palette: Palette) =>
     },
     routeChipActive: {
       borderColor: palette.burgundy,
-      backgroundColor: "rgba(128,0,32,0.06)",
+      backgroundColor: palette.wineTint,
     },
     routeTitle: {
       fontFamily: fonts.body,

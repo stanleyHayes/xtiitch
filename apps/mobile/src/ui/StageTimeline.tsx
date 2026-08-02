@@ -44,8 +44,13 @@ export function StageTimeline({ stages }: { stages: TrackingStage[] }) {
               <Text
                 style={[
                   styles.stageName,
-                  stage.is_current && { color: palette.burgundy, fontWeight: "800" },
-                  !stage.is_complete && !stage.is_current && styles.stagePending,
+                  stage.is_current && {
+                    color: palette.burgundy,
+                    fontWeight: "800",
+                  },
+                  !stage.is_complete &&
+                    !stage.is_current &&
+                    styles.stagePending,
                 ]}
               >
                 {stage.name}

@@ -1,18 +1,25 @@
 import { useMemo, useState } from "react";
-import { Alert, Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Alert,
+  Linking,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
+import { CustomerSessionExpiredError } from "../../../src/customerAuth";
 import {
   canMarkReceived,
   closeOrder,
-  CustomerSessionExpiredError,
   isPayableDraft,
   markBasketReceived,
   markOrderReceived,
   requestOrderPaymentLink,
   type ActionOutcome,
   type CustomerOrder,
-} from "../../../src/customerAuth";
+} from "../../../src/customerOrders";
 import { fonts, radius, spacing, type Palette } from "../../../src/theme";
 import { useTheme } from "../../../src/theme-mode";
 import { LoadingButtonLabel } from "../../../src/ui";
@@ -23,7 +30,8 @@ type BusyAction = "pay" | "close" | "received" | null;
 // close a draft, acknowledge receipt (single order or whole basket), and call
 // the store. Mutating actions confirm first and refresh the list via
 // onChanged; errors render inline under the buttons.
-export default function OrderActions({ // eslint-disable-line max-lines-per-function, complexity -- large presentational component; refactor in follow-up
+// eslint-disable-next-line max-lines-per-function, complexity -- all customer order commands
+export default function OrderActions({
   order,
   onChanged,
   onSessionExpired,
@@ -194,11 +202,7 @@ export default function OrderActions({ // eslint-disable-line max-lines-per-func
             style={styles.linkButton}
             hitSlop={8}
           >
-            <Ionicons
-              name="call-outline"
-              size={14}
-              color={palette.burgundy}
-            />
+            <Ionicons name="call-outline" size={14} color={palette.burgundy} />
             <Text style={styles.linkText}>Call store</Text>
           </Pressable>
         ) : null}

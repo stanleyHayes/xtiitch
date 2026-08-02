@@ -39,7 +39,9 @@ export function WaitlistRow({
         {entry.customer_name} · {entry.customer_contact}
       </Text>
       {entry.note ? <Text style={styles.note}>“{entry.note}”</Text> : null}
-      <Text style={styles.date}>Joined {formatOrderDate(entry.created_at)}</Text>
+      <Text style={styles.date}>
+        Joined {formatOrderDate(entry.created_at)}
+      </Text>
       {entry.status !== "closed" ? (
         <View style={styles.actions}>
           {entry.status === "waiting" ? (

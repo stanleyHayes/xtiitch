@@ -233,7 +233,7 @@ const makeStyles = (palette: Palette) =>
       fontSize: 14,
       fontWeight: "800",
     },
-    ctaDisabled: { backgroundColor: "rgba(128,0,32,0.4)" },
+    ctaDisabled: { backgroundColor: palette.mauve },
     linkBtnText: {
       fontFamily: fonts.body,
       fontSize: 13,

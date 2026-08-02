@@ -21,7 +21,8 @@ const METHODS: { value: Method; label: string }[] = [
 // mobile counterpart of the web dashboard's HandoverPanel arrange form.
 // `orders` is pre-filtered by the screen (fulfilled orders with no open
 // handover).
-export default function ArrangeHandoverCard({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+// eslint-disable-next-line max-lines-per-function -- complete handover arranger
+export default function ArrangeHandoverCard({
   orders,
   onArranged,
   onExpired,
@@ -258,7 +259,7 @@ const makeStyles = (palette: Palette) =>
     },
     orderOptionActive: {
       borderColor: palette.burgundy,
-      backgroundColor: "rgba(128,0,32,0.06)",
+      backgroundColor: palette.wineTint,
     },
     orderTitle: {
       fontFamily: fonts.body,
@@ -288,7 +289,7 @@ const makeStyles = (palette: Palette) =>
     },
     chipActive: {
       borderColor: palette.burgundy,
-      backgroundColor: "rgba(128,0,32,0.06)",
+      backgroundColor: palette.wineTint,
     },
     chipText: {
       fontFamily: fonts.body,
@@ -336,7 +337,7 @@ const makeStyles = (palette: Palette) =>
       alignItems: "center",
       marginTop: spacing(2.5),
     },
-    ctaDisabled: { backgroundColor: "rgba(128,0,32,0.4)" },
+    ctaDisabled: { backgroundColor: palette.mauve },
     ctaText: {
       color: palette.onAccent,
       fontFamily: fonts.body,

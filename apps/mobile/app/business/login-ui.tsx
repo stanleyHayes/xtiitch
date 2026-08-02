@@ -102,7 +102,7 @@ export const makeLoginStyles = (palette: Palette) =>
       alignItems: "center",
       marginTop: spacing(1.5),
     },
-    ctaDisabled: { backgroundColor: "rgba(128,0,32,0.4)" },
+    ctaDisabled: { backgroundColor: palette.mauve },
     ctaText: {
       color: palette.onAccent,
       fontFamily: fonts.body,
@@ -155,7 +155,10 @@ export function LoginField({
           autoCorrect={false}
           keyboardType={keyboardType}
           secureTextEntry={hidden}
-          style={[styles.input, secureTextEntry ? styles.inputWithAction : null]}
+          style={[
+            styles.input,
+            secureTextEntry ? styles.inputWithAction : null,
+          ]}
         />
         {secureTextEntry ? (
           <Pressable

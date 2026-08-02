@@ -49,9 +49,17 @@ export async function request<T>(
   try {
     const response = await authedFetch(path, init);
     if (!response.ok) {
-      return { ok: false, expired: false, error: `upstream_${response.status}` };
+      return {
+        ok: false,
+        expired: false,
+        error: `upstream_${response.status}`,
+      };
     }
-    return { ok: true, data: (await response.json()) as T };
+    // Several protected command endpoints intentionally return 204. Trying to
+    // parse that empty body as JSON converted a successful retire/restore/update
+    // into a misleading `network_error` on native clients.
+    const data = response.status === 204 ? null : await response.json();
+    return { ok: true, data: data as T };
   } catch (error) {
     if (error instanceof SessionExpiredError) {
       return { ok: false, expired: true, error: "session_expired" };
@@ -78,6 +86,7 @@ export type SizeBand = {
   size_band_id: string;
   label: string;
   sequence: number;
+  chart?: { name: string; value: string; unit: string }[];
 };
 
 export type CreateWalkInInput = {
@@ -189,9 +198,54 @@ export const businessApi = {
   // The studio's own catalogue + size bands, for composing a walk-in order.
   designs: () => request<{ designs: BusinessDesign[] }>("/designs"),
   sizeBands: () => request<{ size_bands: SizeBand[] }>("/size-bands"),
+  createSizeBand: (input: Omit<SizeBand, "size_band_id">) =>
+    request<{ size_band_id: string }>("/size-bands", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+  updateSizeBand: (id: string, input: Omit<SizeBand, "size_band_id">) =>
+    request<null>(`/size-bands/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+  deleteSizeBand: (id: string) =>
+    request<null>(`/size-bands/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    }),
   // The studio's measurement template — the fields the record form renders.
   measurementFields: () =>
     request<{ fields: MeasurementField[] }>("/measurement-fields"),
+  createMeasurementField: (input: {
+    label: string;
+    unit: string;
+    sequence: number;
+  }) =>
+    request<MeasurementField>("/measurement-fields", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+  updateMeasurementField: (
+    fieldId: string,
+    input: { label: string; unit: string; sequence: number },
+  ) =>
+    request<MeasurementField>(
+      `/measurement-fields/${encodeURIComponent(fieldId)}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      },
+    ),
+  deleteMeasurementField: (fieldId: string) =>
+    request<{ deleted: boolean }>(
+      `/measurement-fields/${encodeURIComponent(fieldId)}`,
+      {
+        method: "DELETE",
+      },
+    ),
   // Save staff-taken measurements for a bespoke order. The API requires at
   // least one non-empty value and field IDs from the studio's template.
   recordMeasurements: (
@@ -233,7 +287,10 @@ export const businessApi = {
     }),
   // Advance to the next handover state (pickup: pending→completed; delivery:
   // pending→dispatched→completed). 409 invalid_handover_state when terminal.
-  advanceHandover: (handoverId: string, note?: { courier?: string; note?: string }) =>
+  advanceHandover: (
+    handoverId: string,
+    note?: { courier?: string; note?: string },
+  ) =>
     request<{ status: string }>(
       `/handovers/${encodeURIComponent(handoverId)}/advance`,
       {

@@ -161,7 +161,7 @@ const makeStyles = (palette: Palette) =>
     },
     swatchActive: {
       borderColor: palette.burgundy,
-      backgroundColor: "rgba(128,0,32,0.06)",
+      backgroundColor: palette.wineTint,
     },
     swatchThumb: { width: 56, height: 56 },
     swatchName: {

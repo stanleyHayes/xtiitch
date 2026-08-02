@@ -16,14 +16,20 @@ import {
 
 import {
   CustomerSessionExpiredError,
-  fetchCustomerOrders,
   fetchCustomerProfile,
   loadSession,
   logout,
   type CustomerProfile,
   type CustomerSession,
 } from "../../../src/customerAuth";
-import { fonts, radius, shadow, spacing, type Palette } from "../../../src/theme";
+import { fetchCustomerOrders } from "../../../src/customerOrders";
+import {
+  fonts,
+  radius,
+  shadow,
+  spacing,
+  type Palette,
+} from "../../../src/theme";
 import { useTheme } from "../../../src/theme-mode";
 import { CenterState } from "../../../src/ui";
 import OrderHistory, { type OrdersState } from "./OrderHistory";

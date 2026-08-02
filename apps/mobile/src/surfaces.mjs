@@ -11,7 +11,20 @@ export const mobileSurfaces = Object.freeze([
     title: "Xtiitch Business",
     authRealm: "business",
     defaultRoute: "/business",
-    routePrefixes: ["/business", "/dashboard", "/orders", "/catalogue", "/team"],
+    routePrefixes: [
+      "/business",
+      "/dashboard",
+      "/orders",
+      "/catalogue",
+      "/team",
+    ],
+  },
+  {
+    id: "affiliate",
+    title: "Xtiitch Affiliate",
+    authRealm: "affiliate",
+    defaultRoute: "/affiliate",
+    routePrefixes: ["/affiliate", "/referrals", "/earnings", "/campaign-links"],
   },
 ]);
 
@@ -20,7 +33,9 @@ const surfaceById = new Map(
 );
 
 export function resolveMobileSurface(input) {
-  const requested = String(input ?? "").trim().toLowerCase();
+  const requested = String(input ?? "")
+    .trim()
+    .toLowerCase();
   if (!requested) {
     return surfaceById.get("customer");
   }

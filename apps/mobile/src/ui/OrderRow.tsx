@@ -22,7 +22,9 @@ export function OrderRow({
           {order.design_title}
         </Text>
         <View style={[styles.statusPill, { backgroundColor: tone }]}>
-          <Text style={styles.statusPillText}>{order.stage_name || order.status}</Text>
+          <Text style={styles.statusPillText}>
+            {order.stage_name || order.status}
+          </Text>
         </View>
       </View>
       <Text style={styles.orderCustomer} numberOfLines={1}>
@@ -34,7 +36,8 @@ export function OrderRow({
           order.payment_amount_minor === null
             ? "Not set"
             : formatGHS(
-                (order.agreed_total_minor ?? order.payment_amount_minor) as number,
+                (order.agreed_total_minor ??
+                  order.payment_amount_minor) as number,
               )}
         </Text>
         <Text style={styles.orderSettled}>

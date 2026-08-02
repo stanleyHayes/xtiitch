@@ -26,13 +26,21 @@ export default function HomeFeaturedCard({
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.featuredCard, pressed && styles.cardPressed]}
+      style={({ pressed }) => [
+        styles.featuredCard,
+        pressed && styles.cardPressed,
+      ]}
     >
       {placement.image_url ? (
-        <Image source={{ uri: placement.image_url }} style={styles.featuredImage} />
+        <Image
+          source={{ uri: placement.image_url }}
+          style={styles.featuredImage}
+        />
       ) : (
         <View style={[styles.featuredImage, { backgroundColor: from }]}>
-          <View style={[styles.featuredSwatchAccent, { backgroundColor: to }]} />
+          <View
+            style={[styles.featuredSwatchAccent, { backgroundColor: to }]}
+          />
         </View>
       )}
       <View style={styles.featuredBody}>

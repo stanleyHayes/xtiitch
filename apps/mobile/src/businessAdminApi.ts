@@ -169,7 +169,8 @@ export type CrmCustomerProfile = {
 export const businessAdminApi = {
   notifications: () =>
     request<{ notifications: NotificationSummary[] }>("/notifications"),
-  waitlistEntries: () => request<{ entries: WaitlistEntry[] }>("/waitlist-entries"),
+  waitlistEntries: () =>
+    request<{ entries: WaitlistEntry[] }>("/waitlist-entries"),
   updateWaitlistEntry: (entryId: string, status: WaitlistStatus) =>
     request<{ status: string }>(
       `/waitlist-entries/${encodeURIComponent(entryId)}`,
@@ -187,11 +188,14 @@ export const businessAdminApi = {
       body: JSON.stringify(input),
     }),
   updateTeamMember: (userId: string, input: UpdateBusinessUserInput) =>
-    request<BusinessUser>(`/auth/business/users/${encodeURIComponent(userId)}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
-    }),
+    request<BusinessUser>(
+      `/auth/business/users/${encodeURIComponent(userId)}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      },
+    ),
   promotions: () => request<{ promotions: BusinessPromotion[] }>("/promotions"),
   createPromotion: (input: PromotionBody) =>
     request<BusinessPromotion>("/promotions", {

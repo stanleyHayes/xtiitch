@@ -3,7 +3,13 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { formatGHS, type Design } from "../../../src/api";
 import { ImageTile } from "../../../src/ui";
-import { fonts, radius, shadow, spacing, type Palette } from "../../../src/theme";
+import {
+  fonts,
+  radius,
+  shadow,
+  spacing,
+  type Palette,
+} from "../../../src/theme";
 import { useTheme } from "../../../src/theme-mode";
 
 function lowestPriceMinor(design: Design): number | null {
@@ -58,7 +64,9 @@ export default function StoreDesignGrid({
                 {design.title}
               </Text>
               <Text style={styles.cardPrice}>
-                {minor === null ? "Price on request" : `from ${formatGHS(minor)}`}
+                {minor === null
+                  ? "Price on request"
+                  : `from ${formatGHS(minor)}`}
               </Text>
             </View>
           </Pressable>

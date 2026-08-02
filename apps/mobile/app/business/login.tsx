@@ -161,6 +161,7 @@ function PasswordForm({
 }) {
   const { palette } = useTheme();
   const styles = useMemo(() => makeLoginStyles(palette), [palette]);
+  const router = useRouter();
   return (
     <ScrollView
       style={styles.screen}
@@ -213,8 +214,26 @@ function PasswordForm({
           )}
         </Pressable>
 
-        <Pressable style={styles.link} onPress={onUseCode} disabled={submitting}>
+        <Pressable
+          style={styles.link}
+          onPress={onUseCode}
+          disabled={submitting}
+        >
           <Text style={styles.linkText}>Sign in with a code instead</Text>
+        </Pressable>
+        <Pressable
+          style={styles.link}
+          onPress={() => router.push("/business/forgot-password")}
+          disabled={submitting}
+        >
+          <Text style={styles.linkText}>Forgot password?</Text>
+        </Pressable>
+        <Pressable
+          style={styles.link}
+          onPress={() => router.push("/business/register")}
+          disabled={submitting}
+        >
+          <Text style={styles.linkText}>Create a new store</Text>
         </Pressable>
       </View>
     </ScrollView>

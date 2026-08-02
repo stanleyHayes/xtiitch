@@ -7,7 +7,12 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Animated, Pressable, StyleSheet } from "react-native";
+import {
+  AccessibilityInfo,
+  Animated,
+  Pressable,
+  StyleSheet,
+} from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -29,6 +34,7 @@ const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 export function ThemeModeProvider({ children }: { children: ReactNode }) {
   const [override, setOverride] = useState<ThemeMode | null>(null);
+  const [reduceMotion, setReduceMotion] = useState(false);
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY)
@@ -40,6 +46,15 @@ export function ThemeModeProvider({ children }: { children: ReactNode }) {
       .catch(() => {
         /* first run / storage unavailable — the default stays light */
       });
+  }, []);
+
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
+    const subscription = AccessibilityInfo.addEventListener(
+      "reduceMotionChanged",
+      setReduceMotion,
+    );
+    return () => subscription.remove();
   }, []);
 
   // §1.1: the default theme is ALWAYS light, on every surface. The device
@@ -60,10 +75,10 @@ export function ThemeModeProvider({ children }: { children: ReactNode }) {
     veil.setValue(1);
     Animated.timing(veil, {
       toValue: 0,
-      duration: 460,
+      duration: reduceMotion ? 120 : 280,
       useNativeDriver: true,
     }).start();
-  }, [mode, veil]);
+  }, [mode, reduceMotion, veil]);
 
   const value = useMemo<ThemeContextValue>(() => {
     const setMode = (next: ThemeMode) => {
@@ -113,8 +128,20 @@ export function ThemeToggle() {
       hitSlop={12}
       accessibilityRole="switch"
       accessibilityState={{ checked: isDark }}
-      accessibilityLabel={isDark ? "Switch to light mode" : "Switch to dark mode"}
-      style={{ paddingHorizontal: 10, paddingVertical: 6 }}
+      accessibilityLabel={
+        isDark ? "Switch to light mode" : "Switch to dark mode"
+      }
+      style={({ pressed }) => ({
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: pressed
+          ? "rgba(255,255,255,0.20)"
+          : "rgba(255,255,255,0.10)",
+        transform: [{ scale: pressed ? 0.96 : 1 }],
+      })}
     >
       <Ionicons
         name={isDark ? "sunny-outline" : "moon-outline"}

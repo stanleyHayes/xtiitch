@@ -2,7 +2,13 @@ import { useMemo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { formatGHS } from "../../../src/api";
-import { fonts, radius, shadow, spacing, type Palette } from "../../../src/theme";
+import {
+  fonts,
+  radius,
+  shadow,
+  spacing,
+  type Palette,
+} from "../../../src/theme";
 import { useTheme } from "../../../src/theme-mode";
 import { ImageTile } from "../../../src/ui";
 import type { FlatDesign } from "./marketplaceUtils";

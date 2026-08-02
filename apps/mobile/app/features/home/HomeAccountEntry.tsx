@@ -1,7 +1,13 @@
 import { useMemo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { fonts, radius, shadow, spacing, type Palette } from "../../../src/theme";
+import {
+  fonts,
+  radius,
+  shadow,
+  spacing,
+  type Palette,
+} from "../../../src/theme";
 import { useTheme } from "../../../src/theme-mode";
 
 // Entry card to the customer account (OTP sign-in + order history). Same
@@ -13,7 +19,10 @@ export default function HomeAccountEntry({ onPress }: { onPress: () => void }) {
   return (
     <View style={styles.section}>
       <Pressable
-        style={({ pressed }) => [styles.accountCard, pressed && styles.cardPressed]}
+        style={({ pressed }) => [
+          styles.accountCard,
+          pressed && styles.cardPressed,
+        ]}
         onPress={onPress}
       >
         <View style={{ flex: 1 }}>

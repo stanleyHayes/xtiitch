@@ -86,8 +86,8 @@ export default function DesignScreen() {
   const store = design.store;
   const canCustomise = Boolean(
     store?.handle &&
-      design.customisation_allowed &&
-      store.settings.bespoke_enabled,
+    design.customisation_allowed &&
+    store.settings.bespoke_enabled,
   );
 
   return (

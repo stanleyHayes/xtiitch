@@ -30,7 +30,8 @@ type AvailabilitySectionProps = {
 
 // Availability tab: the studio's current windows (add/remove always re-posts
 // the FULL list — the API replaces the whole set) plus blackout dates.
-export default function AvailabilitySection({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+// eslint-disable-next-line max-lines-per-function -- complete availability editor
+export default function AvailabilitySection({
   windows,
   blackouts,
   onChanged,
@@ -364,7 +365,7 @@ const makeStyles = (palette: Palette) =>
       fontSize: 14,
       fontWeight: "800",
     },
-    ctaDisabled: { backgroundColor: "rgba(128,0,32,0.4)" },
+    ctaDisabled: { backgroundColor: palette.mauve },
     error: {
       fontFamily: fonts.body,
       fontSize: 14,

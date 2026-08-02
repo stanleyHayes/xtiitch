@@ -28,7 +28,9 @@ export default function OrderDetailRow({
         style={[
           styles.rowValue,
           strong && styles.rowValueStrong,
-          href ? { color: palette.burgundy, textDecorationLine: "underline" } : null,
+          href
+            ? { color: palette.burgundy, textDecorationLine: "underline" }
+            : null,
           tone ? { color: tone } : null,
         ]}
         numberOfLines={1}

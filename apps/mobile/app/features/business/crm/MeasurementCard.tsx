@@ -48,7 +48,9 @@ export default function MeasurementCard({
         <Text style={styles.source}>
           {measurementSourceLabel(measurement.source)}
         </Text>
-        <Text style={styles.date}>{formatOrderDate(measurement.created_at)}</Text>
+        <Text style={styles.date}>
+          {formatOrderDate(measurement.created_at)}
+        </Text>
       </View>
       {entries.length === 0 ? (
         <Text style={styles.emptyValues}>No values recorded.</Text>

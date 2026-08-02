@@ -59,17 +59,23 @@ export type ReferralCode = {
 
 const enc = encodeURIComponent;
 
-async function postJSON<T>(path: string, input: unknown): Promise<ApiResult<T>> {
+async function postJSON<T>(
+  path: string,
+  input: unknown,
+): Promise<ApiResult<T>> {
   try {
     const response = await fetch(`${apiBaseUrl()}${path}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
       body: JSON.stringify(input),
     });
     if (!response.ok) {
-      const payload = (await response
-        .json()
-        .catch(() => null)) as { error?: string } | null;
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string;
+      } | null;
       return {
         ok: false,
         status: response.status,
@@ -111,7 +117,8 @@ export const checkoutSupport = {
         return {
           ok: false,
           status: response.status,
-          error: response.status === 404 ? "referral_not_found" : "upstream_error",
+          error:
+            response.status === 404 ? "referral_not_found" : "upstream_error",
         };
       }
       return { ok: true, data: (await response.json()) as ReferralCode };

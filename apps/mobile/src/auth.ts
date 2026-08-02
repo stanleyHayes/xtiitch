@@ -2,12 +2,16 @@
 // attaches the Bearer header to protected calls, and silently refreshes an
 // expired access token once via /auth/business/refresh before giving up.
 //
-// Tokens live in AsyncStorage (localStorage on web). Moving them to
-// expo-secure-store on the native targets is a hardening follow-up — kept simple
-// here so the same code path works in the web preview.
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
-import { apiBaseUrl } from "./api";
+import { apiBaseUrl } from "./api-base";
+import {
+  deleteSessionValue,
+  getSessionValue,
+  setSessionValue,
+} from "./session-storage";
+import {
+  registerBusinessPushNotifications,
+  unregisterBusinessPushNotifications,
+} from "./push-notifications";
 
 const STORAGE_KEY = "xtiitch.business.session.v1";
 
@@ -36,7 +40,7 @@ let cached: BusinessSession | null | undefined;
 export async function loadSession(): Promise<BusinessSession | null> {
   if (cached !== undefined) return cached;
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
+    const raw = await getSessionValue(STORAGE_KEY);
     cached = raw ? (JSON.parse(raw) as BusinessSession) : null;
   } catch {
     cached = null;
@@ -48,9 +52,9 @@ async function persist(session: BusinessSession | null): Promise<void> {
   cached = session;
   try {
     if (session) {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+      await setSessionValue(STORAGE_KEY, JSON.stringify(session));
     } else {
-      await AsyncStorage.removeItem(STORAGE_KEY);
+      await deleteSessionValue(STORAGE_KEY);
     }
   } catch {
     // Best effort — an unwritable store still keeps the in-memory session.
@@ -63,6 +67,7 @@ async function persist(session: BusinessSession | null): Promise<void> {
 // directly would leave a stale null cache that bounces the user back to login.
 export async function persistSession(session: BusinessSession): Promise<void> {
   await persist(session);
+  void registerBusinessPushNotifications(authedFetch);
 }
 
 export type LoginInput = {
@@ -88,27 +93,40 @@ export async function login(input: LoginInput): Promise<LoginOutcome> {
   try {
     const response = await fetch(`${apiBaseUrl()}/auth/business/login`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
       body: JSON.stringify(input),
     });
     if (!response.ok) {
-      const payload = (await response.json().catch(() => null)) as
-        | { error?: string }
-        | null;
-      return { ok: false, error: mapAuthError(response.status, payload?.error) };
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+      return {
+        ok: false,
+        error: mapAuthError(response.status, payload?.error),
+      };
     }
     const data = (await response.json()) as LoginResponse;
     if (data.mfa_required && data.mfa_challenge_token) {
-      return { ok: true, mfa: "required", challenge_token: data.mfa_challenge_token };
+      return {
+        ok: true,
+        mfa: "required",
+        challenge_token: data.mfa_challenge_token,
+      };
     }
     const session: BusinessSession = {
       ...data,
       business_handle: input.business_handle.trim().toLowerCase(),
     };
-    await persist(session);
+    await persistSession(session);
     return { ok: true, session };
   } catch {
-    return { ok: false, error: "Network error — check your connection and retry." };
+    return {
+      ok: false,
+      error: "Network error — check your connection and retry.",
+    };
   }
 }
 
@@ -127,13 +145,19 @@ export async function verifyMfaLogin(
   try {
     const response = await fetch(`${apiBaseUrl()}/auth/business/mfa/verify`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ mfa_challenge_token: challengeToken, code: code.trim() }),
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        mfa_challenge_token: challengeToken,
+        code: code.trim(),
+      }),
     });
     if (!response.ok) {
-      const payload = (await response.json().catch(() => null)) as
-        | { error?: string }
-        | null;
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string;
+      } | null;
       return { ok: false, error: mapMfaError(response.status, payload?.error) };
     }
     const data = (await response.json()) as TokenResponse;
@@ -141,15 +165,21 @@ export async function verifyMfaLogin(
       ...data,
       business_handle: businessHandle.trim().toLowerCase(),
     };
-    await persist(session);
+    await persistSession(session);
     return { ok: true, session };
   } catch {
-    return { ok: false, error: "Network error — check your connection and retry." };
+    return {
+      ok: false,
+      error: "Network error — check your connection and retry.",
+    };
   }
 }
 
 export async function logout(): Promise<void> {
   const session = cached ?? (await loadSession());
+  if (session?.access_token) {
+    await unregisterBusinessPushNotifications(session.access_token);
+  }
   if (session?.refresh_token) {
     try {
       await fetch(`${apiBaseUrl()}/auth/business/logout`, {
@@ -164,11 +194,16 @@ export async function logout(): Promise<void> {
   await persist(null);
 }
 
-async function refresh(session: BusinessSession): Promise<BusinessSession | null> {
+async function refresh(
+  session: BusinessSession,
+): Promise<BusinessSession | null> {
   try {
     const response = await fetch(`${apiBaseUrl()}/auth/business/refresh`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
       body: JSON.stringify({ refresh_token: session.refresh_token }),
     });
     if (!response.ok) return null;
@@ -187,7 +222,9 @@ async function refresh(session: BusinessSession): Promise<BusinessSession | null
 // and wipes the session the winner just saved.
 let refreshing: Promise<BusinessSession | null> | null = null;
 
-function refreshOnce(session: BusinessSession): Promise<BusinessSession | null> {
+function refreshOnce(
+  session: BusinessSession,
+): Promise<BusinessSession | null> {
   // A late 401 handler may hold a session whose refresh token a concurrent
   // call already rotated — reuse the cached session rather than presenting
   // the revoked token (which would revoke the fresh session too).

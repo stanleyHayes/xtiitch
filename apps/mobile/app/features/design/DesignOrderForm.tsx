@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 
 import {
   formatGHS,
@@ -13,6 +13,7 @@ import {
 } from "../../../src/api";
 import { fonts, radius, spacing, type Palette } from "../../../src/theme";
 import { useTheme } from "../../../src/theme-mode";
+import { addCartItem } from "../../../src/cart";
 import DesignContactFields, { type ContactFields } from "./DesignContactFields";
 import DesignDeliveryFields, {
   type DeliveryValues,
@@ -116,6 +117,9 @@ type DesignOrderFormProps = {
   onOrdered: (order: PlaceOrderResult) => void;
 };
 
+// This is the public ordering boundary; keeping the related state together
+// ensures pickup, delivery, rewards, and the quote remain consistent.
+// eslint-disable-next-line max-lines-per-function
 export default function DesignOrderForm({
   design,
   store,
@@ -171,6 +175,26 @@ export default function DesignOrderForm({
   const totalMinor =
     (selectedBand?.price_minor ?? 0) + deliveryFeeMinor(delivery, zones);
   const canSubmit = canSubmitOrder(bandId, contact, delivery, submitting);
+  const addToBasket = async () => {
+    if (!selectedBand) return;
+    const result = await addCartItem({
+      store_handle: store.handle,
+      store_name: store.name,
+      design_handle: design.handle,
+      design_title: design.title,
+      image_url: design.images[0] ?? "",
+      size_band_id: selectedBand.size_band_id,
+      size_label: selectedBand.label,
+      price_minor: selectedBand.price_minor,
+      kind: "made_to_wear",
+    });
+    Alert.alert(
+      result.ok ? "Added to basket" : "Basket limit reached",
+      result.ok
+        ? `${design.title} · ${selectedBand.label}`
+        : "A studio basket can hold up to 10 pieces.",
+    );
+  };
 
   // Server-priced preview of exactly what submit() sends (single made-to-wear
   // line; zone only once delivery has one). Hidden until a size is picked; a
@@ -223,6 +247,13 @@ export default function DesignOrderForm({
         selectedBandId={bandId}
         onSelect={setBandId}
       />
+      <Pressable
+        disabled={!selectedBand}
+        onPress={() => void addToBasket()}
+        style={[styles.basketButton, !selectedBand && styles.ctaDisabled]}
+      >
+        <Text style={styles.basketButtonText}>Add to basket</Text>
+      </Pressable>
 
       {deliveryOffered ? (
         <View>
@@ -308,7 +339,20 @@ const makeStyles = (palette: Palette) =>
       alignItems: "center",
       marginTop: spacing(2.5),
     },
-    ctaDisabled: { backgroundColor: "rgba(128,0,32,0.4)" },
+    ctaDisabled: { backgroundColor: palette.mauve },
+    basketButton: {
+      borderWidth: 1.5,
+      borderColor: palette.burgundy,
+      borderRadius: radius.pill,
+      paddingVertical: spacing(1.5),
+      alignItems: "center",
+      marginTop: spacing(1.5),
+    },
+    basketButtonText: {
+      color: palette.burgundy,
+      fontSize: 14,
+      fontWeight: "800",
+    },
     ctaText: {
       color: palette.onAccent,
       fontFamily: fonts.body,

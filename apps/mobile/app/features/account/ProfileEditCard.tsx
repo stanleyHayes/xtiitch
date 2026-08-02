@@ -6,7 +6,13 @@ import {
   updateCustomerProfile,
   type CustomerProfile,
 } from "../../../src/customerAuth";
-import { fonts, radius, shadow, spacing, type Palette } from "../../../src/theme";
+import {
+  fonts,
+  radius,
+  shadow,
+  spacing,
+  type Palette,
+} from "../../../src/theme";
 import { useTheme } from "../../../src/theme-mode";
 import { LoadingButtonLabel } from "../../../src/ui";
 import AccountField from "./AccountField";

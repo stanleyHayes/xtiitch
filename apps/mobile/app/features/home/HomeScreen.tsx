@@ -12,15 +12,23 @@ import { useRouter } from "expo-router";
 
 import { api, type SponsoredPlacement } from "../../../src/api";
 import { useBranding } from "../../../src/branding";
-import { fonts, radius, shadow, spacing, type Palette } from "../../../src/theme";
+import {
+  fonts,
+  radius,
+  shadow,
+  spacing,
+  type Palette,
+} from "../../../src/theme";
 import { useTheme } from "../../../src/theme-mode";
 import { SkeletonBlock, XtiitchMark } from "../../../src/ui";
 import HomeAccountEntry from "./HomeAccountEntry";
 import HomeFeaturedCard from "./HomeFeaturedCard";
 import HomePrimaryButton from "./HomePrimaryButton";
 import HomeSection from "./HomeSection";
+import HomeAudienceEntry from "./HomeAudienceEntry";
 import { trackingTarget } from "./trackingTarget";
 
+// eslint-disable-next-line max-lines-per-function -- home composes the complete customer launch path
 export default function HomeScreen() {
   const { palette } = useTheme();
   const styles = useMemo(() => makeStyles(palette), [palette]);
@@ -90,6 +98,21 @@ export default function HomeScreen() {
 
       <HomeAccountEntry onPress={() => router.push("/account")} />
 
+      <View style={styles.audienceRow}>
+        <HomeAudienceEntry
+          icon="storefront-outline"
+          label="Studio"
+          hint="Run your business"
+          onPress={() => router.push("/business")}
+        />
+        <HomeAudienceEntry
+          icon="sparkles-outline"
+          label="Affiliate"
+          hint="Links & earnings"
+          onPress={() => router.push("/affiliate")}
+        />
+      </View>
+
       <HomeSection label="Open a store">
         <View style={styles.inlineRow}>
           <TextInput
@@ -103,13 +126,19 @@ export default function HomeScreen() {
             returnKeyType="go"
             onSubmitEditing={() => openStore(storeHandle)}
           />
-          <HomePrimaryButton label="Open" onPress={() => openStore(storeHandle)} />
+          <HomePrimaryButton
+            label="Open"
+            onPress={() => openStore(storeHandle)}
+          />
         </View>
       </HomeSection>
 
       {loadingFeatured ? (
         <HomeSection label="Featured studios">
-          <View style={styles.featuredRow} accessibilityLabel="Loading featured studios">
+          <View
+            style={styles.featuredRow}
+            accessibilityLabel="Loading featured studios"
+          >
             {[0, 1].map((item) => (
               <View key={item} style={styles.featuredSkeletonCard}>
                 <SkeletonBlock height={130} radiusOverride={radius.md} />
@@ -136,7 +165,9 @@ export default function HomeScreen() {
                 onPress={() =>
                   placement.design_handle
                     ? router.push(`/design/${placement.design_handle}`)
-                    : openStore(placement.store_handle || placement.business_handle)
+                    : openStore(
+                        placement.store_handle || placement.business_handle,
+                      )
                 }
               />
             ))}
@@ -160,22 +191,6 @@ export default function HomeScreen() {
           <HomePrimaryButton label="Track" onPress={trackOrder} />
         </View>
       </HomeSection>
-
-      <View style={styles.section}>
-        <Pressable
-          style={({ pressed }) => [styles.studioCard, pressed && styles.cardPressed]}
-          onPress={() => router.push("/business")}
-        >
-          <View style={{ flex: 1 }}>
-            <Text style={styles.studioKicker}>RUN A STUDIO?</Text>
-            <Text style={styles.studioTitle}>Open the studio console</Text>
-            <Text style={styles.studioHint}>
-              Sign in to manage orders, fulfilment, and takings.
-            </Text>
-          </View>
-          <Text style={styles.studioArrow}>›</Text>
-        </Pressable>
-      </View>
     </ScrollView>
   );
 }
@@ -188,7 +203,10 @@ function MarketplaceEntry({ onPress }: { onPress: () => void }) {
   return (
     <View style={styles.section}>
       <Pressable
-        style={({ pressed }) => [styles.marketCard, pressed && styles.cardPressed]}
+        style={({ pressed }) => [
+          styles.marketCard,
+          pressed && styles.cardPressed,
+        ]}
         onPress={onPress}
       >
         <View style={{ flex: 1 }}>
@@ -258,6 +276,12 @@ const makeStyles = (palette: Palette) =>
     section: {
       paddingHorizontal: spacing(3),
       marginTop: spacing(3.5),
+    },
+    audienceRow: {
+      flexDirection: "row",
+      gap: spacing(1.25),
+      paddingHorizontal: spacing(3),
+      marginTop: spacing(2),
     },
     inlineRow: {
       flexDirection: "row",

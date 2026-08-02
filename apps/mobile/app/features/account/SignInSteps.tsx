@@ -2,7 +2,13 @@ import { useMemo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { OtpChannel } from "../../../src/customerAuth";
-import { fonts, radius, shadow, spacing, type Palette } from "../../../src/theme";
+import {
+  fonts,
+  radius,
+  shadow,
+  spacing,
+  type Palette,
+} from "../../../src/theme";
 import { useTheme } from "../../../src/theme-mode";
 import { LoadingButtonLabel } from "../../../src/ui";
 import AccountField from "./AccountField";
@@ -146,7 +152,8 @@ export function VerifyStep({
     <View style={styles.card}>
       <Text style={styles.cardTitle}>Enter your code</Text>
       <Text style={styles.cardLead}>
-        We sent a 6-digit code to <Text style={styles.strong}>{identifier}</Text>{" "}
+        We sent a 6-digit code to{" "}
+        <Text style={styles.strong}>{identifier}</Text>{" "}
         {channel === "email" ? "by email" : "by SMS"}. Enter it below.
       </Text>
       <AccountField
@@ -184,7 +191,9 @@ export function VerifyStep({
         hitSlop={8}
       >
         <Text style={styles.linkText}>
-          {channel === "email" ? "Use a different email" : "Use a different number"}
+          {channel === "email"
+            ? "Use a different email"
+            : "Use a different number"}
         </Text>
       </Pressable>
     </View>
@@ -248,7 +257,7 @@ const makeStyles = (palette: Palette) =>
       paddingVertical: spacing(2),
       alignItems: "center",
     },
-    ctaDisabled: { backgroundColor: "rgba(128,0,32,0.4)" },
+    ctaDisabled: { backgroundColor: palette.mauve },
     ctaText: {
       color: palette.onAccent,
       fontFamily: fonts.body,

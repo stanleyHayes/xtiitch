@@ -24,7 +24,9 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
-    fetch(`${apiBaseUrl()}/branding`, { headers: { Accept: "application/json" } })
+    fetch(`${apiBaseUrl()}/branding`, {
+      headers: { Accept: "application/json" },
+    })
       .then((response) => (response.ok ? response.json() : null))
       .then((data: { logo_url?: string } | null) => {
         if (active && data?.logo_url) setLogoUrl(data.logo_url);
@@ -40,7 +42,9 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
   const value = useMemo<BrandingContextValue>(() => ({ logoUrl }), [logoUrl]);
 
   return (
-    <BrandingContext.Provider value={value}>{children}</BrandingContext.Provider>
+    <BrandingContext.Provider value={value}>
+      {children}
+    </BrandingContext.Provider>
   );
 }
 

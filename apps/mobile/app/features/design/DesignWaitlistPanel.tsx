@@ -147,7 +147,7 @@ const makeStyles = (palette: Palette) =>
       paddingVertical: spacing(2),
       alignItems: "center",
     },
-    ctaDisabled: { backgroundColor: "rgba(128,0,32,0.4)" },
+    ctaDisabled: { backgroundColor: palette.mauve },
     ctaText: {
       color: palette.onAccent,
       fontFamily: fonts.body,

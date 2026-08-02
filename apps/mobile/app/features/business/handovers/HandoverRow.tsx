@@ -26,7 +26,10 @@ function statusLabel(status: string): string {
 // The advance button's verb depends on where the handover sits: a pending
 // delivery gets dispatched, everything else completes.
 export function advanceLabel(handover: HandoverSummary): string {
-  if (handover.status.toLowerCase() === "pending" && handover.method === "delivery") {
+  if (
+    handover.status.toLowerCase() === "pending" &&
+    handover.method === "delivery"
+  ) {
     return "Mark dispatched";
   }
   return "Mark completed";
@@ -75,7 +78,9 @@ export default function HandoverRow({
       </View>
 
       <View style={styles.pillRow}>
-        <View style={[styles.pill, { backgroundColor: `${palette.burgundy}14` }]}>
+        <View
+          style={[styles.pill, { backgroundColor: `${palette.burgundy}14` }]}
+        >
           <Text style={[styles.pillText, { color: palette.burgundy }]}>
             {handover.method === "delivery" ? "Delivery" : "Pickup"}
           </Text>
@@ -87,14 +92,18 @@ export default function HandoverRow({
         </View>
       </View>
 
-      {recipient ? <Text style={styles.detail}>Recipient: {recipient}</Text> : null}
+      {recipient ? (
+        <Text style={styles.detail}>Recipient: {recipient}</Text>
+      ) : null}
       {handover.address ? (
         <Text style={styles.detail}>Address: {handover.address}</Text>
       ) : null}
       {handover.courier ? (
         <Text style={styles.detail}>Courier: {handover.courier}</Text>
       ) : null}
-      {handover.note ? <Text style={styles.detail}>{handover.note}</Text> : null}
+      {handover.note ? (
+        <Text style={styles.detail}>{handover.note}</Text>
+      ) : null}
 
       {advanceable || cancellable ? (
         <View style={styles.actions}>
