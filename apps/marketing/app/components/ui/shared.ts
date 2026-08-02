@@ -9,7 +9,14 @@ export const perspectiveGridSx = ({
 } = {}) => ({
   content: '""',
   position: "absolute" as const,
-  inset: { xs: "-18% -55% -45%", md: "-42% -18% -58%" },
+  // Kept much tighter on phones. The transform below scales and rotates this
+  // box, so the layer the compositor allocates is far larger than the inset
+  // suggests — at the old mobile inset it measured 2894x1238 CSS pixels
+  // against a 390x844 screen, roughly seven times the viewport, and at a
+  // phone's 3x pixel density that is a nine-figure byte count for ONE layer.
+  // This texture appears on every page (hero, every Section, the footer), so
+  // the cost was paid several times over per page.
+  inset: { xs: "-8% -18% -18%", md: "-42% -18% -58%" },
   zIndex: 0,
   pointerEvents: "none" as const,
   opacity,
@@ -38,7 +45,18 @@ export const perspectiveGridSx = ({
     "linear-gradient(to bottom, transparent 2%, rgba(0,0,0,0.32) 22%, rgba(0,0,0,0.72) 58%, transparent 96%)",
   WebkitMaskImage:
     "linear-gradient(to bottom, transparent 2%, rgba(0,0,0,0.32) 22%, rgba(0,0,0,0.72) 58%, transparent 96%)",
-  animation: "xtiitch-perspective-drift 44s linear infinite",
+  // Static on phones. A masked, 3D-transformed layer cannot be reused by the
+  // compositor while it animates: it is re-rasterised every frame, forever,
+  // and the mask forces a second offscreen buffer each time. Holding it still
+  // lets the layer be painted once and reused, which is the difference
+  // between a background texture and a permanent GPU load.
+  //
+  // The grid lines are rgba(...,0.04) — at that opacity the drift is not
+  // something anyone sees on a small screen, so nothing is really lost.
+  animation: {
+    xs: "none",
+    md: "xtiitch-perspective-drift 44s linear infinite",
+  },
   "@media (prefers-reduced-motion: reduce)": { animation: "none" },
 });
 

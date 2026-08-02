@@ -22,7 +22,8 @@ import { navGroups } from "./nav-data";
 import { MegaMenu } from "./mega-menu";
 import { MobileNav } from "./mobile-nav";
 
-export function Header() { // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+// eslint-disable-next-line max-lines-per-function -- large presentational component; refactor in follow-up
+export function Header() {
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
   const rootData = useRouteLoaderData("root") as
@@ -60,8 +61,15 @@ export function Header() { // eslint-disable-line max-lines-per-function -- larg
       sx={{
         top: 0,
         py: { xs: 0.75, md: 1.25 },
-        backdropFilter: "saturate(180%) blur(14px)",
-        backgroundColor: "rgba(var(--surface-rgb), 0.78)",
+        // The header is sticky, so its backdrop-filter re-reads the page
+        // beneath it on every scroll frame — on every route, not just the
+        // home page. Phones get an opaque bar instead: same colour, none of
+        // the per-frame readback.
+        backdropFilter: { xs: "none", md: "saturate(180%) blur(14px)" },
+        backgroundColor: {
+          xs: "rgb(var(--surface-rgb))",
+          md: "rgba(var(--surface-rgb), 0.78)",
+        },
         borderBottom: "1px solid rgba(233,222,214,0.72)",
         animation: "xtiitch-rise-in 520ms cubic-bezier(0.2, 0.8, 0.2, 1)",
         "@media (prefers-reduced-motion: reduce)": {

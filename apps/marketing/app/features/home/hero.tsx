@@ -72,10 +72,26 @@ export function Hero() {
           inset: { xs: "-12% -38% 12% -28%", md: "-18% -24% 8% -18%" },
           zIndex: 1,
           opacity: 0.74,
-          filter: "blur(6px)",
+          // Phones get the gradient without the blur or the drift.
+          //
+          // This layer is inset NEGATIVE, so it is larger than the viewport,
+          // and the animation below both moves and scales it to 1.08 forever.
+          // A blurred layer that changes scale cannot be reused by the
+          // compositor: it re-rasterises and re-blurs a bigger-than-screen
+          // surface every frame, with no end. Stack the backdrop-filters that
+          // sit above it — each of which reads back whatever it covers — and a
+          // low-memory phone runs out of GPU memory and the web content process
+          // is killed. That is the "A problem repeatedly occurred" crash.
+          //
+          // The radial gradients are already soft-edged, so dropping the blur
+          // on small screens costs almost nothing to look at.
+          filter: { xs: "none", md: "blur(6px)" },
           background:
             "radial-gradient(circle at 18% 68%, rgba(128,0,32,0.48), transparent 36%), radial-gradient(circle at 74% 22%, rgba(184,121,20,0.34), transparent 30%), radial-gradient(circle at 56% 78%, rgba(250,246,242,0.16), transparent 28%)",
-          animation: "xtiitch-spotlight-drift 16s ease-in-out infinite",
+          animation: {
+            xs: "none",
+            md: "xtiitch-spotlight-drift 16s ease-in-out infinite",
+          },
           pointerEvents: "none",
           "@media (prefers-reduced-motion: reduce)": {
             animation: "none",
@@ -122,7 +138,12 @@ export function Hero() {
                 borderRadius: 999,
                 bgcolor: "rgba(21,17,26,0.52)",
                 boxShadow: "0 12px 34px rgba(0,0,0,0.2)",
-                backdropFilter: "blur(14px)",
+                // A backdrop-filter forces the compositor to read back
+                // everything painted beneath it — here, the animated hero
+                // image and the gradient layer above. Phones keep the
+                // translucent fill, which is what makes the text legible,
+                // without paying for the readback.
+                backdropFilter: { xs: "none", md: "blur(14px)" },
                 ...homeRiseSx(80),
               }}
             >
