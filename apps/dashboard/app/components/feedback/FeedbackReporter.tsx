@@ -189,11 +189,8 @@ export function FeedbackReporter() {
           right: { xs: 16, md: 24 },
           bottom: { xs: 16, md: 24 },
           // Above the page, below anything modal. At 2300 this sat over MUI's
-          // dialog layer (1300) and covered whatever a dialog put in its
-          // bottom-right corner — on a phone that was the onboarding tour's
-          // "Next" button, so the support button blocked the flow it exists to
-          // support. 1200 keeps it clear of page content and out of the way of
-          // every drawer, dialog and snackbar.
+          // dialog layer (1300) and covered the onboarding tour's "Next"
+          // button — the support button blocking the flow it exists to support.
           zIndex: 1200,
           borderRadius: 999,
           boxShadow: `0 18px 42px rgba(128, 0, 32, 0.28)`,
