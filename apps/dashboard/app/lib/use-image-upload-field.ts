@@ -11,15 +11,30 @@ import {
 const NON_IMAGE_ERROR =
   "Only image files can be uploaded — choose a JPG, PNG, or WebP.";
 
+export type PrepareOptions = {
+  // The most files the field may hold IN TOTAL, counting what is already
+  // selected — not the size of one pick.
+  maxFiles?: number;
+  // Add to the current selection instead of replacing it. Off for single-image
+  // fields, where a second pick can only mean "use this one instead".
+  append?: boolean;
+};
+
 export type ImageUploadField = {
   // True while picked photos are being resized. Fields should say so: on a
   // mid-range phone a batch of camera photos takes a noticeable moment.
   busy: boolean;
   // What was left out and why, or null when the whole pick was accepted.
   error: string | null;
+  // Everything currently selected, resized and within budget, in pick order.
+  // This is what the form will post, so previews built from it show the actual
+  // bytes that will be uploaded.
+  files: File[];
   // Resizes the pick, drops whatever still cannot fit, writes the survivors
-  // back into the file input, and returns them (in pick order) for previews.
-  prepare: (picked: File[], maxFiles?: number) => Promise<File[]>;
+  // back into the file input, and returns the full selection for previews.
+  prepare: (picked: File[], options?: PrepareOptions) => Promise<File[]>;
+  // Drops one file from the selection before the form is submitted.
+  remove: (index: number) => void;
   clear: () => void;
 };
 
@@ -37,6 +52,11 @@ export function useImageUploadField(
 ): ImageUploadField {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The selection, mirrored in a ref. Renders read the state; prepare and
+  // remove read the ref, because a pick that resolves after another render
+  // would otherwise append to a stale list and silently drop a photo.
+  const [files, setFiles] = useState<File[]>([]);
+  const filesRef = useRef<File[]>([]);
   // Each pick supersedes the one before it, so a slow resize that finishes late
   // cannot write its files over a newer selection.
   const pickID = useRef(0);
@@ -67,24 +87,70 @@ export function useImageUploadField(
     return () => form.removeEventListener("submit", block, true);
   }, [busy, inputRef]);
 
+  // commit is the single place the selection changes: it writes the files back
+  // into the input, mirrors them for rendering, and tells the shared budget what
+  // this field now holds. Routing every change through here is what keeps the
+  // input, the previews and the budget from drifting apart.
+  const commit = useCallback(
+    (next: File[]) => {
+      filesRef.current = next;
+      setFiles(next);
+      const input = inputRef.current;
+      if (input) {
+        applyToInput(input, next);
+      }
+      sharedBudget?.reserve(
+        fieldID,
+        next.reduce((sum, file) => sum + file.size, 0),
+      );
+    },
+    [inputRef, sharedBudget, fieldID],
+  );
+
   const clear = useCallback(() => {
     pickID.current += 1;
     setBusy(false);
     setError(null);
-    const input = inputRef.current;
-    if (input) {
-      input.value = "";
-    }
-  }, [inputRef]);
+    commit([]);
+  }, [commit]);
+
+  // remove drops one photo before the form is submitted. Errors clear with it:
+  // a "left out, too large in total" message describes a selection that no
+  // longer exists, and removing something is the obvious way to act on it.
+  const remove = useCallback(
+    (index: number) => {
+      const next = filesRef.current.filter((_, position) => position !== index);
+      if (next.length === filesRef.current.length) {
+        return;
+      }
+      setError(null);
+      commit(next);
+    },
+    [commit],
+  );
 
   const prepare = useCallback(
-    async (picked: File[], maxFiles?: number): Promise<File[]> => {
+    async (picked: File[], options: PrepareOptions = {}): Promise<File[]> => {
+      const { maxFiles, append = true } = options;
       const input = inputRef.current;
       pickID.current += 1;
       const pick = pickID.current;
 
+      // What survives this pick. Appending starts from the current selection;
+      // replacing starts empty. The kept files were already resized by an
+      // earlier pick and are deliberately NOT put through the compressor again
+      // — re-encoding a photo on every subsequent add would degrade it a little
+      // each time, so the fifth photo you add would quietly ruin the first.
+      const kept = append ? filesRef.current : [];
+
       const images = picked.filter((file) => file.type.startsWith("image/"));
-      const chosen = maxFiles ? images.slice(0, maxFiles) : images;
+      // maxFiles counts the WHOLE field, not this pick, so an append cannot
+      // walk past a plan's image limit one pick at a time.
+      const room =
+        maxFiles === undefined
+          ? undefined
+          : Math.max(maxFiles - kept.length, 0);
+      const chosen = room === undefined ? images : images.slice(0, room);
       const droppedNonImages = images.length < picked.length;
       if (input) {
         // Empty the input up front: the originals are exactly what a premature
@@ -94,7 +160,11 @@ export function useImageUploadField(
       if (chosen.length === 0) {
         setBusy(false);
         setError(droppedNonImages ? NON_IMAGE_ERROR : null);
-        return [];
+        // Put the existing selection back. The input was emptied above, and a
+        // pick of nothing usable must not silently discard the photos already
+        // chosen.
+        commit(kept);
+        return kept;
       }
 
       setBusy(true);
@@ -114,33 +184,35 @@ export function useImageUploadField(
 
       // Sequential, not Promise.all: decoding several 12 MP photos at once is
       // how a mid-range phone runs out of memory mid-upload.
-      const target = shrinkTargetBytes(chosen.length, budget);
+      //
+      // The shrink target is sized for the WHOLE field — the photos already
+      // held plus the ones arriving — so adding to a nearly-full selection
+      // compresses harder rather than producing files that cannot fit.
+      const target = shrinkTargetBytes(kept.length + chosen.length, budget);
       const shrunk: File[] = [];
       for (const file of chosen) {
         shrunk.push(await shrinkImageFile(file, target));
         if (pickID.current !== pick) {
-          return [];
+          // Superseded by a newer pick, which owns the selection now.
+          return filesRef.current;
         }
       }
 
-      const plan = planUploadBatch(shrunk, budget);
-      if (input) {
-        applyToInput(input, plan.accepted);
-      }
-      // Tell the shared budget what this field now holds, so the next field to
-      // pick sizes against what is genuinely left rather than the full figure.
-      sharedBudget?.reserve(
-        fieldID,
-        plan.accepted.reduce((sum, file) => sum + file.size, 0),
-      );
+      // Planned over the combined set, never the new files alone: the budget is
+      // what the whole request may weigh, and two picks of 3 MB each are the
+      // 413 this compressor exists to prevent. Kept files come first, so when
+      // the budget runs out it is the new arrivals that are refused rather than
+      // photos already chosen being silently dropped.
+      const plan = planUploadBatch([...kept, ...shrunk], budget);
+      commit(plan.accepted);
       setError(plan.error ?? (droppedNonImages ? NON_IMAGE_ERROR : null));
       setBusy(false);
       return plan.accepted;
     },
-    [inputRef, sharedBudget, fieldID],
+    [inputRef, sharedBudget, fieldID, commit],
   );
 
-  return { busy, error, prepare, clear };
+  return { busy, error, files, prepare, remove, clear };
 }
 
 // applyToInput replaces the input's selection with the resized files, so the

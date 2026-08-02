@@ -1,5 +1,5 @@
 import { Link as RouterLink } from "react-router";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -11,6 +11,7 @@ import Typography from "@mui/material/Typography";
 import AddRounded from "@mui/icons-material/AddRounded";
 import DeleteOutlineRounded from "@mui/icons-material/DeleteOutlineRounded";
 import { useImageUploadField } from "../../lib/use-image-upload-field";
+import { useFilePreviews } from "../../lib/use-file-previews";
 import { MAX_UPLOAD_BUDGET_MB } from "../../lib/upload-limits";
 import { DESIGN_IMAGE_SPEC, specSummary } from "../../lib/image-specs";
 
@@ -59,14 +60,21 @@ function UploadStatus({
   );
 }
 
-// One image tile. `onRemove` marks it as already saved (removable); its absence
-// marks it as newly picked, which instead gets the NEW badge and a dashed edge —
-// those exist only in the form until it is submitted.
+// One image tile. Every tile is removable — a photo picked by mistake has to be
+// droppable before submitting, not only after it has been saved. `isNew` marks
+// the ones that exist in the form and not yet on the design, with the NEW badge
+// and a dashed edge.
 function Thumbnail({
   src,
   alt,
   onRemove,
-}: Readonly<{ src: string; alt: string; onRemove?: () => void }>) {
+  isNew = false,
+}: Readonly<{
+  src: string;
+  alt: string;
+  onRemove: () => void;
+  isNew?: boolean;
+}>) {
   return (
     <Box
       sx={{
@@ -75,8 +83,8 @@ function Thumbnail({
         height: 90,
         borderRadius: 1,
         overflow: "hidden",
-        border: onRemove ? "1px solid" : "1px dashed",
-        borderColor: onRemove ? "divider" : "primary.main",
+        border: isNew ? "1px dashed" : "1px solid",
+        borderColor: isNew ? "primary.main" : "divider",
       }}
     >
       <Box
@@ -85,23 +93,22 @@ function Thumbnail({
         alt={alt}
         sx={{ width: "100%", height: "100%", objectFit: "cover" }}
       />
-      {onRemove ? (
-        <IconButton
-          size="small"
-          aria-label="Remove image"
-          onClick={onRemove}
-          sx={{
-            position: "absolute",
-            top: 2,
-            right: 2,
-            bgcolor: "rgba(0,0,0,0.55)",
-            color: "#fff",
-            "&:hover": { bgcolor: "rgba(0,0,0,0.72)" },
-          }}
-        >
-          <DeleteOutlineRounded sx={{ fontSize: 14 }} />
-        </IconButton>
-      ) : (
+      <IconButton
+        size="small"
+        aria-label={isNew ? `Remove ${alt || "image"}` : "Remove image"}
+        onClick={onRemove}
+        sx={{
+          position: "absolute",
+          top: 2,
+          right: 2,
+          bgcolor: "rgba(0,0,0,0.55)",
+          color: "#fff",
+          "&:hover": { bgcolor: "rgba(0,0,0,0.72)" },
+        }}
+      >
+        <DeleteOutlineRounded sx={{ fontSize: 14 }} />
+      </IconButton>
+      {isNew ? (
         <Typography
           component="span"
           sx={{
@@ -120,7 +127,7 @@ function Thumbnail({
         >
           NEW
         </Typography>
-      )}
+      ) : null}
     </Box>
   );
 }
@@ -144,10 +151,6 @@ export function DesignImagesField({
   isFreePlan: boolean;
 }) {
   const [kept, setKept] = useState<string[]>(images);
-  // Previews of the photos waiting to be uploaded. Showing the actual images
-  // rather than a list of filenames is the only way the owner can confirm she
-  // picked the right ones — a filename from a phone camera is "IMG_4821.jpg".
-  const [pending, setPending] = useState<{ name: string; url: string }[]>([]);
   // How many of the picked images the plan cap left behind. The pick is capped
   // before resizing, so this is the only place the owner learns their choice was
   // trimmed — the counter alone would just look wrong.
@@ -157,32 +160,29 @@ export function DesignImagesField({
   // form posts to a route action on Vercel, which refuses a request over 4.5 MB
   // before it gets there. See use-image-upload-field.ts.
   const uploads = useImageUploadField(inputRef);
+  // Previews of the photos waiting to be uploaded, built from the RESIZED files
+  // the hook holds — so what the owner sees is exactly the bytes that will be
+  // uploaded. Showing the images rather than a list of filenames is the only
+  // way she can confirm she picked the right ones: a filename from a phone
+  // camera is "IMG_4821.jpg".
+  const pending = useFilePreviews(uploads.files);
   const full = imageLimit !== null && kept.length >= imageLimit;
   const remaining =
     imageLimit === null ? undefined : Math.max(imageLimit - kept.length, 0);
 
   const pick = async (selected: FileList | null) => {
     const picked = Array.from(selected ?? []);
+    // Room left counts the photos already staged as well as the saved ones,
+    // otherwise a plan limit could be walked past one pick at a time.
+    const room =
+      remaining === undefined
+        ? undefined
+        : Math.max(remaining - pending.length, 0);
     setDroppedByPlan(
-      remaining === undefined ? 0 : Math.max(picked.length - remaining, 0),
+      room === undefined ? 0 : Math.max(picked.length - room, 0),
     );
-    const accepted = await uploads.prepare(picked, remaining);
-    setPending(
-      accepted.map((file) => ({
-        name: file.name,
-        url: URL.createObjectURL(file),
-      })),
-    );
+    await uploads.prepare(picked, { maxFiles: remaining, append: true });
   };
-
-  // Previews are built from the RESIZED files, so what the owner sees is
-  // exactly the bytes that will be uploaded. The cleanup runs both when the
-  // batch is replaced and on unmount, which releases every object URL — a
-  // re-pick would otherwise leak the decoded image until the tab closed.
-  useEffect(
-    () => () => pending.forEach((item) => URL.revokeObjectURL(item.url)),
-    [pending],
-  );
   return (
     <Box>
       <Stack
@@ -203,8 +203,14 @@ export function DesignImagesField({
         <Stack direction="row" sx={{ flexWrap: "wrap", gap: 1, mb: 1 }}>
           {/* Picked-but-unsaved photos sit in the same grid as the saved ones
               so the design reads as a whole; Thumbnail marks them NEW. */}
-          {pending.map((item) => (
-            <Thumbnail key={item.url} src={item.url} alt={item.name} />
+          {pending.map((item, index) => (
+            <Thumbnail
+              key={item.url}
+              src={item.url}
+              alt={item.file.name}
+              isNew
+              onRemove={() => uploads.remove(index)}
+            />
           ))}
           {kept.map((url) => (
             <Thumbnail
