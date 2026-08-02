@@ -310,6 +310,13 @@ export function DashboardWorkspace({ // eslint-disable-line max-lines-per-functi
           <Box
             sx={{
               pt: { xs: 2, md: 2.5 },
+              // Clearance for the fixed Support button, which floats over the
+              // bottom-right corner. Without it the last row of any page sits
+              // permanently underneath — on the catalogue page that was the
+              // "All designs" / "Add design" controls, which are the two things
+              // the page exists for. Scrolling could not reveal them, because
+              // the button does not scroll.
+              pb: { xs: 11, md: 12 },
               minWidth: 0,
               maxWidth: "100%",
               overflowX: "hidden",

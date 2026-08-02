@@ -76,12 +76,25 @@ export function Search({
         >
           {profile.handle}.xtiitch.com
         </Typography>
+        {/*
+          A <p>, not an <h1>. The page header below is the h1 and carries the
+          same words; two h1s on one page is a heading structure that lies to a
+          screen reader about what the page is about.
+
+          Hidden on phones. Measured on a 390px screen, the menu button and the
+          four trailing controls leave this 96px — while "Studio command center"
+          needs 164px on one line, so it wrapped to three and got clipped to
+          "Studio command…". No font size rescues 96px; a title in that space is
+          not a title, and it was showing a worse copy of something the page
+          header renders in full, at 2rem, immediately underneath.
+        */}
         <Typography
           variant="h5"
-          component="h1"
+          component="p"
           sx={{
+            display: { xs: "none", sm: "block" },
             lineHeight: 1.05,
-            fontSize: { xs: "1.3rem", sm: "1.55rem" },
+            fontSize: { sm: "1.55rem" },
           }}
           noWrap
         >

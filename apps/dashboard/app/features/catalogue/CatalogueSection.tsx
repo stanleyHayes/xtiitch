@@ -88,9 +88,16 @@ export function CatalogueSection({ // eslint-disable-line max-lines-per-function
   void openDesignId;
   return (
     <Box id="catalogue">
+      {/*
+        Named for what the section holds, not for the page it sits on. The page
+        header directly above already says "Design studio", so repeating it here
+        read as the same heading twice with nothing between them. Every sibling
+        section already works this way — "Production board", "Trends, top
+        sellers and what's owed" — this one was the odd one out.
+      */}
       <SectionHeader
         eyebrow="Catalogue"
-        title="Design studio"
+        title="Designs and product imagery"
         helper="Add storefront designs, retire unavailable pieces, and keep product imagery tidy."
       />
       <Stack

@@ -5,7 +5,7 @@ import { alpha } from "@mui/material/styles";
 import AccountBalanceWalletRounded from "@mui/icons-material/AccountBalanceWalletRounded";
 import EventAvailableRounded from "@mui/icons-material/EventAvailableRounded";
 import TimelineRounded from "@mui/icons-material/TimelineRounded";
-import { formatGHS } from "../../lib/format";
+import { countLabel, formatGHS } from "../../lib/format";
 import { tokens } from "../../theme";
 import { DashboardPageMeta, MoneySummary, OrderSummary, AvailabilityWindow } from "../shared/types";
 import { Panel } from "../../components/ui/Panel";
@@ -145,19 +145,19 @@ export function WorkspaceHeader({
             title={
               canManage
                 ? formatGHS(moneySummary.net_income_minor)
-                : `${liveOrders.length} live orders`
+                : countLabel(liveOrders.length, "live order")
             }
             helper={
               canManage
-                ? `${pendingPayments} payment follow-ups`
-                : `${needsMeasurements} measurement captures`
+                ? countLabel(pendingPayments, "payment follow-up")
+                : countLabel(needsMeasurements, "measurement capture")
             }
           />
           <HeaderSignal
             icon={<EventAvailableRounded />}
             tone={tokens.info}
-            title={`${activeBookings} active visits`}
-            helper={`${availabilityWindows.length} windows · ${openHandovers} handovers`}
+            title={countLabel(activeBookings, "active visit")}
+            helper={`${countLabel(availabilityWindows.length, "window")} · ${countLabel(openHandovers, "handover")}`}
           />
         </Box>
       </Stack>

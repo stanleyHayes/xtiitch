@@ -63,7 +63,12 @@ export function WorkspaceTopBar({
         position: "sticky",
         top: { xs: 8, sm: 12 },
         zIndex: 16,
-        backdropFilter: "blur(14px)",
+        // No backdrop-filter here. Both backgrounds above are fully opaque
+        // (background.paper is #ffffff light / #1b1420 dark, charcoal is
+        // #201923), so a blur behind them was never visible — but because this
+        // bar is sticky, it still forced the compositor to re-read the page
+        // underneath on every scroll frame. Pure cost, no effect, and felt
+        // worst on the phones with least to spare.
         maxWidth: "100%",
       }}
     >
