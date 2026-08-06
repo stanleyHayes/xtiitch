@@ -69,8 +69,11 @@ func (repo AffiliateRepository) ReserveFirstPaidPlanAttribution(
 			)
 			select
 				$1::uuid, affiliate_id, affiliate_click_id,
-				affiliate_programme_id, $2::uuid, $3::uuid, $4, $5,
-				least($5, ($5 * first_paid_plan_commission_bps) / 10000),
+				affiliate_programme_id, $2::uuid, $3::uuid, $4, $5::bigint,
+				least(
+					$5::bigint,
+					($5::bigint * first_paid_plan_commission_bps::bigint) / 10000
+				),
 				first_paid_plan_commission_bps, hold_days,
 				jsonb_build_object('source', 'subscription_checkout')
 			from eligible
