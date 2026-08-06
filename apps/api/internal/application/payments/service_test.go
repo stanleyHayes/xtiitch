@@ -429,6 +429,29 @@ func TestHandleProviderEventFinalizesFirstPaidPlanAttribution(t *testing.T) {
 	}
 }
 
+func TestHandleProviderEventIgnoresAffiliateProcessingFailure(t *testing.T) {
+	t.Parallel()
+	provider := &fakeProvider{verifySig: true, event: ports.ProviderChargeEvent{
+		EventType: "charge.success", ProviderReference: "xtsub-act-1",
+		Succeeded: true, Signature: "paystack:charge.success:xtsub-act-1",
+	}}
+	events := &fakePlanAffiliateEvents{err: errors.New("affiliate database unavailable")}
+	payments := &fakePaymentRepo{}
+	service := NewService(Dependencies{
+		Provider: provider, Payments: payments,
+		Businesses:     &fakeChargeRepo{},
+		IDs:            &sequenceIDs{ids: []common.ID{"conversion-1"}},
+		PlanAffiliates: events,
+	})
+
+	if err := service.HandleProviderEvent(context.Background(), []byte(`{}`), "good"); err != nil {
+		t.Fatalf("affiliate processing failures must not fail a settled payment webhook: %v", err)
+	}
+	if !payments.confirmCalled {
+		t.Fatal("expected payment confirmation to complete before affiliate processing")
+	}
+}
+
 func TestVerifyBusinessProvisionsSubaccount(t *testing.T) {
 	t.Parallel()
 

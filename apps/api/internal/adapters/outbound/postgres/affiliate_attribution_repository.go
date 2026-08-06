@@ -54,6 +54,10 @@ func (repo AffiliateRepository) ReserveAffiliateAttribution(
 			where lower(code) = lower($2)
 				and status = 'active'
 				and (
+					commission_model <> 'percentage'
+					or purchase_commission_bps > 0
+				)
+				and (
 					owner_business_id is null
 					or (
 						owner_business_id = $5::uuid

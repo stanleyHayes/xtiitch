@@ -160,6 +160,28 @@ func TestReserveAffiliateAttributionPersistsLastClickReservation(t *testing.T) {
 	if !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("expected no click match to skip attribution, got %v", err)
 	}
+
+	inBypass(t, pool, func(tx pgx.Tx) {
+		mustExec(t, tx, `delete from affiliate_attribution_reservations where reservation_id = $1`,
+			itAffReserveReservation)
+		mustExec(t, tx, `update affiliates set purchase_commission_bps = 0 where affiliate_id = $1`,
+			itAffReserveAffiliate)
+	})
+	_, err = NewAffiliateRepository(pool).ReserveAffiliateAttribution(
+		context.Background(),
+		common.TenantScope{BusinessID: itAffReserveBusiness},
+		ports.ReserveAffiliateAttributionInput{
+			ReservationID: "aaaaaaaa-9999-9999-9999-999999999989",
+			BusinessID:    itAffReserveBusiness,
+			OrderID:       itAffReserveOrder,
+			Code:          itAffReserveCode,
+			VisitorID:     "reserve-visitor",
+			GrossMinor:    50000,
+		},
+	)
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("expected a zero purchase commission channel to skip attribution, got %v", err)
+	}
 }
 
 func TestSponsoredPlacementsListActiveCampaignsAndDedupeEvents(t *testing.T) {
@@ -400,10 +422,11 @@ func seedAffiliateReservationFixture(t *testing.T, pool *pgxpool.Pool) {
 				display_name,
 				commission_model,
 				commission_rate,
+				purchase_commission_bps,
 				cookie_window_days,
 				status
 			)
-			values ($1, $2, 'IT Reserve Affiliate', 'percentage', 1500, 30, 'active')
+			values ($1, $2, 'IT Reserve Affiliate', 'percentage', 1500, 1500, 30, 'active')
 		`, itAffReserveAffiliate, itAffReserveCode)
 		mustExec(t, tx, `
 			insert into affiliate_clicks (

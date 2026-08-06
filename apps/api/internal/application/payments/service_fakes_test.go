@@ -149,6 +149,7 @@ type fakePaymentRepo struct {
 
 type fakePlanAffiliateEvents struct {
 	applied ports.ApplyFirstPaidPlanProviderEventInput
+	err     error
 }
 
 func (*fakePlanAffiliateEvents) ReserveFirstPaidPlanAttribution(
@@ -179,7 +180,7 @@ func (fake *fakePlanAffiliateEvents) ApplyFirstPaidPlanProviderEvent(
 	input ports.ApplyFirstPaidPlanProviderEventInput,
 ) error {
 	fake.applied = input
-	return nil
+	return fake.err
 }
 
 func (r *fakePaymentRepo) Create(_ context.Context, input ports.CreatePaymentInput) error {

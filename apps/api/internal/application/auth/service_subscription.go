@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
@@ -284,7 +285,14 @@ func (s Service) InitializeSubscriptionAuthorization(
 			reservedAffiliate = true
 		case errors.Is(reserveErr, ports.ErrNotFound):
 		default:
-			return SubscriptionAuthorizationLink{}, reserveErr
+			slog.ErrorContext(
+				ctx,
+				"subscription checkout: failed to reserve affiliate attribution",
+				"business_id", subscription.BusinessID.String(),
+				"subscription_id", subscription.SubscriptionID.String(),
+				"payment_reference", checkoutRef,
+				"error", reserveErr,
+			)
 		}
 	}
 	result, err := s.payments.InitializeAuthorization(ctx, ports.InitializeAuthorizationInput{
@@ -474,7 +482,14 @@ func (s Service) VerifySubscriptionAuthorization(
 				},
 			)
 			if finalizeErr != nil && !errors.Is(finalizeErr, ports.ErrNotFound) {
-				return SubscriptionAuthorizationResult{}, finalizeErr
+				slog.ErrorContext(
+					ctx,
+					"subscription checkout: failed to finalize affiliate attribution",
+					"business_id", subscription.BusinessID.String(),
+					"subscription_id", subscription.SubscriptionID.String(),
+					"payment_reference", reference,
+					"error", finalizeErr,
+				)
 			}
 		}
 	}

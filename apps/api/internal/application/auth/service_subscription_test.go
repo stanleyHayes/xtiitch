@@ -13,9 +13,11 @@ import (
 )
 
 type fakePlanAffiliateAttribution struct {
-	reserved  ports.ReserveFirstPaidPlanAttributionInput
-	finalized ports.FinalizeFirstPaidPlanAttributionInput
-	voidedRef string
+	reserved    ports.ReserveFirstPaidPlanAttributionInput
+	finalized   ports.FinalizeFirstPaidPlanAttributionInput
+	voidedRef   string
+	reserveErr  error
+	finalizeErr error
 }
 
 func (fake *fakePlanAffiliateAttribution) ReserveFirstPaidPlanAttribution(
@@ -23,6 +25,9 @@ func (fake *fakePlanAffiliateAttribution) ReserveFirstPaidPlanAttribution(
 	input ports.ReserveFirstPaidPlanAttributionInput,
 ) (ports.AffiliatePlanAttributionReservation, error) {
 	fake.reserved = input
+	if fake.reserveErr != nil {
+		return ports.AffiliatePlanAttributionReservation{}, fake.reserveErr
+	}
 	return ports.AffiliatePlanAttributionReservation{
 		ReservationID: input.ReservationID,
 	}, nil
@@ -33,6 +38,9 @@ func (fake *fakePlanAffiliateAttribution) FinalizeFirstPaidPlanAttribution(
 	input ports.FinalizeFirstPaidPlanAttributionInput,
 ) (ports.AffiliatePlanConversionRecord, error) {
 	fake.finalized = input
+	if fake.finalizeErr != nil {
+		return ports.AffiliatePlanConversionRecord{}, fake.finalizeErr
+	}
 	return ports.AffiliatePlanConversionRecord{
 		ConversionID: input.ConversionID,
 		Created:      true,
@@ -470,6 +478,88 @@ func TestSubscriptionFirstPaymentFinalizesAffiliateAttribution(t *testing.T) {
 		attribution.finalized.PaymentReference != link.Reference ||
 		attribution.finalized.ConversionID != "conversion-1" {
 		t.Fatalf("unexpected paid-plan conversion: %+v", attribution.finalized)
+	}
+}
+
+func TestSubscriptionCheckoutContinuesWhenAffiliateReservationFails(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeBusinessIdentityRepository{
+		subscription: ports.BusinessSubscriptionRecord{
+			SubscriptionID:   "sub-1",
+			BusinessID:       "business-1",
+			OwnerEmail:       "owner@example.com",
+			MonthlyFeeMinor:  9900,
+			Status:           "trialing",
+			BillingCadence:   "yearly",
+			YearlyFirstMinor: 89100,
+		},
+	}
+	payments := &fakeSubscriptionPayments{}
+	attribution := &fakePlanAffiliateAttribution{reserveErr: errors.New("affiliate database unavailable")}
+	service := newSubscriptionTestService(businesses, payments)
+	service.planAffiliates = attribution
+	service.ids = &sequenceIDs{ids: []common.ID{"reservation-1"}}
+
+	link, err := service.InitializeSubscriptionAuthorization(
+		context.Background(),
+		InitializeSubscriptionAuthorizationCommand{
+			Scope:          common.TenantScope{BusinessID: "business-1"},
+			CallbackURL:    "https://example.com/callback",
+			BillingCadence: "yearly",
+		},
+	)
+	if err != nil {
+		t.Fatalf("affiliate reservation failures must not block checkout: %v", err)
+	}
+	if link.RedirectURL == "" || payments.initInput.Reference != link.Reference {
+		t.Fatalf("expected Paystack checkout to proceed, link=%+v payment=%+v", link, payments.initInput)
+	}
+}
+
+func TestSubscriptionActivationContinuesWhenAffiliateFinalizationFails(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeBusinessIdentityRepository{
+		subscription: ports.BusinessSubscriptionRecord{
+			SubscriptionID:   "sub-1",
+			BusinessID:       "business-1",
+			OwnerEmail:       "owner@example.com",
+			MonthlyFeeMinor:  9900,
+			Status:           "trialing",
+			BillingCadence:   "yearly",
+			YearlyFirstMinor: 89100,
+		},
+	}
+	payments := &fakeSubscriptionPayments{}
+	attribution := &fakePlanAffiliateAttribution{finalizeErr: errors.New("affiliate database unavailable")}
+	service := newSubscriptionTestService(businesses, payments)
+	service.planAffiliates = attribution
+	service.ids = &sequenceIDs{ids: []common.ID{"reservation-1", "conversion-1"}}
+
+	link, err := service.InitializeSubscriptionAuthorization(
+		context.Background(),
+		InitializeSubscriptionAuthorizationCommand{
+			Scope:          common.TenantScope{BusinessID: "business-1"},
+			CallbackURL:    "https://example.com/callback",
+			BillingCadence: "yearly",
+		},
+	)
+	if err != nil {
+		t.Fatalf("initialize: %v", err)
+	}
+	result, err := service.VerifySubscriptionAuthorization(
+		context.Background(),
+		VerifySubscriptionAuthorizationCommand{
+			Scope:     common.TenantScope{BusinessID: "business-1"},
+			Reference: link.Reference,
+		},
+	)
+	if err != nil {
+		t.Fatalf("affiliate finalization failures must not invalidate a paid subscription: %v", err)
+	}
+	if result.Status != "active" {
+		t.Fatalf("expected paid subscription activation to succeed, got %+v", result)
 	}
 }
 

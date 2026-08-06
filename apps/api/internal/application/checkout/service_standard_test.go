@@ -183,6 +183,40 @@ func TestPlaceStandardOrderIgnoresUnavailableAffiliateAttribution(t *testing.T) 
 	}
 }
 
+func TestPlaceStandardOrderIgnoresAffiliateRepositoryFailure(t *testing.T) {
+	t.Parallel()
+
+	orders := &fakeOrders{}
+	payments := &fakePayments{result: paymentsapp.ChargeResult{Reference: "xt_ref", AuthorizationURL: "https://pay"}}
+	affiliates := &fakeAffiliates{err: errors.New("affiliate database unavailable")}
+	svc := NewService(Dependencies{
+		Storefront: fakeStorefront{
+			store: ports.Storefront{BusinessID: testBusinessID, OnlineOrderingEnabled: true},
+			design: ports.StorefrontDesign{
+				Design: catalogue.Design{ID: "design-1", BusinessID: testBusinessID},
+				Prices: []catalogue.BandPrice{{SizeBandID: "band-1", PriceMinor: 50000}},
+			},
+		},
+		Businesses: fakeCharge{ctx: ports.BusinessChargeContext{
+			BusinessID: testBusinessID, Verified: true, SubaccountRef: "acct_1",
+		}},
+		Orders:     orders,
+		Payments:   payments,
+		Affiliates: affiliates,
+		IDs:        &seqIDs{ids: []common.ID{"order-1", "customer-1", "reservation-1"}},
+	})
+
+	cmd := placeCommand()
+	cmd.AffiliateCode = "sewingpro"
+	res, err := svc.PlaceStandardOrder(context.Background(), cmd)
+	if err != nil {
+		t.Fatalf("affiliate repository failures must not block checkout: %v", err)
+	}
+	if res.Reference != "xt_ref" || !payments.called {
+		t.Fatalf("expected checkout to continue, result=%+v paymentCalled=%v", res, payments.called)
+	}
+}
+
 func TestPlaceStandardOrderReservesReferralAttribution(t *testing.T) {
 	t.Parallel()
 

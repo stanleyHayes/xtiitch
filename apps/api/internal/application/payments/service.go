@@ -3,6 +3,7 @@ package paymentsapp
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
@@ -485,7 +486,7 @@ func (s Service) HandleProviderEvent(ctx context.Context, payload []byte, signat
 	if s.planAffiliates == nil {
 		return nil
 	}
-	return s.planAffiliates.ApplyFirstPaidPlanProviderEvent(
+	err = s.planAffiliates.ApplyFirstPaidPlanProviderEvent(
 		ctx,
 		ports.ApplyFirstPaidPlanProviderEventInput{
 			ConversionID:     s.ids.NewID(),
@@ -494,6 +495,16 @@ func (s Service) HandleProviderEvent(ctx context.Context, payload []byte, signat
 			Succeeded:        event.Succeeded,
 		},
 	)
+	if err != nil {
+		slog.ErrorContext(
+			ctx,
+			"payment webhook: failed to apply paid-plan affiliate event",
+			"payment_reference", event.ProviderReference,
+			"event_type", event.EventType,
+			"error", err,
+		)
+	}
+	return nil
 }
 
 // handleTransferEvent applies a transfer.* webhook: record it idempotently,
