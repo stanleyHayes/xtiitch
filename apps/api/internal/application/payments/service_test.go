@@ -47,7 +47,7 @@ func TestInitiateChargeComputesSplitAndRecordsPayment(t *testing.T) {
 		t.Fatalf("expected one payment recorded, got %d", len(payments.created))
 	}
 	created := payments.created[0]
-	if created.CommissionMinor != 600 || created.Purpose != "standard_full" || created.ProviderReference != "xt_ref-1" {
+	if created.CommissionMinor != 600 || created.Purpose != "standard_full" || created.ProviderReference != "xt-ref-1" {
 		t.Fatalf("unexpected payment record: %+v", created)
 	}
 	if provider.initInput.CommissionMinor != 600 || provider.initInput.SubaccountRef != "sub_1" {

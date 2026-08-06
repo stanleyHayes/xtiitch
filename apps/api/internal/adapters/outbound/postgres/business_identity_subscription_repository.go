@@ -418,7 +418,9 @@ func (repo BusinessIdentityRepository) PrepareSubscriptionActivationCharge(
 		return ports.SubscriptionActivationCharge{}, err
 	}
 
-	ref := "xtsub_act_" + subscriptionID + "_" + chargePlanCode + "_" + billingCadence + "_" +
+	// Paystack transaction references reject underscores; use only its documented
+	// alphanumeric/hyphen character set throughout the provider-facing reference.
+	ref := "xtsub-act-" + subscriptionID + "-" + chargePlanCode + "-" + billingCadence + "-" +
 		strconv.FormatInt(periodStart.Unix(), 10)
 
 	var alreadyPaid bool

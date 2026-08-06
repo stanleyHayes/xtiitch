@@ -169,22 +169,22 @@ func TestCollectAdCampaignPaymentCreatesProviderLinkAndAudit(t *testing.T) {
 	if provider.initialized.CustomerEmail != "owner@example.com" ||
 		provider.initialized.AmountMinor != 37500 ||
 		provider.initialized.SubaccountRef != "" ||
-		provider.initialized.Reference != "xt_ad_reference-1" {
+		provider.initialized.Reference != "xt-ad-reference-1" {
 		t.Fatalf("expected platform Paystack transaction, got %+v", provider.initialized)
 	}
 	if businesses.createdAdCampaignPayment.PaymentID != "payment-1" ||
-		businesses.createdAdCampaignPayment.ProviderReference != "PAY_xt_ad_reference-1" ||
+		businesses.createdAdCampaignPayment.ProviderReference != "PAY_xt-ad-reference-1" ||
 		businesses.createdAdCampaignPayment.PaymentURL == "" {
 		t.Fatalf("expected stored campaign payment input, got %+v", businesses.createdAdCampaignPayment)
 	}
 	if !result.Created ||
 		result.Payment.AmountMinor != 37500 ||
-		result.AuthorizationURL != "https://paystack.test/xt_ad_reference-1" {
+		result.AuthorizationURL != "https://paystack.test/xt-ad-reference-1" {
 		t.Fatalf("unexpected payment result: %+v", result)
 	}
 	if len(audits.created) != 1 ||
 		audits.created[0].Action != "Created sponsored placement payment link" ||
-		audits.created[0].Metadata["provider_reference"] != "PAY_xt_ad_reference-1" {
+		audits.created[0].Metadata["provider_reference"] != "PAY_xt-ad-reference-1" {
 		t.Fatalf("unexpected audit event: %+v", audits.created)
 	}
 

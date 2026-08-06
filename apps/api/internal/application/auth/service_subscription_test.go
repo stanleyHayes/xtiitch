@@ -3,6 +3,7 @@ package authapp
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -148,7 +149,7 @@ func TestVerifySubscriptionAuthorizationAppliesPendingPlanUpgrade(t *testing.T) 
 	service := newSubscriptionTestService(businesses, payments)
 
 	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
-		Scope: common.TenantScope{BusinessID: "business-1"}, Reference: "xtsub_act_test_1",
+		Scope: common.TenantScope{BusinessID: "business-1"}, Reference: "xtsub-act-test-1",
 	})
 	if err != nil {
 		t.Fatalf("verify: unexpected error: %v", err)
@@ -182,7 +183,7 @@ func TestVerifySubscriptionAuthorizationKeepsPendingPlanLockedWhenPaymentFails(t
 	service := newSubscriptionTestService(businesses, payments)
 
 	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
-		Scope: common.TenantScope{BusinessID: "business-1"}, Reference: "xtsub_act_test_1",
+		Scope: common.TenantScope{BusinessID: "business-1"}, Reference: "xtsub-act-test-1",
 	})
 	if err != nil {
 		t.Fatalf("verify: unexpected error: %v", err)
@@ -214,7 +215,7 @@ func TestVerifyInteractivePlanUpgradeAppliesOnlyAfterFullPayment(t *testing.T) {
 	}}
 	payments := &fakeSubscriptionPayments{initInput: ports.InitializeAuthorizationInput{AmountMinor: 9995}}
 	service := newSubscriptionTestService(businesses, payments)
-	reference := "xtsub_upgrade_checkout_sub-1_studio_1780272000_yearly_9995_1781467200"
+	reference := "xtsub-upgrade-checkout-sub-1-studio-1780272000-yearly-9995-1781467200"
 	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
 		Scope: common.TenantScope{BusinessID: "business-1"}, Reference: reference,
 	})
@@ -243,7 +244,7 @@ func TestVerifyInteractivePlanUpgradeRejectsUnderpayment(t *testing.T) {
 	service := newSubscriptionTestService(businesses, payments)
 	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
 		Scope:     common.TenantScope{BusinessID: "business-1"},
-		Reference: "xtsub_upgrade_checkout_sub-1_studio_1780272000_9995_1781467200",
+		Reference: "xtsub-upgrade-checkout-sub-1-studio-1780272000-9995-1781467200",
 	})
 	if err != nil || result.Status == "active" {
 		t.Fatalf("underpaid upgrade must remain inactive: result=%+v err=%v", result, err)
@@ -299,7 +300,7 @@ func TestVerifySubscriptionAuthorizationRejectsUnderpayment(t *testing.T) {
 	service := newSubscriptionTestService(businesses, payments)
 
 	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
-		Scope: common.TenantScope{BusinessID: "business-1"}, Reference: "xtsub_act_test_1",
+		Scope: common.TenantScope{BusinessID: "business-1"}, Reference: "xtsub-act-test-1",
 	})
 	if err != nil {
 		t.Fatalf("underpayment should remain recoverable, got %v", err)
@@ -385,6 +386,9 @@ func TestVerifySubscriptionAuthorizationChargesFirstPeriod(t *testing.T) {
 	}
 	if payments.initInput.AmountMinor != 90872 || payments.initInput.Currency != "GHS" {
 		t.Fatalf("expected the yearly intro figure plus the §4.1 VAT/Transaction-fee lines at checkout, got %+v", payments.initInput)
+	}
+	if strings.Contains(payments.initInput.Reference, "_") {
+		t.Fatalf("Paystack reference contains an unsupported character: %q", payments.initInput.Reference)
 	}
 	if link.RedirectURL == "" || link.Activated {
 		t.Fatalf("expected a redirect checkout link, got %+v", link)
@@ -582,7 +586,7 @@ func TestVerifySubscriptionAuthorizationDoesNotRechargeWhenAlreadyPaid(t *testin
 
 	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
 		Scope:     common.TenantScope{BusinessID: "business-1"},
-		Reference: "xtsub_act_test_1",
+		Reference: "xtsub-act-test-1",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

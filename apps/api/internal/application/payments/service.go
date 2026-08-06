@@ -380,7 +380,9 @@ func (s Service) InitiateCharge(ctx context.Context, cmd InitiateChargeCommand) 
 	quote := s.quoteStoreSale(ctx, lineAmounts, uncosted, commissionOverride, info)
 	chargeAmount := quote.TotalChargeMinor
 	commission := quote.PlatformShareMinor()
-	reference := "xt_" + s.ids.NewID().String()
+	// Paystack transaction references accept only alphanumeric characters plus
+	// "-", "." and "=". Keep the generated reference provider-safe.
+	reference := "xt-" + s.ids.NewID().String()
 
 	result, err := s.provider.InitializeTransaction(ctx, ports.InitializeTransactionInput{
 		BusinessID:      info.BusinessID,

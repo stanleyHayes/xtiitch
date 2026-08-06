@@ -266,7 +266,7 @@ func (s Service) InitializeSubscriptionAuthorization(
 	// §4.1: the checkout total carries VAT and the grossed-up Transaction fee on
 	// top of the package figure, so Xtiitch nets the exact table figure.
 	gross := s.subscriptionChargeTotal(ctx, chargeMinor)
-	checkoutRef := fmt.Sprintf("%s_%d", activation.Ref, s.clock.Now().Unix())
+	checkoutRef := fmt.Sprintf("%s-%d", activation.Ref, s.clock.Now().Unix())
 	reservedAffiliate := false
 	if s.planAffiliates != nil {
 		_, reserveErr := s.planAffiliates.ReserveFirstPaidPlanAttribution(
@@ -346,7 +346,7 @@ func (s Service) VerifySubscriptionAuthorization(
 	// mobile money and therefore supplied no reusable authorization). Its amount is
 	// embedded in a tenant/plan/period-bound reference minted by ChangePlan; verify
 	// that exact amount before switching entitlements.
-	if strings.HasPrefix(reference, "xtsub_upgrade_checkout_") {
+	if strings.HasPrefix(reference, "xtsub-upgrade-checkout-") {
 		return s.verifyInteractivePlanUpgrade(ctx, subscription, reference)
 	}
 	// Canceled is NOT refused here, for the same reason it is not refused at
@@ -378,7 +378,7 @@ func (s Service) VerifySubscriptionAuthorization(
 	if err != nil {
 		return SubscriptionAuthorizationResult{}, err
 	}
-	if !strings.HasPrefix(reference, activation.Ref+"_") {
+	if !strings.HasPrefix(reference, activation.Ref+"-") {
 		return SubscriptionAuthorizationResult{}, authdomain.ErrInvalidInput
 	}
 	result, err := s.payments.VerifyAuthorization(ctx, ports.VerifyAuthorizationInput{Reference: reference})
@@ -497,12 +497,12 @@ func (s Service) verifyInteractivePlanUpgrade(
 	if !subscriptionPeriodActive(subscription, s.clock.Now()) {
 		return SubscriptionAuthorizationResult{}, authdomain.ErrInvalidInput
 	}
-	prefix := fmt.Sprintf("xtsub_upgrade_checkout_%s_%s_%d_", subscription.SubscriptionID,
+	prefix := fmt.Sprintf("xtsub-upgrade-checkout-%s-%s-%d-", subscription.SubscriptionID,
 		subscription.PlanCode, subscription.CurrentPeriodStart.Unix())
 	if !strings.HasPrefix(reference, prefix) {
 		return SubscriptionAuthorizationResult{}, authdomain.ErrInvalidInput
 	}
-	parts := strings.Split(strings.TrimPrefix(reference, prefix), "_")
+	parts := strings.Split(strings.TrimPrefix(reference, prefix), "-")
 	cadence, dueMinor, err := parseUpgradeReferenceSuffix(parts, subscription.BillingCadence)
 	if err != nil {
 		return SubscriptionAuthorizationResult{}, authdomain.ErrInvalidInput

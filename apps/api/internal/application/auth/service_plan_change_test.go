@@ -77,7 +77,8 @@ func TestChangeSubscriptionPlanUpgradeRequiresCheckoutBeforeSwitching(t *testing
 		t.Fatalf("stored authorization must not be charged silently, got %+v", payments.chargeInput)
 	}
 	if payments.initInput.AmountMinor != 9995 ||
-		!strings.Contains(payments.initInput.Reference, "_quarterly_9995_") {
+		!strings.Contains(payments.initInput.Reference, "-quarterly-9995-") ||
+		strings.Contains(payments.initInput.Reference, "_") {
 		t.Fatalf("expected the prorated Paystack checkout, got %+v", payments.initInput)
 	}
 	if businesses.upgradeApplied != nil || businesses.pendingUpgradeSet != "plan-studio" {
@@ -119,7 +120,9 @@ func TestChangeSubscriptionPlanUpgradeUsesSelectedCadence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("yearly upgrade checkout should open: %v", err)
 	}
-	if !strings.Contains(payments.initInput.Reference, "_yearly_") || payments.initInput.AmountMinor <= 0 {
+	if !strings.Contains(payments.initInput.Reference, "-yearly-") ||
+		strings.Contains(payments.initInput.Reference, "_") ||
+		payments.initInput.AmountMinor <= 0 {
 		t.Fatalf("selected yearly cadence must price and tag the checkout: %+v", payments.initInput)
 	}
 }

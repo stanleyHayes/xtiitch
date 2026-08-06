@@ -271,7 +271,7 @@ func (s Service) CollectAdCampaignPayment(
 	}
 
 	paymentID := s.ids.NewID()
-	reference := "xt_ad_" + s.ids.NewID().String()
+	reference := "xt-ad-" + s.ids.NewID().String()
 	providerResult, err := s.payments.InitializeTransaction(ctx, ports.InitializeTransactionInput{
 		BusinessID:      intent.BusinessID,
 		CustomerEmail:   customerEmail,

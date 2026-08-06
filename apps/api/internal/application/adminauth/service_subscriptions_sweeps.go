@@ -112,7 +112,7 @@ func (s Service) InitializeSubscriptionAuthorization(
 	if amountMinor <= 0 {
 		return SubscriptionAuthorizationLinkResult{}, authdomain.ErrInvalidInput
 	}
-	reference := "xtsubadm_" + s.ids.NewID().String()
+	reference := "xtsubadm-" + s.ids.NewID().String()
 	result, err := s.payments.InitializeAuthorization(ctx, ports.InitializeAuthorizationInput{
 		BusinessID:    subscription.BusinessID,
 		CustomerEmail: ownerEmail,

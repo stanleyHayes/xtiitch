@@ -179,7 +179,7 @@ func (repo *fakeBusinessIdentityRepository) PrepareSubscriptionActivationCharge(
 	_ common.ID) (ports.SubscriptionActivationCharge,
 	error,
 ) {
-	return ports.SubscriptionActivationCharge{Ref: "xtsub_act_test", ShouldCharge: !repo.activationAlreadyPaid}, nil
+	return ports.SubscriptionActivationCharge{Ref: "xtsub-act-test", ShouldCharge: !repo.activationAlreadyPaid}, nil
 }
 
 func (repo *fakeBusinessIdentityRepository) SubmitIdentityDocument(_ context.Context, input ports.SubmitIdentityDocumentInput) error {

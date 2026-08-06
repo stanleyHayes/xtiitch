@@ -171,7 +171,7 @@ func (s Service) upgradeSubscriptionPlan(
 	// grossed up over package + VAT — so the charge, the booked invoice, and the
 	// reported amount agree and Xtiitch nets the proration + VAT exactly.
 	grossProration := s.subscriptionChargeTotal(ctx, proration)
-	ref := fmt.Sprintf("xtsub_upgrade_checkout_%s_%s_%d_%s_%d_%d", sub.SubscriptionID, target.Code,
+	ref := fmt.Sprintf("xtsub-upgrade-checkout-%s-%s-%d-%s-%d-%d", sub.SubscriptionID, target.Code,
 		sub.CurrentPeriodStart.Unix(), cadence, grossProration, now.UnixNano())
 	checkout, err := s.payments.InitializeAuthorization(ctx, ports.InitializeAuthorizationInput{
 		BusinessID: sub.BusinessID, CustomerEmail: strings.TrimSpace(sub.OwnerEmail),
