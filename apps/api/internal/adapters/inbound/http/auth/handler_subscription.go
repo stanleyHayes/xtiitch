@@ -1,6 +1,7 @@
 package authhttp
 
 import (
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -66,6 +67,12 @@ func (handler Handler) initializeSubscriptionAuthorization(w http.ResponseWriter
 		Code:           request.Code,
 	})
 	if err != nil {
+		slog.ErrorContext(
+			r.Context(),
+			"subscription authorization initialization failed",
+			"business_id", principal.BusinessID.String(),
+			"error", err,
+		)
 		status, code := authError(err)
 		writeError(w, status, code)
 		return

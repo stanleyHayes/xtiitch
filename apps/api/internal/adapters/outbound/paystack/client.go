@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -277,7 +278,13 @@ func (c Client) get(ctx context.Context, path string, out any) error {
 	defer func() { _ = response.Body.Close() }()
 
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return fmt.Errorf("paystack %s: unexpected status %d", path, response.StatusCode)
+		body, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
+		return fmt.Errorf(
+			"paystack %s: unexpected status %d: %s",
+			path,
+			response.StatusCode,
+			strings.TrimSpace(string(body)),
+		)
 	}
 
 	return json.NewDecoder(response.Body).Decode(out)
@@ -311,7 +318,13 @@ func (c Client) send(ctx context.Context, method string, path string, body any, 
 	defer func() { _ = response.Body.Close() }()
 
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return fmt.Errorf("paystack %s: unexpected status %d", path, response.StatusCode)
+		body, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
+		return fmt.Errorf(
+			"paystack %s: unexpected status %d: %s",
+			path,
+			response.StatusCode,
+			strings.TrimSpace(string(body)),
+		)
 	}
 
 	return json.NewDecoder(response.Body).Decode(out)
