@@ -16,6 +16,7 @@ import { tokens } from "../theme";
 import { formatGHS } from "../lib/format";
 import { api } from "../lib/api";
 import CartQuantity from "../features/cart/cart-quantity";
+import EmptyCart from "../features/cart/empty-cart";
 import { requestTenant } from "../lib/tenant";
 import {
   cartTotalMinor,
@@ -134,7 +135,7 @@ export default function Cart({ loaderData }: Route.ComponentProps) {
 
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
-      <Container sx={{ py: { xs: 4, md: 6 }, maxWidth: "md" }}>
+      <Container maxWidth="lg" sx={{ py: { xs: 3, md: 6 } }}>
         <Button
           component={RouterLink}
           to="/"
@@ -176,31 +177,7 @@ export default function Cart({ loaderData }: Route.ComponentProps) {
         ) : null}
 
         {groups.length === 0 ? (
-          <Box
-            sx={{
-              p: 4,
-              textAlign: "center",
-              border: "1px solid",
-              borderColor: "divider",
-              borderRadius: 3,
-            }}
-          >
-            <Typography sx={{ color: "text.secondary" }}>
-              Your cart is empty. Browse the designs and add pieces to your
-              cart.
-            </Typography>
-            {/* §6: on a tenant host this is the store's OWN storefront ("/"),
-                never the marketplace AI Search page; on the marketplace "/"
-                is the cross-store browse, which is fine there. */}
-            <Button
-              component={RouterLink}
-              to="/"
-              variant="contained"
-              sx={{ mt: 2 }}
-            >
-              Discover designs
-            </Button>
-          </Box>
+          <EmptyCart />
         ) : (
           <Stack spacing={2}>
             {multiStore ? (
