@@ -117,6 +117,21 @@ func (repo PaymentRepository) ConfirmFromProvider(
 				BusinessID:               common.ID(invoice.businessID),
 			})
 		}
+		// A FIRST activation has neither a payment row nor an invoice yet — the
+		// invoice is created by the browser callback this is standing in for — so
+		// it is matched from the reference instead. Runs after the invoice lookup
+		// so a renewal, which does have an invoice, is settled by that path.
+		activation, activationFound, err := reconcileSubscriptionActivationFromProvider(ctx, tx, input)
+		if err != nil {
+			return ports.ConfirmPaymentResult{}, err
+		}
+		if activationFound {
+			return commitConfirm(ctx, tx, ports.ConfirmPaymentResult{
+				PaymentFound:          false,
+				SubscriptionActivated: activation.activated,
+				BusinessID:            common.ID(activation.businessID),
+			})
+		}
 		adPayment, adPaymentFound, err := reconcileAdCampaignPaymentFromProvider(ctx, tx, input)
 		if err != nil {
 			return ports.ConfirmPaymentResult{}, err

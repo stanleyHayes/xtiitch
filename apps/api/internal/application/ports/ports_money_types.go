@@ -368,7 +368,11 @@ type ConfirmPaymentResult struct {
 	PaymentFound             bool
 	SubscriptionInvoiceFound bool
 	AdCampaignPaymentFound   bool
-	BusinessID               common.ID
+	// SubscriptionActivated reports that this webhook completed a FIRST
+	// activation the browser callback never did — the customer paid, closed the
+	// tab, and would otherwise have stayed locked out of what she bought.
+	SubscriptionActivated bool
+	BusinessID            common.ID
 	// OwnerOrderEmails are new-order alerts this settlement claimed for emailing.
 	//
 	// The owner already gets an SMS through the outbox. Email cannot use the same

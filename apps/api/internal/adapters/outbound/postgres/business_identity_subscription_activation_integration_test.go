@@ -185,7 +185,10 @@ func TestActivationChargeScopesPaidPeriodToPendingTargetPlan(t *testing.T) {
 	if !growthCharge.ShouldCharge {
 		t.Fatal("a paid Starter invoice must not mark the pending Growth plan paid")
 	}
-	if growthCharge.Ref == starterCharge.Ref || !strings.Contains(growthCharge.Ref, "_growth_quarterly_") {
+	// Hyphens, not underscores: Paystack rejects underscores in a transaction
+	// reference, so the builder switched separators and this assertion was left
+	// behind still looking for the old spelling — it could never match again.
+	if growthCharge.Ref == starterCharge.Ref || !strings.Contains(growthCharge.Ref, "-growth-quarterly-") {
 		t.Fatalf("target plan must distinguish the activation ref: starter=%q growth=%q",
 			starterCharge.Ref, growthCharge.Ref)
 	}
