@@ -116,3 +116,31 @@ jobs:
           migrate -path infra/migrations -database "$MIGRATE_URL" down 5
           migrate -path infra/migrations -database "$MIGRATE_URL" up
           migrate -path infra/migrations -database "$MIGRATE_URL" version
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: apps/api/go.mod
+          cache-dependency-path: apps/api/go.sum
+
+      # The integration tests run HERE because this job already has a migrated
+      # database; the `check` job has none, which is why they were skipped.
+      #
+      # They were skipped in CI for as long as they have existed:
+      # openIntegrationPool calls t.Skip without XTIITCH_TEST_DATABASE_URL, so a
+      # green build said nothing about settlement, the outbox, subscriptions or
+      # row-level security — the paths where being wrong costs money. Two real
+      # production bugs shipped green through that gap (an unqualified column
+      # that broke every order settlement, and RLS silently dropping affiliate
+      # commissions), and three tests sat failing on main for weeks because
+      # nothing ran them.
+      #
+      # Connects as xtiitch_app, NOT the owner: migration 000004 creates that
+      # role NOSUPERUSER NOBYPASSRLS precisely so row-level security is actually
+      # enforced. Running as the owner would pass every test while proving
+      # nothing about tenant isolation.
+      - name: Integration tests against a real Postgres
+        working-directory: apps/api
+        env:
+          XTIITCH_TEST_DATABASE_URL: postgres://xtiitch_app:xtiitch_app@localhost:5432/xtiitch?sslmode=disable
+        run: go test ./...

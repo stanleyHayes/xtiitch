@@ -304,9 +304,17 @@ type ManualTakingRecord struct {
 // (commission_minor already carries the Xtiitch fee + the VAT on it — that is
 // the split's transaction_charge routed to the main account). AllTimeIncomeMinor
 // is the store's cumulative earnings since joining (§3.1, never reduced by
-// payouts); NetIncomeMinor is the amount due for payout — the same figure minus
-// the settlements already paid out, so it rises with sales and drops when a
-// payout lands (§3.1/§3.3).
+// payouts and exempt from the period filter).
+//
+// NetIncomeMinor is the SELECTED PERIOD's earnings — store share plus manual
+// takings, less offline commission due. The Money Desk defaults to today, so it
+// resets each morning rather than carrying yesterday forward (81ea2cd, §1/§3).
+//
+// It is NOT reduced by payouts. A payout is a cash-out event, not earnings;
+// settlements live in the payout ledger and what is still owed is Paystack's
+// pending settlements. This comment used to say the opposite, which is how two
+// integration tests went on asserting the old figure long after the behaviour
+// changed — on a path CI never ran.
 type MoneySummary struct {
 	ThroughPlatformMinor int64
 	// CommissionMinor is Σ commission_minor (Xtiitch fee + tax combined), kept

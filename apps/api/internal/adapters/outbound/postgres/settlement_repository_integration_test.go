@@ -248,8 +248,12 @@ func TestMoneySummaryReflectsPersistedFiguresAndPayouts(t *testing.T) {
 	if summary.SettledPayoutsMinor != 10000 {
 		t.Fatalf("settled payouts: expected 10000 (success only), got %d", summary.SettledPayoutsMinor)
 	}
-	if summary.NetIncomeMinor != 23390 {
-		t.Fatalf("net income must drop by the payout amount: expected 33390−10000 = 23390, got %d", summary.NetIncomeMinor)
+	// A payout does NOT reduce net income (81ea2cd, §1): it is a cash-out event,
+	// not earnings. Settlements live in the payout ledger, and what is still owed
+	// is Paystack's pending settlements. This assertion predates that change and
+	// was still demanding the old 33390−10000.
+	if summary.NetIncomeMinor != 33390 {
+		t.Fatalf("a payout must not reduce earnings: expected 33390, got %d", summary.NetIncomeMinor)
 	}
 	if summary.AllTimeIncomeMinor != 33390 {
 		t.Fatalf("all-time income must never be reduced by payouts: expected 33390, got %d", summary.AllTimeIncomeMinor)
@@ -291,9 +295,15 @@ func TestMoneySummaryKeepsAllTimeIncomeOutsidePeriodFilters(t *testing.T) {
 	if summary.ThroughPlatformMinor != 0 || summary.ManualTakingsMinor != 0 || summary.OfflineCommissionDueMinor != 0 {
 		t.Fatalf("period-filtered cards should be empty for future range, got %+v", summary)
 	}
-	if summary.AllTimeIncomeMinor != 33390 || summary.NetIncomeMinor != 33390 {
-		t.Fatalf("all-time/net income must remain cumulative outside filters, got all-time=%d net=%d",
-			summary.AllTimeIncomeMinor, summary.NetIncomeMinor)
+	// All-time income is exempt from the filter and stays cumulative; net income
+	// is the SELECTED PERIOD's earnings, so a future range earns nothing. That
+	// split is the point of the daily reset (81ea2cd, §1/§3) — this test was
+	// written before it and expected both figures to ignore the filter.
+	if summary.AllTimeIncomeMinor != 33390 {
+		t.Fatalf("all-time income must ignore the period filter, got %d", summary.AllTimeIncomeMinor)
+	}
+	if summary.NetIncomeMinor != 0 {
+		t.Fatalf("net income is period-scoped, so a future range must be 0, got %d", summary.NetIncomeMinor)
 	}
 }
 

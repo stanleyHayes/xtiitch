@@ -77,13 +77,25 @@ func (handler Handler) exportCommand(r *http.Request) (reportsapp.ExportCommand,
 	}, true
 }
 
-func (handler Handler) writeExport(w http.ResponseWriter, r *http.Request, export func(reportsapp.ExportCommand) (reportsapp.ExportedFile, error)) {
+// writeExport runs one of the export methods and streams the file back.
+//
+// The export takes the context as its first argument rather than closing over
+// the request for it. Reaching into a captured *http.Request from inside a
+// callback is what contextcheck flags: it hides the fact that the call is
+// cancellable, and it silently stops being the caller's context the moment such
+// a callback is invoked from anywhere else. Passing it explicitly also makes the
+// three exports plain method values instead of identical wrapper closures.
+func (handler Handler) writeExport(
+	w http.ResponseWriter,
+	r *http.Request,
+	export func(context.Context, reportsapp.ExportCommand) (reportsapp.ExportedFile, error),
+) {
 	cmd, ok := handler.exportCommand(r)
 	if !ok {
 		writeError(w, http.StatusUnauthorized, "invalid_token")
 		return
 	}
-	file, err := export(cmd)
+	file, err := export(r.Context(), cmd)
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -95,21 +107,15 @@ func (handler Handler) writeExport(w http.ResponseWriter, r *http.Request, expor
 }
 
 func (handler Handler) exportFinancial(w http.ResponseWriter, r *http.Request) {
-	handler.writeExport(w, r, func(cmd reportsapp.ExportCommand) (reportsapp.ExportedFile, error) {
-		return handler.service.ExportFinancial(r.Context(), cmd)
-	})
+	handler.writeExport(w, r, handler.service.ExportFinancial)
 }
 
 func (handler Handler) exportSales(w http.ResponseWriter, r *http.Request) {
-	handler.writeExport(w, r, func(cmd reportsapp.ExportCommand) (reportsapp.ExportedFile, error) {
-		return handler.service.ExportSales(r.Context(), cmd)
-	})
+	handler.writeExport(w, r, handler.service.ExportSales)
 }
 
 func (handler Handler) exportFull(w http.ResponseWriter, r *http.Request) {
-	handler.writeExport(w, r, func(cmd reportsapp.ExportCommand) (reportsapp.ExportedFile, error) {
-		return handler.service.ExportFull(r.Context(), cmd)
-	})
+	handler.writeExport(w, r, handler.service.ExportFull)
 }
 
 // --- scheduled reports config (§14.1) ---
