@@ -1,6 +1,8 @@
-const API_BASE_URL = (
-  process.env.API_BASE_URL ?? "http://localhost:8080/v1"
-).replace(/\/$/, "");
+// Base origin of the Xtiitch API — WITHOUT the /v1 suffix (the app appends
+// /v1 itself), matching the XTIITCH_API_URL convention of the other web apps.
+const API_BASE_URL = `${(
+  process.env.XTIITCH_API_URL ?? "http://localhost:8080"
+).replace(/\/+$/, "")}/v1`;
 
 // Status used when the API cannot be reached at all (DNS failure, connection
 // refused, socket hang-up). It is not a status the API returned — there was no

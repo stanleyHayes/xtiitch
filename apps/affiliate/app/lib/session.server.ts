@@ -8,12 +8,19 @@ export type AffiliateSession = {
   displayName: string;
 };
 
+// Matches the SESSION_SECRET convention of the other web apps: a default dev
+// secret is used when unset (insecure for prod), but production refuses to
+// boot without a strong secret so a misconfigured deploy cannot silently sign
+// affiliate session cookies with a public value.
 function sessionSecret(): string {
-  const value = process.env.AFFILIATE_SESSION_SECRET;
-  if (!value || value.length < 32) {
-    throw new Error("AFFILIATE_SESSION_SECRET must contain at least 32 characters");
+  const value = process.env.SESSION_SECRET;
+  if (value && value.length >= 32) {
+    return value;
   }
-  return value;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("SESSION_SECRET must contain at least 32 characters");
+  }
+  return "dev-affiliate-session-secret-change-me";
 }
 
 const storage = createCookieSessionStorage<AffiliateSession>({
