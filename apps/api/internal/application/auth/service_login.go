@@ -60,6 +60,7 @@ var handlePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*[a-z0-9]$`)
 var reservedHandles = map[string]bool{
 	"www": true, "app": true, "admin": true, "api": true,
 	"store": true, "stores": true, "dashboard": true,
+	"affiliate": true,
 	"mail": true, "static": true, "assets": true, "cdn": true,
 	"help": true, "support": true, "status": true, "blog": true,
 	"xtiitch": true,

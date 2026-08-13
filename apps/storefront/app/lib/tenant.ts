@@ -9,6 +9,7 @@ export const RESERVED_SUBDOMAINS = new Set([
   "store",
   "stores",
   "dashboard",
+  "affiliate",
 ]);
 
 // storeHandleFromHost resolves the business handle a request targets from its

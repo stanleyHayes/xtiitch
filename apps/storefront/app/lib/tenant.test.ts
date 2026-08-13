@@ -19,5 +19,6 @@ test("storeHandleFromHost ignores apex and reserved platform labels", () => {
   assert.equal(storeHandleFromHost("xtiitch.com"), null);
   assert.equal(storeHandleFromHost("www.xtiitch.com"), null);
   assert.equal(storeHandleFromHost("admin.xtiitch.com"), null);
+  assert.equal(storeHandleFromHost("affiliate.xtiitch.com"), null);
   assert.equal(storeHandleFromHost("dashboard.localhost:3402"), null);
 });

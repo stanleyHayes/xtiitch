@@ -132,7 +132,7 @@ func TestRegisterBusinessRejectsWeakPassword(t *testing.T) {
 func TestRegisterBusinessRejectsReservedHandle(t *testing.T) {
 	t.Parallel()
 
-	for _, handle := range []string{"app", "admin", "api", "www", "App", " ADMIN "} {
+	for _, handle := range []string{"app", "admin", "api", "www", "affiliate", "App", " ADMIN "} {
 		businesses := &fakeBusinessIdentityRepository{}
 		service := NewService(Dependencies{
 			Businesses:    businesses,
