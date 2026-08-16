@@ -32,6 +32,24 @@ export async function handleAffiliatesAction({ // eslint-disable-line complexity
     return handleAffiliateApplicationDecision(request, form);
   }
 
+  if (intent === "admin-affiliate-application:resend") {
+    await requireAdminContext(request);
+    try {
+      await adminApi.resendAffiliateActivation(String(form.get("email") ?? ""));
+      return {
+        section: "affiliates",
+        severity: "success",
+        message: "A fresh 48-hour activation link has been requested.",
+      };
+    } catch (error) {
+      return {
+        section: "affiliates",
+        severity: "error",
+        message: adminAffiliateActionError(error),
+      };
+    }
+  }
+
   if (
     intent === "admin-affiliate:create" ||
     intent === "admin-affiliate:update" ||

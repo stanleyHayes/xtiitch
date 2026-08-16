@@ -67,13 +67,7 @@ func (repo AffiliateAuthRepository) ActivateAffiliateAccount(
 			where t.affiliate_activation_token_id = valid_token.affiliate_activation_token_id
 			returning t.affiliate_activation_token_id
 		),
-		invalidated as (
-			update affiliate_activation_tokens t
-			set consumed_at = coalesce(t.consumed_at, $3)
-			from activated, consumed
-			where t.affiliate_account_id = activated.affiliate_account_id
-			returning t.affiliate_activation_token_id
-		)
+		consumed_marker as (select 1 from consumed)
 		select
 			activated.affiliate_account_id::text,
 			activated.affiliate_id::text,
@@ -86,13 +80,66 @@ func (repo AffiliateAuthRepository) ActivateAffiliateAccount(
 			activated.updated_at
 		from activated
 		join affiliates a on a.affiliate_id = activated.affiliate_id
-		join invalidated on true
+		join consumed_marker on true
 		limit 1
 	`, input.ActivationTokenHash, input.PasswordHash, input.ActivatedAt))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ports.AffiliateAccountRecord{}, ErrNotFound
 		}
+		return ports.AffiliateAccountRecord{}, err
+	}
+	if _, err := tx.Exec(ctx, `
+		update affiliate_activation_tokens
+		set consumed_at = coalesce(consumed_at, $2)
+		where affiliate_account_id = $1::uuid
+			and consumed_at is null
+	`, record.AccountID.String(), input.ActivatedAt); err != nil {
+		return ports.AffiliateAccountRecord{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return ports.AffiliateAccountRecord{}, err
+	}
+	return record, nil
+}
+
+func (repo AffiliateAuthRepository) CreateAffiliateActivationToken(
+	ctx context.Context,
+	input ports.CreateAffiliateActivationTokenInput,
+) (ports.AffiliateAccountRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.AffiliateAccountRecord{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return ports.AffiliateAccountRecord{}, err
+	}
+	record, err := scanAffiliateAccount(tx.QueryRow(ctx, affiliateAccountQuery()+`
+		where lower(aa.email) = lower($1)
+			and aa.status = 'invited'
+			and a.status = 'active'
+		limit 1
+		for update of aa
+	`, input.Email))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.AffiliateAccountRecord{}, ErrNotFound
+		}
+		return ports.AffiliateAccountRecord{}, err
+	}
+	if _, err := tx.Exec(ctx, `
+		update affiliate_activation_tokens
+		set consumed_at = now()
+		where affiliate_account_id = $1::uuid and consumed_at is null
+	`, record.AccountID.String()); err != nil {
+		return ports.AffiliateAccountRecord{}, err
+	}
+	if _, err := tx.Exec(ctx, `
+		insert into affiliate_activation_tokens (
+			affiliate_activation_token_id, affiliate_account_id, token_hash, expires_at
+		) values ($1::uuid, $2::uuid, $3, $4)
+	`, input.TokenID.String(), record.AccountID.String(), input.TokenHash, input.ExpiresAt); err != nil {
 		return ports.AffiliateAccountRecord{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {

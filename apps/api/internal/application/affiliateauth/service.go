@@ -24,13 +24,14 @@ var (
 )
 
 const (
-	accessTokenTTL    = 15 * time.Minute
-	refreshTokenTTL   = 30 * 24 * time.Hour
-	maxLoginAttempts  = 5
-	loginLockDuration = 15 * time.Minute
-	minPasswordLength = 8
-	maxPasswordLength = 128
-	recoveryTokenTTL  = 30 * time.Minute
+	accessTokenTTL     = 15 * time.Minute
+	refreshTokenTTL    = 30 * 24 * time.Hour
+	maxLoginAttempts   = 5
+	loginLockDuration  = 15 * time.Minute
+	minPasswordLength  = 8
+	maxPasswordLength  = 128
+	recoveryTokenTTL   = 30 * time.Minute
+	activationTokenTTL = 48 * time.Hour
 )
 
 type Dependencies struct {
@@ -258,6 +259,40 @@ func (s Service) RequestRecovery(ctx context.Context, rawEmail string) error {
 		To:      account.Email,
 		Subject: "Reset your Xtiitch affiliate password",
 		Body:    body,
+	})
+}
+
+func (s Service) ResendActivation(ctx context.Context, rawEmail string) error {
+	if s.emails == nil {
+		return nil
+	}
+	email, err := normalizeEmail(rawEmail)
+	if err != nil {
+		return nil
+	}
+	token, err := s.refreshTokens.NewRefreshToken()
+	if err != nil {
+		return err
+	}
+	account, err := s.accounts.CreateAffiliateActivationToken(
+		ctx,
+		ports.CreateAffiliateActivationTokenInput{
+			TokenID: s.ids.NewID(), Email: email,
+			TokenHash: s.refreshTokens.HashRefreshToken(token),
+			ExpiresAt: s.clock.Now().Add(activationTokenTTL),
+		},
+	)
+	if err != nil {
+		return nil
+	}
+	activationURL := s.portalURL + "/activate?token=" + url.QueryEscape(token)
+	body := fmt.Sprintf(
+		"Hi %s,\n\nActivate your Xtiitch affiliate account here:\n\n%s\n\n"+
+			"This link expires in 48 hours. If you did not request it, ignore this email.",
+		account.DisplayName, activationURL,
+	)
+	return s.emails.Send(ctx, ports.EmailMessage{
+		To: account.Email, Subject: "Activate your Xtiitch affiliate account", Body: body,
 	})
 }
 

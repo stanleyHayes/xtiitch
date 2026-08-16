@@ -102,4 +102,9 @@ export const affiliateApplicationsApi = {
         }),
       },
     ).then(mapAffiliateApplication),
+  resendAffiliateActivation: (email: string) =>
+    requestJSON<void>("/affiliate/auth/activation/resend", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
 };

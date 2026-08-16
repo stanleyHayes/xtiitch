@@ -1,5 +1,6 @@
 import {
   Form,
+  Link,
   redirect,
   useActionData,
   useNavigation,
@@ -88,6 +89,10 @@ export default function Activate() {
             ? "Activating..."
             : "Activate account"}
         </button>
+        <p className="form-foot">
+          Link expired or not working?{" "}
+          <Link to="/resend-activation">Request a new link</Link>
+        </p>
       </Form>
     </main>
   );

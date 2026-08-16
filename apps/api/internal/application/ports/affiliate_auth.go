@@ -20,6 +20,10 @@ type AffiliateAuthRepository interface {
 		ctx context.Context,
 		accountID common.ID,
 	) (AffiliateAccountRecord, error)
+	CreateAffiliateActivationToken(
+		ctx context.Context,
+		input CreateAffiliateActivationTokenInput,
+	) (AffiliateAccountRecord, error)
 	CreateAffiliateRecoveryToken(
 		ctx context.Context,
 		input CreateAffiliateRecoveryTokenInput,

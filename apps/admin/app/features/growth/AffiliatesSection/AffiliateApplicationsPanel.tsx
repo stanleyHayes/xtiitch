@@ -30,6 +30,9 @@ export function AffiliateApplicationsPanel({
   const pending = applications.filter(
     (application) => application.status === "pending_review",
   );
+  const enrolled = applications.filter(
+    (application) => application.status === "approved",
+  );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected =
     applications.find((application) => application.applicationId === selectedId) ??
@@ -140,6 +143,46 @@ export function AffiliateApplicationsPanel({
           ))}
         </Box>
       )}
+
+      {enrolled.length > 0 ? (
+        <Box sx={{ mt: 3 }}>
+          <Typography sx={{ fontWeight: 900 }}>Activation links</Typography>
+          <Typography variant="body2" sx={{ color: "text.secondary", mb: 1.5 }}>
+            Resend a fresh 48-hour link to an enrolled affiliate who has not activated yet.
+          </Typography>
+          <Stack spacing={1}>
+            {enrolled.map((application) => (
+              <Stack
+                key={application.applicationId}
+                direction={{ xs: "column", sm: "row" }}
+                spacing={1}
+                sx={{
+                  alignItems: { sm: "center" },
+                  justifyContent: "space-between",
+                  p: 1.5,
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderRadius: 1,
+                }}
+              >
+                <Box>
+                  <Typography sx={{ fontWeight: 800 }}>{application.displayName}</Typography>
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                    {application.email} · {application.requestedCode}
+                  </Typography>
+                </Box>
+                <Form method="post">
+                  <input type="hidden" name="intent" value="admin-affiliate-application:resend" />
+                  <input type="hidden" name="email" value={application.email} />
+                  <Button type="submit" size="small" variant="outlined">
+                    Resend activation
+                  </Button>
+                </Form>
+              </Stack>
+            ))}
+          </Stack>
+        </Box>
+      ) : null}
 
       <Dialog
         open={Boolean(selected)}

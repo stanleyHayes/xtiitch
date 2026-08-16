@@ -37,6 +37,13 @@ type CreateAffiliateRecoveryTokenInput struct {
 	ExpiresAt time.Time
 }
 
+type CreateAffiliateActivationTokenInput struct {
+	TokenID   common.ID
+	Email     string
+	TokenHash string
+	ExpiresAt time.Time
+}
+
 type ResetAffiliatePasswordInput struct {
 	TokenHash    string
 	PasswordHash string

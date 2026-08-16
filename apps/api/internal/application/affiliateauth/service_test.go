@@ -121,6 +121,28 @@ func TestRecoveryRequestDoesNotRevealUnknownEmail(t *testing.T) {
 	}
 }
 
+func TestResendActivationReplacesLinkWithFresh48HourToken(t *testing.T) {
+	t.Parallel()
+
+	repo := &fakeAffiliateAuthRepository{account: testAffiliateAccount()}
+	email := &fakeEmailSender{}
+	service := testService(repo)
+	service.emails = email
+	if err := service.ResendActivation(context.Background(), " AFFILIATE@example.com "); err != nil {
+		t.Fatalf("resend activation: %v", err)
+	}
+	if repo.activationToken.Email != "affiliate@example.com" ||
+		repo.activationToken.TokenHash != "hash:refresh-token" {
+		t.Fatalf("unexpected activation token: %+v", repo.activationToken)
+	}
+	if !repo.activationToken.ExpiresAt.Equal(testNow.Add(48 * time.Hour)) {
+		t.Fatalf("unexpected activation expiry: %v", repo.activationToken.ExpiresAt)
+	}
+	if !email.sent {
+		t.Fatal("expected replacement activation email")
+	}
+}
+
 func TestDashboardAlwaysScopesReadToAuthenticatedAffiliate(t *testing.T) {
 	t.Parallel()
 
@@ -210,6 +232,7 @@ type fakeAffiliateAuthRepository struct {
 	failedLoginAccount common.ID
 	revokedSession     common.ID
 	recoveryErr        error
+	activationToken    ports.CreateAffiliateActivationTokenInput
 	dashboard          ports.AffiliateDashboardRecord
 	dashboardQuery     ports.AffiliateDashboardQuery
 	conversionRead     bool
@@ -283,6 +306,14 @@ func (repo *fakeAffiliateAuthRepository) CreateAffiliateRecoveryToken(
 	context.Context,
 	ports.CreateAffiliateRecoveryTokenInput,
 ) (ports.AffiliateAccountRecord, error) {
+	return repo.account, repo.recoveryErr
+}
+
+func (repo *fakeAffiliateAuthRepository) CreateAffiliateActivationToken(
+	_ context.Context,
+	input ports.CreateAffiliateActivationTokenInput,
+) (ports.AffiliateAccountRecord, error) {
+	repo.activationToken = input
 	return repo.account, repo.recoveryErr
 }
 

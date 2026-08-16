@@ -37,6 +37,7 @@ type Service interface {
 	) (affiliateauthapp.SessionResult, error)
 	Logout(context.Context, string) error
 	RequestRecovery(context.Context, string) error
+	ResendActivation(context.Context, string) error
 	ResetPassword(context.Context, string, string) error
 	Me(context.Context, common.ID) (ports.AffiliateAccountRecord, error)
 	Dashboard(
@@ -82,6 +83,7 @@ func (handler Handler) Register(router chi.Router) {
 	router.Post("/affiliate/auth/refresh", handler.refresh)
 	router.Post("/affiliate/auth/logout", handler.logout)
 	router.Post("/affiliate/auth/recovery", handler.requestRecovery)
+	router.Post("/affiliate/auth/activation/resend", handler.resendActivation)
 	router.Post("/affiliate/auth/reset-password", handler.resetPassword)
 	router.With(handler.authenticate).Get("/affiliate/me", handler.me)
 	router.With(handler.authenticate).Get("/affiliate/dashboard", handler.dashboard)
@@ -274,6 +276,19 @@ func (handler Handler) requestRecovery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusAccepted)
+}
+
+func (handler Handler) resendActivation(w http.ResponseWriter, r *http.Request) {
+	var request recoveryRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	if err := handler.service.ResendActivation(r.Context(), request.Email); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (handler Handler) resetPassword(w http.ResponseWriter, r *http.Request) {
