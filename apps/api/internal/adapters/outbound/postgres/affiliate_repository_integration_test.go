@@ -3,13 +3,70 @@ package postgres
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
+
+func TestSubmitAffiliateApplicationCreatesApprovedPortalAccount(t *testing.T) {
+	pool := openIntegrationPool(t)
+	defer pool.Close()
+
+	const applicationID = "aaaaaaaa-5555-5555-5555-555555555551"
+	const affiliateID = "aaaaaaaa-5555-5555-5555-555555555552"
+	const accountID = "aaaaaaaa-5555-5555-5555-555555555553"
+	const tokenID = "aaaaaaaa-5555-5555-5555-555555555554"
+	const code = "ITSELFSERVE"
+
+	cleanup := func(tx pgx.Tx) {
+		mustExec(t, tx, `delete from affiliate_accounts where affiliate_account_id = $1`, accountID)
+		mustExec(t, tx, `update affiliate_applications set status = 'withdrawn', affiliate_id = null where affiliate_application_id = $1`, applicationID)
+		mustExec(t, tx, `delete from affiliates where affiliate_id = $1`, affiliateID)
+		mustExec(t, tx, `delete from affiliate_applications where affiliate_application_id = $1`, applicationID)
+	}
+	inBypass(t, pool, cleanup)
+	defer inBypass(t, pool, cleanup)
+
+	record, err := NewAffiliateRepository(pool).SubmitAffiliateApplication(
+		context.Background(),
+		ports.SubmitAffiliateApplicationInput{
+			ApplicationID: applicationID, AffiliateID: affiliateID,
+			AffiliateAccountID: accountID, ActivationTokenID: tokenID,
+			ActivationTokenHash:      strings.Repeat("a", 64),
+			ActivationTokenExpiresAt: time.Now().Add(48 * time.Hour),
+			ApplicantType:            "person", DisplayName: "Integration Affiliate",
+			ContactName: "Integration Affiliate", Email: "selfserve-integration@example.com",
+			RequestedCode: code, PromotionChannels: []string{"instagram"}, ConsentAt: time.Now(),
+		},
+	)
+	if err != nil {
+		t.Fatalf("submit self-service affiliate: %v", err)
+	}
+	if record.Status != "approved" || record.ApplicationID != common.ID(applicationID) {
+		t.Fatalf("expected approved application, got %+v", record)
+	}
+
+	inBypass(t, pool, func(tx pgx.Tx) {
+		var applicationStatus, affiliateStatus, accountStatus string
+		if err := tx.QueryRow(context.Background(), `
+			select application.status, affiliate.status, account.status
+			from affiliate_applications application
+			join affiliates affiliate on affiliate.affiliate_id = application.affiliate_id
+			join affiliate_accounts account on account.affiliate_id = affiliate.affiliate_id
+			where application.affiliate_application_id = $1
+		`, applicationID).Scan(&applicationStatus, &affiliateStatus, &accountStatus); err != nil {
+			t.Fatalf("read self-service affiliate: %v", err)
+		}
+		if applicationStatus != "approved" || affiliateStatus != "active" || accountStatus != "invited" {
+			t.Fatalf("unexpected lifecycle: application=%s affiliate=%s account=%s", applicationStatus, affiliateStatus, accountStatus)
+		}
+	})
+}
 
 const (
 	itAffClickActive     = "aaaaaaaa-8888-8888-8888-888888888881"

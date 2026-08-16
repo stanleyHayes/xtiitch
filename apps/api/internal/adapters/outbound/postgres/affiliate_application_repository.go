@@ -48,7 +48,7 @@ func (repo AffiliateRepository) SubmitAffiliateApplication(
 	}
 
 	var record ports.AffiliateApplicationRecord
-	err = tx.QueryRow(ctx, `
+	row := tx.QueryRow(ctx, `
 		with application as (
 		insert into affiliate_applications (
 			affiliate_application_id,
@@ -134,23 +134,18 @@ func (repo AffiliateRepository) SubmitAffiliateApplication(
 			)
 			select $16::uuid, affiliate_account_id, $17, $18 from inserted_account
 			returning affiliate_activation_token_id
-		), approved as (
-			update affiliate_applications
-			set status = 'approved', affiliate_id = inserted_affiliate.affiliate_id,
-				reviewed_at = now(), review_note = 'Automatically approved using the active default programme.',
-				metadata = metadata || jsonb_build_object('approval_mode', 'self_service'), updated_at = now()
-			from inserted_affiliate, inserted_token
-			where affiliate_applications.affiliate_application_id = inserted_affiliate.source_application_id
-			returning affiliate_applications.*
 		)
 		select
-			affiliate_application_id::text,
-			display_name,
-			email,
-			requested_code,
-			status,
-			created_at
-		from approved
+			application.affiliate_application_id::text,
+			application.display_name,
+			application.email,
+			application.requested_code,
+			application.status,
+			application.created_at,
+			inserted_affiliate.affiliate_id::text
+		from application
+		cross join inserted_affiliate
+		cross join inserted_token
 	`,
 		input.ApplicationID.String(),
 		input.ApplicantType,
@@ -170,13 +165,16 @@ func (repo AffiliateRepository) SubmitAffiliateApplication(
 		input.ActivationTokenID.String(),
 		input.ActivationTokenHash,
 		input.ActivationTokenExpiresAt,
-	).Scan(
+	)
+	var affiliateID string
+	err = row.Scan(
 		&record.ApplicationID,
 		&record.DisplayName,
 		&record.Email,
 		&record.RequestedCode,
 		&record.Status,
 		&record.CreatedAt,
+		&affiliateID,
 	)
 	if err != nil {
 		if isAffiliateApplicationEmailConflict(err) {
@@ -187,6 +185,23 @@ func (repo AffiliateRepository) SubmitAffiliateApplication(
 		}
 		return ports.AffiliateApplicationRecord{}, err
 	}
+
+	commandTag, err := tx.Exec(ctx, `
+		update affiliate_applications
+		set status = 'approved', affiliate_id = $2::uuid,
+			reviewed_at = now(),
+			review_note = 'Automatically approved using the active default programme.',
+			metadata = metadata || jsonb_build_object('approval_mode', 'self_service'),
+			updated_at = now()
+		where affiliate_application_id = $1::uuid
+	`, record.ApplicationID.String(), affiliateID)
+	if err != nil {
+		return ports.AffiliateApplicationRecord{}, err
+	}
+	if commandTag.RowsAffected() != 1 {
+		return ports.AffiliateApplicationRecord{}, pgx.ErrNoRows
+	}
+	record.Status = "approved"
 
 	if err := tx.Commit(ctx); err != nil {
 		return ports.AffiliateApplicationRecord{}, err

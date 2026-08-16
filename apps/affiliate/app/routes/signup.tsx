@@ -136,11 +136,13 @@ export default function Signup() {
   const [codeStatus, setCodeStatus] = useState<
     "idle" | "checking" | "available" | "taken" | "error"
   >("idle");
+  const [dismissedActionError, setDismissedActionError] = useState(false);
   // Server-rendered HTML shows every step at once, so the form still works
   // with no JavaScript: it is one plain form that happens to be long. The
   // wizard only takes over once React has hydrated.
   const [wizard, setWizard] = useState(false);
   useEffect(() => setWizard(true), []);
+  useEffect(() => setDismissedActionError(false), [result]);
 
   useEffect(() => {
     const normalized = code.trim().toUpperCase();
@@ -371,7 +373,10 @@ export default function Signup() {
                 placeholder="e.g. AMA20"
                 maxLength={24}
                 value={code}
-                onChange={(event) => setCode(event.target.value.toUpperCase())}
+                onChange={(event) => {
+                  setCode(event.target.value.toUpperCase());
+                  setDismissedActionError(true);
+                }}
                 aria-describedby="referral-code-status"
               />
               <span
@@ -448,7 +453,7 @@ export default function Signup() {
             {stepError}
           </p>
         ) : null}
-        {result?.error ? (
+        {result?.error && !dismissedActionError ? (
           <p className="form-error" role="alert">
             {result.error}
           </p>
