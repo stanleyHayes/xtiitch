@@ -207,7 +207,7 @@ func (repo AffiliateAuthRepository) CreateAffiliateRecoveryToken(
 			from affiliate_accounts aa
 			join affiliates a on a.affiliate_id = aa.affiliate_id
 			where lower(aa.email) = lower($2)
-				and aa.status in ('active', 'locked')
+				and aa.status in ('invited', 'active', 'locked')
 				and a.status = 'active'
 			limit 1
 		),
@@ -283,6 +283,8 @@ func (repo AffiliateAuthRepository) ResetAffiliatePassword(
 			update affiliate_accounts aa
 			set password_hash = $2,
 				status = 'active',
+				email_verified_at = coalesce(email_verified_at, $3),
+				activated_at = coalesce(activated_at, $3),
 				failed_login_count = 0,
 				locked_until = null,
 				updated_at = $3
