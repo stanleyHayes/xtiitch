@@ -44,7 +44,8 @@ import type {
 } from "../shared/types";
 import type { OverviewData } from "../overview/useOverviewData";
 
-export function DashboardSections({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
+// eslint-disable-next-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
+export function DashboardSections({
   section,
   canManage,
   orders,
@@ -275,6 +276,8 @@ export function DashboardSections({ // eslint-disable-line complexity, max-lines
                 orders={orders}
                 filteredOrders={filteredOrders}
                 stages={stages}
+                designs={designs}
+                sizeBands={sizeBands}
                 measurementFields={measurementFields}
                 orderFilter={orderFilter}
                 pendingPayments={overview.pendingPayments}

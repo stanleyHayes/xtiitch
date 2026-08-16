@@ -24,19 +24,24 @@ type AffiliateClickRecord struct {
 }
 
 type SubmitAffiliateApplicationInput struct {
-	ApplicationID     common.ID
-	ApplicantType     string
-	DisplayName       string
-	ContactName       string
-	Email             string
-	Phone             string
-	WebsiteURL        string
-	RequestedCode     string
-	AudienceSummary   string
-	PromotionChannels []string
-	ConsentAt         time.Time
-	IPHash            string
-	UserAgent         string
+	ApplicationID            common.ID
+	AffiliateID              common.ID
+	AffiliateAccountID       common.ID
+	ActivationTokenID        common.ID
+	ActivationTokenHash      string
+	ActivationTokenExpiresAt time.Time
+	ApplicantType            string
+	DisplayName              string
+	ContactName              string
+	Email                    string
+	Phone                    string
+	WebsiteURL               string
+	RequestedCode            string
+	AudienceSummary          string
+	PromotionChannels        []string
+	ConsentAt                time.Time
+	IPHash                   string
+	UserAgent                string
 }
 
 type AffiliateApplicationRecord struct {

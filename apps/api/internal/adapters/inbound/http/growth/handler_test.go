@@ -101,7 +101,7 @@ func TestRecordAffiliateClickRejectsUnknownJSON(t *testing.T) {
 	}
 }
 
-func TestSubmitAffiliateApplicationReturnsPendingApplication(t *testing.T) {
+func TestSubmitAffiliateApplicationReturnsApprovedAccount(t *testing.T) {
 	t.Parallel()
 
 	service := &fakeGrowthService{}
@@ -129,7 +129,7 @@ func TestSubmitAffiliateApplicationReturnsPendingApplication(t *testing.T) {
 		t.Fatalf("unexpected application command: %+v", service.applicationCommand)
 	}
 	if !strings.Contains(response.Body.String(), `"application_id":"application-1"`) ||
-		!strings.Contains(response.Body.String(), `"status":"pending_review"`) {
+		!strings.Contains(response.Body.String(), `"status":"approved"`) {
 		t.Fatalf("unexpected response: %s", response.Body.String())
 	}
 }
@@ -312,7 +312,7 @@ func (service *fakeGrowthService) SubmitAffiliateApplication(
 		DisplayName:   command.DisplayName,
 		Email:         command.Email,
 		RequestedCode: command.RequestedCode,
-		Status:        "pending_review",
+		Status:        "approved",
 		CreatedAt:     time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC),
 	}, nil
 }

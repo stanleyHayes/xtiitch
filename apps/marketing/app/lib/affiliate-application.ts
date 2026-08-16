@@ -46,7 +46,7 @@ const affiliateApplicationSchema = z.object({
     .array(z.enum(channels))
     .min(1, "Choose at least one promotion channel"),
   consent: z.literal("on", {
-    error: "Confirm that Xtiitch may review and contact you.",
+    error: "Confirm that you accept the programme terms.",
   }),
 });
 
@@ -135,7 +135,7 @@ export async function submitAffiliateApplication(
     if (!response.ok) {
       return {
         ok: false,
-        errors: { form: "We couldn’t submit your application. Try again." },
+        errors: { form: "We couldn’t create your account. Try again." },
       };
     }
     return {
@@ -145,7 +145,7 @@ export async function submitAffiliateApplication(
   } catch {
     return {
       ok: false,
-      errors: { form: "We couldn’t submit your application. Try again." },
+      errors: { form: "We couldn’t create your account. Try again." },
     };
   }
 }

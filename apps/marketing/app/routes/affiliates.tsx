@@ -20,7 +20,7 @@ export function meta(): MetaDescriptor[] {
   return pageMeta({
     title: "Become a Xtiitch affiliate",
     description:
-      "Apply for a trackable Xtiitch affiliate code and earn approved commission from qualifying purchases and paid-plan signups.",
+      "Create a trackable Xtiitch affiliate code and earn approved commission from qualifying purchases and paid-plan signups.",
     path: "/affiliates",
   });
 }
@@ -44,13 +44,13 @@ export async function loader() {
 const steps = [
   {
     number: "01",
-    title: "Apply",
-    body: "Tell us about your audience, the channels you use, and the referral code you would like.",
+    title: "Create your account",
+    body: "Tell us about your audience, choose your referral code, and join immediately.",
   },
   {
     number: "02",
-    title: "Get approved",
-    body: "We review every application before activating a code and access to the affiliate portal.",
+    title: "Activate",
+    body: "Use the secure email link to set your password and open your affiliate portal.",
   },
   {
     number: "03",
@@ -191,7 +191,7 @@ function AffiliateHero({
                   "&:hover": { bgcolor: "#ffffff" },
                 }}
               >
-                Apply to join
+                Join now
               </Button>
               <Button
                 href={loginUrl}
@@ -375,7 +375,7 @@ function HowItWorks() {
             component="h2"
             sx={{ fontSize: { xs: 35, md: 51 } }}
           >
-            One application. One link. A clear record of what you earned.
+            One account. One link. A clear record of what you earned.
           </Typography>
         </Box>
         <Box
@@ -614,7 +614,7 @@ function FinalCallToAction({
               opacity: 0.68,
             }}
           >
-            APPLICATIONS OPEN
+            SIGNUPS OPEN
           </Typography>
           <Typography
             variant="h2"
@@ -637,7 +637,8 @@ function FinalCallToAction({
               opacity: 0.76,
             }}
           >
-            Apply for your code and start sharing once your account is approved.
+            Choose your code, activate your account, and start sharing
+            immediately.
           </Typography>
           <Stack
             direction={{ xs: "column", sm: "row" }}
@@ -655,7 +656,7 @@ function FinalCallToAction({
                 "&:hover": { bgcolor: "#fff" },
               }}
             >
-              Start your application
+              Create your account
             </Button>
             <Button
               href={loginUrl}

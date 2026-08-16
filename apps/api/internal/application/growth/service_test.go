@@ -79,9 +79,11 @@ func TestSubmitAffiliateApplicationNormalizesInput(t *testing.T) {
 	repo := &fakeAffiliateApplications{}
 	emails := &fakeGrowthEmailSender{}
 	service := NewService(Dependencies{
-		Applications: repo,
-		Emails:       emails,
-		IDs:          sequenceIDs{ids: []common.ID{"application-1"}},
+		Applications:  repo,
+		Emails:        emails,
+		IDs:           sequenceIDs{ids: []common.ID{"application-1", "affiliate-1", "account-1", "activation-1"}},
+		RefreshTokens: fakeGrowthRefreshTokens{},
+		Clock:         fakeGrowthClock{now: time.Date(2026, 8, 16, 12, 0, 0, 0, time.UTC)},
 	})
 
 	record, err := service.SubmitAffiliateApplication(
@@ -115,7 +117,7 @@ func TestSubmitAffiliateApplicationNormalizesInput(t *testing.T) {
 	}
 	if len(emails.sent) != 1 ||
 		emails.sent[0].To != "ama@example.com" ||
-		emails.sent[0].Subject != "We received your Xtiitch affiliate application" {
+		emails.sent[0].Subject != "Activate your Xtiitch affiliate account" {
 		t.Fatalf("unexpected application email: %+v", emails.sent)
 	}
 }
@@ -124,8 +126,10 @@ func TestSubmitAffiliateApplicationValidatesConsentAndCodeConflict(t *testing.T)
 	t.Parallel()
 
 	service := NewService(Dependencies{
-		Applications: &fakeAffiliateApplications{err: ports.ErrAffiliateCodeTaken},
-		IDs:          sequenceIDs{ids: []common.ID{"application-1"}},
+		Applications:  &fakeAffiliateApplications{err: ports.ErrAffiliateCodeTaken},
+		IDs:           sequenceIDs{ids: []common.ID{"application-1", "affiliate-1", "account-1", "activation-1"}},
+		RefreshTokens: fakeGrowthRefreshTokens{},
+		Clock:         fakeGrowthClock{now: time.Date(2026, 8, 16, 12, 0, 0, 0, time.UTC)},
 	})
 
 	_, err := service.SubmitAffiliateApplication(
@@ -242,6 +246,17 @@ type fakeGrowthEmailSender struct {
 	sent []ports.EmailMessage
 }
 
+type fakeGrowthRefreshTokens struct{}
+
+func (fakeGrowthRefreshTokens) NewRefreshToken() (string, error) { return "activation-token", nil }
+func (fakeGrowthRefreshTokens) HashRefreshToken(string) string {
+	return "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}
+
+type fakeGrowthClock struct{ now time.Time }
+
+func (clock fakeGrowthClock) Now() time.Time { return clock.now }
+
 func (sender *fakeGrowthEmailSender) Send(
 	_ context.Context,
 	message ports.EmailMessage,
@@ -263,7 +278,7 @@ func (repo *fakeAffiliateApplications) SubmitAffiliateApplication(
 		DisplayName:   input.DisplayName,
 		Email:         input.Email,
 		RequestedCode: input.RequestedCode,
-		Status:        "pending_review",
+		Status:        "approved",
 		CreatedAt:     time.Now(),
 	}, nil
 }

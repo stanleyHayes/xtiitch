@@ -22,31 +22,37 @@ var (
 )
 
 type Service struct {
-	affiliates   ports.AffiliateClickRepository
-	applications ports.AffiliateApplicationRepository
-	sponsored    ports.SponsoredPlacementRepository
-	referrals    ports.ReferralRepository
-	emails       ports.EmailSender
-	ids          ports.IDGenerator
+	affiliates    ports.AffiliateClickRepository
+	applications  ports.AffiliateApplicationRepository
+	sponsored     ports.SponsoredPlacementRepository
+	referrals     ports.ReferralRepository
+	emails        ports.EmailSender
+	ids           ports.IDGenerator
+	refreshTokens ports.RefreshTokenIssuer
+	clock         ports.Clock
 }
 
 type Dependencies struct {
-	Affiliates   ports.AffiliateClickRepository
-	Applications ports.AffiliateApplicationRepository
-	Sponsored    ports.SponsoredPlacementRepository
-	Referrals    ports.ReferralRepository
-	Emails       ports.EmailSender
-	IDs          ports.IDGenerator
+	Affiliates    ports.AffiliateClickRepository
+	Applications  ports.AffiliateApplicationRepository
+	Sponsored     ports.SponsoredPlacementRepository
+	Referrals     ports.ReferralRepository
+	Emails        ports.EmailSender
+	IDs           ports.IDGenerator
+	RefreshTokens ports.RefreshTokenIssuer
+	Clock         ports.Clock
 }
 
 func NewService(deps Dependencies) Service {
 	return Service{
-		affiliates:   deps.Affiliates,
-		applications: deps.Applications,
-		sponsored:    deps.Sponsored,
-		referrals:    deps.Referrals,
-		emails:       deps.Emails,
-		ids:          deps.IDs,
+		affiliates:    deps.Affiliates,
+		applications:  deps.Applications,
+		sponsored:     deps.Sponsored,
+		referrals:     deps.Referrals,
+		emails:        deps.Emails,
+		ids:           deps.IDs,
+		refreshTokens: deps.RefreshTokens,
+		clock:         deps.Clock,
 	}
 }
 

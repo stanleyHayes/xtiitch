@@ -33,7 +33,7 @@ func (s Service) SubmitAffiliateApplication(
 	ctx context.Context,
 	cmd SubmitAffiliateApplicationCommand,
 ) (ports.AffiliateApplicationRecord, error) {
-	if s.applications == nil || s.ids == nil || !cmd.Consent {
+	if s.applications == nil || s.ids == nil || s.refreshTokens == nil || s.clock == nil || !cmd.Consent {
 		return ports.AffiliateApplicationRecord{}, ErrInvalidInput
 	}
 
@@ -42,7 +42,16 @@ func (s Service) SubmitAffiliateApplication(
 		return ports.AffiliateApplicationRecord{}, err
 	}
 	input.ApplicationID = s.ids.NewID()
-	input.ConsentAt = time.Now().UTC()
+	input.AffiliateID = s.ids.NewID()
+	input.AffiliateAccountID = s.ids.NewID()
+	input.ActivationTokenID = s.ids.NewID()
+	activationToken, err := s.refreshTokens.NewRefreshToken()
+	if err != nil {
+		return ports.AffiliateApplicationRecord{}, err
+	}
+	input.ActivationTokenHash = s.refreshTokens.HashRefreshToken(activationToken)
+	input.ConsentAt = s.clock.Now().UTC()
+	input.ActivationTokenExpiresAt = input.ConsentAt.Add(48 * time.Hour)
 	input.IPHash = hashIPAddress("xtiitch-affiliate-application:", cmd.IPAddress)
 	input.UserAgent = limitText(cmd.UserAgent, 512)
 
@@ -53,22 +62,24 @@ func (s Service) SubmitAffiliateApplication(
 	if err != nil {
 		return ports.AffiliateApplicationRecord{}, err
 	}
-	s.sendAffiliateApplicationReceivedEmail(ctx, record)
+	s.sendAffiliateWelcomeEmail(ctx, record, activationToken)
 	return record, nil
 }
 
-func (s Service) sendAffiliateApplicationReceivedEmail(
+func (s Service) sendAffiliateWelcomeEmail(
 	ctx context.Context,
 	record ports.AffiliateApplicationRecord,
+	activationToken string,
 ) {
 	if s.emails == nil || record.Email == "" {
 		return
 	}
 	_ = s.emails.Send(ctx, ports.EmailMessage{
 		To:      record.Email,
-		Subject: "We received your Xtiitch affiliate application",
-		Body: "Hi " + record.DisplayName + ",\n\nWe received your application for affiliate code " +
-			record.RequestedCode + ". It is pending operator review. We will email you after a decision.",
+		Subject: "Activate your Xtiitch affiliate account",
+		Body: "Hi " + record.DisplayName + ",\n\nYour affiliate code " +
+			record.RequestedCode + " is ready. Set your password and open your dashboard within 48 hours:\n" +
+			"https://affiliate.xtiitch.com/activate?token=" + url.QueryEscape(activationToken),
 		ReplyTo: notification.ReplyToOperational,
 	})
 }

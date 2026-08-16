@@ -28,14 +28,17 @@ const promotionChannels = [
   ["other", "Other"],
 ] as const;
 
-function fieldState(errors: FormErrors | undefined, field: AffiliateApplicationField) {
+function fieldState(
+  errors: FormErrors | undefined,
+  field: AffiliateApplicationField,
+) {
   return {
     error: errors?.[field] !== undefined,
     helperText: errors?.[field],
   };
 }
 
-function ApplicationSuccess({ requestedCode }: { requestedCode: string }) {
+function AccountSuccess({ requestedCode }: { requestedCode: string }) {
   return (
     <Stack spacing={2} sx={{ py: { xs: 3, md: 5 }, textAlign: "center" }}>
       <CheckCircleRoundedIcon
@@ -43,15 +46,15 @@ function ApplicationSuccess({ requestedCode }: { requestedCode: string }) {
         sx={{ mx: "auto", fontSize: 64, color: "success.main" }}
       />
       <Typography variant="h3" component="h2">
-        Application received
+        Account created
       </Typography>
       <Typography sx={{ color: "text.secondary", maxWidth: 560, mx: "auto" }}>
-        We’ll review your application and contact you before{" "}
-        <strong>{requestedCode}</strong> can start earning commission.
+        Check your email to set a password. Your code{" "}
+        <strong>{requestedCode}</strong> is active and ready to share.
       </Typography>
       <Chip
-        label="Pending review"
-        color="warning"
+        label="Ready to activate"
+        color="success"
         variant="outlined"
         sx={{ alignSelf: "center" }}
       />
@@ -176,7 +179,7 @@ function ConsentField({ error }: { error?: string }) {
     <>
       <FormControlLabel
         control={<Checkbox name="consent" required />}
-        label="I agree that Xtiitch may review this application and contact me about the affiliate programme."
+        label="I agree to the affiliate programme terms and to receive programme and account messages."
         sx={{
           alignItems: "flex-start",
           color: error ? "error.main" : "text.secondary",
@@ -198,20 +201,20 @@ export function AffiliateApplicationForm() {
   const errors = result && !result.ok ? result.errors : undefined;
 
   if (result?.ok) {
-    return <ApplicationSuccess requestedCode={result.requestedCode} />;
+    return <AccountSuccess requestedCode={result.requestedCode} />;
   }
 
   return (
     <fetcher.Form method="post" noValidate>
       <Stack spacing={2.5}>
         <Box>
-          <Chip label="Approval required" color="primary" variant="outlined" />
+          <Chip label="Instant signup" color="primary" variant="outlined" />
           <Typography variant="h3" component="h2" sx={{ mt: 1.5 }}>
-            Apply to become an affiliate
+            Create your affiliate account
           </Typography>
           <Typography sx={{ mt: 1, color: "text.secondary" }}>
             Tell us who you reach and how you plan to introduce people to
-            Xtiitch. Approved partners receive a unique trackable code.
+            Xtiitch. You’ll receive a unique trackable code immediately.
           </Typography>
         </Box>
         <Box
@@ -241,13 +244,11 @@ export function AffiliateApplicationForm() {
           size="large"
           disabled={fetcher.state !== "idle"}
         >
-          {fetcher.state !== "idle"
-            ? "Submitting application…"
-            : "Submit application"}
+          {fetcher.state !== "idle" ? "Creating account…" : "Create account"}
         </Button>
         <Typography variant="body2" sx={{ color: "text.secondary" }}>
-          Submission does not guarantee approval. Codes remain inactive until
-          Xtiitch completes review.
+          We’ll email a secure link so you can set your password and open your
+          dashboard.
         </Typography>
       </Stack>
     </fetcher.Form>

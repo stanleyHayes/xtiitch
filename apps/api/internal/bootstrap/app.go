@@ -305,12 +305,14 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 
 	growthRepository := postgres.NewAffiliateRepository(db)
 	growthService := growthapp.NewService(growthapp.Dependencies{
-		Affiliates:   growthRepository,
-		Applications: growthRepository,
-		Sponsored:    growthRepository,
-		Referrals:    growthRepository,
-		Emails:       emailadapter.NewResendSender(cfg.ResendAPIKey, cfg.ResendFromEmail),
-		IDs:          ids.UUIDGenerator{},
+		Affiliates:    growthRepository,
+		Applications:  growthRepository,
+		Sponsored:     growthRepository,
+		Referrals:     growthRepository,
+		Emails:        emailadapter.NewResendSender(cfg.ResendAPIKey, cfg.ResendFromEmail),
+		IDs:           ids.UUIDGenerator{},
+		RefreshTokens: authadapter.NewRefreshTokenIssuer(),
+		Clock:         clock.SystemClock{},
 	})
 
 	measurementService := measurementapp.NewService(measurementapp.Dependencies{

@@ -14,14 +14,23 @@ import { WalkInOrderPanel } from "../money/WalkInOrderPanel";
 import { OrdersWorkspace } from "./OrdersWorkspace";
 import { orderFilters } from "../shared/constants";
 import { countOrders } from "./utils";
-import type { MeasurementField, OrderSummary, Stage } from "../shared/types";
+import type {
+  MeasurementField,
+  OrderSummary,
+  SizeBand,
+  Stage,
+} from "../shared/types";
+import type { Design } from "../../lib/api";
 import { tokens } from "../../theme";
 
-export function OrdersSection({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+// eslint-disable-next-line max-lines-per-function -- large presentational component; refactor in follow-up
+export function OrdersSection({
   canManage,
   orders,
   filteredOrders,
   stages,
+  designs,
+  sizeBands,
   measurementFields,
   orderFilter,
   pendingPayments,
@@ -36,6 +45,8 @@ export function OrdersSection({ // eslint-disable-line max-lines-per-function --
   orders: OrderSummary[];
   filteredOrders: OrderSummary[];
   stages: Stage[];
+  designs: Design[];
+  sizeBands: SizeBand[];
   measurementFields: MeasurementField[];
   orderFilter: string;
   pendingPayments: number;
@@ -140,8 +151,8 @@ export function OrdersSection({ // eslint-disable-line max-lines-per-function --
       {canManage ? (
         <Box sx={{ mt: 2 }}>
           <WalkInOrderPanel
-            designs={[]}
-            sizeBands={[]}
+            designs={designs}
+            sizeBands={sizeBands}
             measurementFields={measurementFields}
             error={walkInError}
           />

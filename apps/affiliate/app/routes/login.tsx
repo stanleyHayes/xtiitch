@@ -83,9 +83,10 @@ export default function Login() {
             Password updated. Sign in with your new password.
           </p>
         ) : null}
-        {notice === "application-received" ? (
+        {notice === "account-created" ? (
           <p className="form-success">
-            Application received. We'll email you once it's reviewed.
+            Account created. Check your email to set your password and start
+            sharing.
           </p>
         ) : null}
 
@@ -129,7 +130,7 @@ export default function Login() {
         </button>
 
         <p className="form-foot">
-          Not an affiliate yet? <Link to="/signup">Apply to join</Link>
+          Not an affiliate yet? <Link to="/signup">Create an account</Link>
         </p>
       </Form>
     </AuthLayout>

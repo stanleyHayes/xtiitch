@@ -27,18 +27,15 @@ import { PhoneField } from "../components/PhoneField";
 import { ArrowLeftIcon, ArrowRightIcon, CheckIcon } from "../components/Icons";
 
 export const meta: MetaFunction = () => [
-  { title: "Apply to join | Xtiitch Affiliates" },
+  { title: "Join | Xtiitch Affiliates" },
   {
     name: "description",
-    content:
-      "Apply to the Xtiitch affiliate programme and earn on every referral.",
+    content: "Create a Xtiitch affiliate account and earn on every referral.",
   },
 ];
 
-// Joining is an application, not a self-serve signup: the API's public endpoint
-// creates a pending record an admin reviews, and only then does the affiliate
-// get an activation link to set a password (/activate). Presenting this as
-// "create your account" would promise an account that does not exist yet.
+// Signup provisions an affiliate under the active default programme and sends
+// an activation link. Commission remains configurable centrally by admins.
 const CHANNELS = [
   { value: "instagram", label: "Instagram", icon: InstagramLogo },
   { value: "tiktok", label: "TikTok", icon: TiktokLogo },
@@ -53,7 +50,7 @@ const CHANNELS = [
 const AFFILIATE_CODE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{1,30}[A-Za-z0-9]$/;
 
 const STEPS = [
-  { title: "About you", hint: "Who's applying" },
+  { title: "About you", hint: "Who's joining" },
   { title: "Contact", hint: "How we reach you" },
   { title: "Audience", hint: "How you'll promote" },
 ];
@@ -63,7 +60,7 @@ const STEPS = [
 // drift apart as fields move between steps.
 const REQUIRED: { name: string; label: string }[][] = [
   [
-    { name: "applicant_type", label: "Choose how you're applying" },
+    { name: "applicant_type", label: "Choose how you're joining" },
     { name: "display_name", label: "Enter a display name" },
     { name: "contact_name", label: "Enter your contact name" },
   ],
@@ -81,14 +78,14 @@ function fieldErrorMessage(code: string): string {
   if (code === "invalid_application") {
     return "Some details are missing or invalid. Check the form and try again.";
   }
-  return "We could not submit your application right now. Please try again.";
+  return "We could not create your account right now. Please try again.";
 }
 
 export async function action({ request }: ActionFunctionArgs) {
   const form = await request.formData();
   const consent = form.get("consent") === "on";
   if (!consent) {
-    return { error: "Please accept the programme terms to apply." };
+    return { error: "Please accept the programme terms to join." };
   }
 
   const channels = form
@@ -112,7 +109,7 @@ export async function action({ request }: ActionFunctionArgs) {
         consent,
       }),
     });
-    return redirect("/login?notice=application-received");
+    return redirect("/login?notice=account-created");
   } catch (error) {
     if (error instanceof Response) {
       // affiliateAPI throws a Response whose body is the API's machine code.
@@ -199,7 +196,7 @@ export default function Signup() {
     const data = new FormData(event.currentTarget);
     if (data.get("consent") !== "on") {
       event.preventDefault();
-      setStepError("Please accept the programme terms to apply.");
+      setStepError("Please accept the programme terms to join.");
     }
   };
 
@@ -214,7 +211,7 @@ export default function Signup() {
     <AuthLayout
       wide
       title="Earn on every business you bring to Xtiitch."
-      lede="Share your link, and earn commission on qualified signups and sales. Applications are usually reviewed within two business days."
+      lede="Share your link and earn commission on qualified signups and sales. Create your account and start promoting without waiting for approval."
     >
       <Form
         method="post"
@@ -223,15 +220,15 @@ export default function Signup() {
         onSubmit={onSubmit}
       >
         <div className="form-head">
-          <h2>Apply to join</h2>
+          <h2>Create your affiliate account</h2>
           <p className="muted">
-            Tell us who you are and how you'll promote Xtiitch. We'll email you
-            once your application is reviewed.
+            Tell us who you are and how you'll promote Xtiitch. We'll email your
+            secure activation link as soon as you finish.
           </p>
         </div>
 
         {wizard ? (
-          <ol className="stepper" aria-label="Application progress">
+          <ol className="stepper" aria-label="Account setup progress">
             {STEPS.map((item, index) => (
               <li
                 key={item.title}
@@ -259,7 +256,7 @@ export default function Signup() {
         <div className={stepClass(0)}>
           <ChoiceCards
             name="applicant_type"
-            legend="I'm applying as"
+            legend="I'm joining as"
             defaultValue="person"
             choices={[
               {
@@ -374,7 +371,7 @@ export default function Signup() {
               <Link to="/terms" target="_blank" rel="noopener noreferrer">
                 affiliate programme terms
               </Link>
-              , and agree to be contacted about my application.
+              , and agree to receive programme and account messages.
             </span>
           </label>
         </div>
@@ -417,7 +414,7 @@ export default function Signup() {
                 disabled={submitting}
                 type="submit"
               >
-                {submitting ? "Submitting..." : "Submit application"}
+                {submitting ? "Creating account..." : "Create account"}
                 <ArrowRightIcon />
               </button>
             ) : (
@@ -438,7 +435,7 @@ export default function Signup() {
             disabled={submitting}
             type="submit"
           >
-            {submitting ? "Submitting..." : "Submit application"}
+            {submitting ? "Creating account..." : "Create account"}
             <ArrowRightIcon />
           </button>
         )}
