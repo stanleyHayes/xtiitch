@@ -30,6 +30,17 @@ type affiliateApplicationResponse struct {
 	CreatedAt     string `json:"created_at"`
 }
 
+func (handler Handler) checkAffiliateCodeAvailability(w http.ResponseWriter, r *http.Request) {
+	result, err := handler.service.CheckAffiliateCodeAvailability(r.Context(), r.URL.Query().Get("code"))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"code": result.Code, "available": result.Available, "reason": result.Reason,
+	})
+}
+
 func (handler Handler) submitAffiliateApplication(w http.ResponseWriter, r *http.Request) {
 	var request affiliateApplicationRequest
 	if err := decodeJSON(r, &request); err != nil {
@@ -69,6 +80,8 @@ func affiliateApplicationError(err error) (int, string) {
 		return http.StatusBadRequest, "invalid_application"
 	case errors.Is(err, growthapp.ErrAffiliateCodeTaken):
 		return http.StatusConflict, "affiliate_code_taken"
+	case errors.Is(err, growthapp.ErrAffiliateEmailTaken):
+		return http.StatusConflict, "affiliate_email_taken"
 	default:
 		return http.StatusInternalServerError, "internal_error"
 	}

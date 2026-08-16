@@ -989,6 +989,23 @@ input[type="radio"]:checked::before {
   animation: notice-arrive 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+.field-status {
+  display: block;
+  margin-top: 0.45rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.field-status.available {
+  color: #86d9ad;
+}
+
+.field-status.taken,
+.field-status.error {
+  color: var(--negative);
+}
+
 @keyframes auth-panel-arrive {
   from {
     opacity: 0;

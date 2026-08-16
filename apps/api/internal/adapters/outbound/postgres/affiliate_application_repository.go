@@ -9,6 +9,27 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 )
 
+func (repo AffiliateRepository) AffiliateCodeExists(ctx context.Context, code string) (bool, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return false, err
+	}
+	var exists bool
+	err = tx.QueryRow(ctx, `
+		select exists (
+			select 1 from affiliates where lower(code) = lower($1) and status <> 'archived'
+			union all
+			select 1 from affiliate_applications
+			where lower(requested_code) = lower($1) and status = 'pending_review'
+		)
+	`, code).Scan(&exists)
+	return exists, err
+}
+
 //nolint:funlen // long by construction: one large SQL statement plus its row scan. Splitting it would hide the query from its mapping, not simplify it.
 func (repo AffiliateRepository) SubmitAffiliateApplication(
 	ctx context.Context,
@@ -157,6 +178,9 @@ func (repo AffiliateRepository) SubmitAffiliateApplication(
 		&record.CreatedAt,
 	)
 	if err != nil {
+		if isAffiliateApplicationEmailConflict(err) {
+			return ports.AffiliateApplicationRecord{}, ports.ErrAffiliateEmailTaken
+		}
 		if errors.Is(err, pgx.ErrNoRows) || isAffiliateApplicationCodeConflict(err) {
 			return ports.AffiliateApplicationRecord{}, ports.ErrAffiliateCodeTaken
 		}
@@ -174,6 +198,11 @@ func isAffiliateApplicationCodeConflict(err error) bool {
 	return errors.As(err, &pgErr) &&
 		pgErr.Code == pgUniqueViolation &&
 		(pgErr.ConstraintName == "affiliate_applications_pending_code_unique_idx" ||
-			pgErr.ConstraintName == "affiliates_code_unique_idx" ||
-			pgErr.ConstraintName == "affiliate_accounts_email_unique_idx")
+			pgErr.ConstraintName == "affiliates_code_unique_idx")
+}
+
+func isAffiliateApplicationEmailConflict(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation &&
+		pgErr.ConstraintName == "affiliate_accounts_email_unique_idx"
 }

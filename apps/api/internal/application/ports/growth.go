@@ -16,6 +16,7 @@ type AffiliateClickRepository interface {
 }
 
 type AffiliateApplicationRepository interface {
+	AffiliateCodeExists(ctx context.Context, code string) (bool, error)
 	SubmitAffiliateApplication(
 		ctx context.Context,
 		input SubmitAffiliateApplicationInput,

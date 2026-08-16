@@ -12,7 +12,37 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/notification"
 )
 
-var ErrAffiliateCodeTaken = errors.New("affiliate code already exists")
+var (
+	ErrAffiliateCodeTaken  = errors.New("affiliate code already exists")
+	ErrAffiliateEmailTaken = errors.New("affiliate email already exists")
+)
+
+type AffiliateCodeAvailability struct {
+	Code      string
+	Available bool
+	Reason    string
+}
+
+func (s Service) CheckAffiliateCodeAvailability(
+	ctx context.Context,
+	raw string,
+) (AffiliateCodeAvailability, error) {
+	code := strings.ToUpper(strings.TrimSpace(raw))
+	if !affiliateCodePattern.MatchString(code) {
+		return AffiliateCodeAvailability{Code: code, Reason: "invalid"}, nil
+	}
+	if s.applications == nil {
+		return AffiliateCodeAvailability{}, ErrInvalidInput
+	}
+	exists, err := s.applications.AffiliateCodeExists(ctx, code)
+	if err != nil {
+		return AffiliateCodeAvailability{}, err
+	}
+	if exists {
+		return AffiliateCodeAvailability{Code: code, Reason: "taken"}, nil
+	}
+	return AffiliateCodeAvailability{Code: code, Available: true}, nil
+}
 
 type SubmitAffiliateApplicationCommand struct {
 	ApplicantType     string
@@ -58,6 +88,9 @@ func (s Service) SubmitAffiliateApplication(
 	record, err := s.applications.SubmitAffiliateApplication(ctx, input)
 	if errors.Is(err, ports.ErrAffiliateCodeTaken) {
 		return ports.AffiliateApplicationRecord{}, ErrAffiliateCodeTaken
+	}
+	if errors.Is(err, ports.ErrAffiliateEmailTaken) {
+		return ports.AffiliateApplicationRecord{}, ErrAffiliateEmailTaken
 	}
 	if err != nil {
 		return ports.AffiliateApplicationRecord{}, err

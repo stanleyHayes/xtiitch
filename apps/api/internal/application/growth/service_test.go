@@ -238,8 +238,13 @@ type fakeAffiliateClicks struct {
 }
 
 type fakeAffiliateApplications struct {
-	input ports.SubmitAffiliateApplicationInput
-	err   error
+	input      ports.SubmitAffiliateApplicationInput
+	err        error
+	codeExists bool
+}
+
+func (repo *fakeAffiliateApplications) AffiliateCodeExists(context.Context, string) (bool, error) {
+	return repo.codeExists, repo.err
 }
 
 type fakeGrowthEmailSender struct {

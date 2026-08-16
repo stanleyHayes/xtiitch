@@ -317,6 +317,13 @@ func (service *fakeGrowthService) SubmitAffiliateApplication(
 	}, nil
 }
 
+func (service *fakeGrowthService) CheckAffiliateCodeAvailability(
+	_ context.Context,
+	code string,
+) (growthapp.AffiliateCodeAvailability, error) {
+	return growthapp.AffiliateCodeAvailability{Code: code, Available: true}, nil
+}
+
 func (service *fakeGrowthService) ListSponsoredPlacements(
 	_ context.Context,
 	command growthapp.ListSponsoredPlacementsCommand,

@@ -19,6 +19,7 @@ import (
 const maxBodyBytes = 1 << 20
 
 type Service interface {
+	CheckAffiliateCodeAvailability(ctx context.Context, code string) (growthapp.AffiliateCodeAvailability, error)
 	RecordAffiliateClick(ctx context.Context, command growthapp.RecordAffiliateClickCommand) (ports.AffiliateClickRecord, error)
 	SubmitAffiliateApplication(
 		ctx context.Context,
@@ -46,6 +47,8 @@ func NewHandler(service Service) Handler {
 func (handler Handler) Register(router chi.Router) {
 	router.With(handler.applicationLimiter.middleware).
 		Post("/public/affiliate-applications", handler.submitAffiliateApplication)
+	router.With(handler.clickLimiter.middleware).
+		Get("/public/affiliate-code-availability", handler.checkAffiliateCodeAvailability)
 	router.With(handler.clickLimiter.middleware).
 		Post("/public/affiliates/{code}/clicks", handler.recordAffiliateClick)
 	router.Get("/public/sponsored", handler.sponsoredPlacements)

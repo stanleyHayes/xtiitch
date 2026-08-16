@@ -75,6 +75,9 @@ function fieldErrorMessage(code: string): string {
   if (code === "affiliate_code_taken") {
     return "That referral code is already taken. Try another one.";
   }
+  if (code === "affiliate_email_taken") {
+    return "An affiliate account already exists for this email. Sign in or reset your password.";
+  }
   if (code === "invalid_application") {
     return "Some details are missing or invalid. Check the form and try again.";
   }
@@ -120,7 +123,7 @@ export async function action({ request }: ActionFunctionArgs) {
   }
 }
 
-// eslint-disable-next-line max-lines-per-function -- three-step application form; the steps share validation and must stay mounted so values survive going back
+// eslint-disable-next-line max-lines-per-function, complexity -- three-step application form; the steps share validation and must stay mounted so values survive going back
 export default function Signup() {
   const result = useActionData<typeof action>();
   const navigation = useNavigation();
@@ -129,12 +132,49 @@ export default function Signup() {
   const formRef = useRef<HTMLFormElement | null>(null);
   const [step, setStep] = useState(0);
   const [stepError, setStepError] = useState<string | null>(null);
+  const [code, setCode] = useState("");
+  const [codeStatus, setCodeStatus] = useState<
+    "idle" | "checking" | "available" | "taken" | "error"
+  >("idle");
   // Server-rendered HTML shows every step at once, so the form still works
   // with no JavaScript: it is one plain form that happens to be long. The
   // wizard only takes over once React has hydrated.
   const [wizard, setWizard] = useState(false);
   useEffect(() => setWizard(true), []);
 
+  useEffect(() => {
+    const normalized = code.trim().toUpperCase();
+    if (!AFFILIATE_CODE_PATTERN.test(normalized)) {
+      setCodeStatus("idle");
+      return;
+    }
+    setCodeStatus("checking");
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      fetch(`/affiliate-code-check?code=${encodeURIComponent(normalized)}`, {
+        signal: controller.signal,
+      })
+        .then((response) => (response.ok ? response.json() : Promise.reject()))
+        .then((result: { available?: boolean; reason?: string }) => {
+          setCodeStatus(
+            result.available
+              ? "available"
+              : result.reason === "taken"
+                ? "taken"
+                : "error",
+          );
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setCodeStatus("error");
+        });
+    }, 400);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [code]);
+
+  // eslint-disable-next-line complexity -- validation mirrors the three visible wizard steps and their async code state
   const missingOnStep = (index: number): string | null => {
     const form = formRef.current;
     if (!form) {
@@ -154,6 +194,15 @@ export default function Signup() {
       const code = String(data.get("requested_code") ?? "").trim();
       if (code && !AFFILIATE_CODE_PATTERN.test(code)) {
         return "Use 3–32 letters, numbers, hyphens, or underscores for your referral code";
+      }
+      if (codeStatus === "checking" || codeStatus === "idle") {
+        return "Wait while we check that referral code";
+      }
+      if (codeStatus === "taken") {
+        return "That referral code is already taken. Try another one";
+      }
+      if (codeStatus === "error") {
+        return "We could not check that code. Try again in a moment";
       }
     }
     if (index === 2 && data.getAll("promotion_channels").length === 0) {
@@ -321,7 +370,25 @@ export default function Signup() {
                 type="text"
                 placeholder="e.g. AMA20"
                 maxLength={24}
+                value={code}
+                onChange={(event) => setCode(event.target.value.toUpperCase())}
+                aria-describedby="referral-code-status"
               />
+              <span
+                id="referral-code-status"
+                className={`field-status ${codeStatus}`}
+                aria-live="polite"
+              >
+                {codeStatus === "checking"
+                  ? "Checking availability…"
+                  : codeStatus === "available"
+                    ? `✓ ${code.trim().toUpperCase()} is available`
+                    : codeStatus === "taken"
+                      ? "That referral code is already taken — try another."
+                      : codeStatus === "error"
+                        ? "Could not check availability. Try again."
+                        : "3–32 letters, numbers, hyphens, or underscores."}
+              </span>
             </label>
           </div>
         </div>
