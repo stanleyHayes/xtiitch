@@ -21,7 +21,9 @@ func (repo AffiliateRepository) AffiliateCodeExists(ctx context.Context, code st
 	var exists bool
 	err = tx.QueryRow(ctx, `
 		select exists (
-			select 1 from affiliates where lower(code) = lower($1) and status <> 'archived'
+			-- The unique index reserves codes across every affiliate status,
+			-- including archived records, so availability must do the same.
+			select 1 from affiliates where lower(code) = lower($1)
 			union all
 			select 1 from affiliate_applications
 			where lower(requested_code) = lower($1) and status = 'pending_review'
@@ -83,7 +85,6 @@ func (repo AffiliateRepository) SubmitAffiliateApplication(
 			select 1
 			from affiliates
 			where lower(code) = lower($8)
-				and status <> 'archived'
 		)
 		on conflict (lower(email)) where status = 'pending_review'
 		do update set
