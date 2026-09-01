@@ -40,6 +40,7 @@ func TestVerifyRegistrationOTPThenRegisterWithoutCode(t *testing.T) {
 		OwnerEmail:       "ama@example.com",
 		OwnerPassword:    "strong-password",
 		OwnerPhone:       "0244000111",
+		WhatsAppNumber:   "0244000111",
 		// No OwnerPhoneCode: the earlier verify-only proof covers it.
 	})
 	if err != nil {

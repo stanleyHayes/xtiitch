@@ -14,7 +14,7 @@ import { PasswordField } from "../components/PasswordField";
 import { LockIcon } from "../components/Icons";
 
 export const meta: MetaFunction = () => [
-  { title: "Set a new password | Xtiitch Affiliates" }
+  { title: "Set a new password | Xtiitch Partners" }
 ];
 
 export async function action({ request }: ActionFunctionArgs) {

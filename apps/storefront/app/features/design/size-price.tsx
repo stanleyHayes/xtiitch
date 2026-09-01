@@ -37,9 +37,16 @@ export function SizePriceList({ design }: { design: Design }) {
                 sx={{ justifyContent: "space-between", gap: 2 }}
               >
                 <Typography>{price.label}</Typography>
-                <Typography sx={{ fontWeight: 800 }}>
-                  {formatGHS(price.price_minor)}
-                </Typography>
+                <Stack direction="row" spacing={1} sx={{ alignItems: "baseline" }}>
+                  {price.discounted_price_minor !== null ? (
+                    <Typography variant="body2" sx={{ color: "text.secondary", textDecoration: "line-through" }}>
+                      {formatGHS(price.actual_price_minor)}
+                    </Typography>
+                  ) : null}
+                  <Typography sx={{ fontWeight: 900, color: price.discounted_price_minor !== null ? "primary.main" : "text.primary" }}>
+                    {formatGHS(price.price_minor)}
+                  </Typography>
+                </Stack>
               </Stack>
               {chart.length > 0 ? (
                 <Stack

@@ -126,7 +126,7 @@ export async function action({ request }: Route.ActionArgs) { // eslint-disable-
     });
   }
 
-  const handle = String(form.get("handle") ?? "").trim();
+  const handle = String(form.get("handle") ?? "").trim().toLowerCase();
   const email = String(form.get("email") ?? "").trim();
   const password = String(form.get("password") ?? "");
 

@@ -22,7 +22,7 @@ This is the intended product split. Keep new work aligned to these audience boun
 | Business dashboard | `apps/dashboard`          | Business owners, admins, and staff             | Receive customer requests/orders, manage catalogue, process production stages, handle money, visits, handovers, team, measurements, and notifications                                                                     | Built and backed by protected business APIs, with role-aware owner/admin/staff views                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | Marketing          | `apps/marketing`          | Prospective businesses and public visitors     | Explain the product, pricing, trust posture, growth programmes, sponsored discovery, and capture waitlist/contact leads                                                                                                   | Built with public product/pricing/trust pages, the sponsored placement band, and a `/growth` route covering promotion codes, referral rewards, affiliate links, and sponsored placements                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | Backend/worker     | `apps/api`, `apps/worker` | Shared system layer                            | Tenant-safe API, payments, catalogue, orders, notifications, and background jobs                                                                                                                                          | Built in slices; admin auth/users/roles/settings/audit/business verification/business lifecycle/platform metrics/money-rails/subscription lifecycle/plan-package/promotion/risk-review/support controls are started; notification outbox has dry-run and HTTP provider transports; subscription dunning/grace-expiry sweeps run from admin and worker paths; extra local admin bootstrap users can be seeded through env JSON; production notification provider credentials are pending                                                                                                                                                                                       |
-| Mobile             | `apps/mobile`             | Customer and business native/web-preview users | Native access mirroring the web split                                                                                                                                                                                     | Started: Expo Router app with customer home, sponsored discovery, store browsing, design checkout with promo/referral/affiliate codes, order tracking, business sign-in, order list/detail, stage advancement, balance collection, and walk-in order creation over the existing public/business APIs. Deeper parity, secure native storage, push registration, device QA, and store/team/catalogue/visit/handover management remain future mobile work.                                                                                                                                                                                                                       |
+| Mobile             | `apps/mobile`             | Customer, business, and affiliate native/web-preview users | Native access mirroring the web split                                                                                                                                                                                     | Redesigned end to end with customer marketplace/store/design/cart/account/tracking, role-aware business operations and administration, and affiliate workspaces. Sessions use secure native storage; protected catalogue, store, CRM, visits, handovers, money, team, billing, verification, MFA, analytics, exports, and creator-partnership management are API-backed.                                                                                                                                                                                                                       |
 
 ## Status Checklist — 2026-06-29 (done / in progress / left)
 
@@ -53,7 +53,7 @@ each feature does and [architecture.md](architecture.md) for where it lives.
 | 19  | Admin: risk, support, audit log                       |  ✅   | full audit trail                                                                      |
 | 20  | Notifications: outbox + worker (email/push)           |  ✅   | Resend + Expo; WhatsApp/SMS HTTP transport                                            |
 | 21  | Marketing site (product/pricing/trust/growth)         |  ✅   | + features section refresh (this session)                                             |
-| 22  | Mobile (customer + business lanes)                    |  🟡   | core flows; native storage/push/QA remain                                             |
+| 22  | Mobile (customer + business + affiliate lanes)        |  ✅   | full native feature-parity pass; device-store release QA remains an ops gate          |
 | 23  | Security hardening (headers/rate-limit/CORS/CSP)      |  ✅   | live-tested incl. 429 burst                                                           |
 | 24  | Ghana legal pages (Act 843 / Act 772)                 |  ✅   | privacy + terms                                                                       |
 | 25  | Opt-in TOTP MFA (authenticator app)                   |  ✅   | API + dashboard + login challenge; replay guard + lockout; live-verified              |
@@ -166,8 +166,8 @@ each feature does and [architecture.md](architecture.md) for where it lives.
   design cost and business take-home fields instead of reusing the checkout's
   combined `Transaction fee` label. Added a real Postgres integration regression
   for the GHS1 Studio-style payment so `Design cost = GHS1.00`, `Paystack fee =
-  GHS0.02`, `Xtiitch fee = GHS0.01`, `Tax fee = GHS0.00`, and `Business
-  take-home = GHS1.00` read back without double counting. Verified with focused
+GHS0.02`, `Xtiitch fee = GHS0.01`, `Tax fee = GHS0.00`, and `Business
+take-home = GHS1.00` read back without double counting. Verified with focused
   payments HTTP/application/postgres tests and `git diff --check`.
 - ✅ Item 4 payout-history correction: verified transfer webhooks already force a
   Paystack settlement refresh and successful mirrored settlements already reduce
@@ -552,7 +552,7 @@ Audited by reading `apps/api` (37 migrations through `000037`; `internal/{domain
 
 **LEFT — remaining work:**
 
-- **Mobile apps (remaining parity build):** `apps/mobile` now has early customer/business screens wired to public and protected APIs, including standard checkout reward-code carry-through. Remaining native work is deeper parity with web surfaces (custom/home-visit checkout, visits, handovers, messages, catalogue/media, team/settings), Expo push registration, secure native token storage, and real-device QA.
+- **Mobile release validation:** customer, business, and affiliate parity is implemented, protected sessions use Expo SecureStore, and business push registration is wired end to end. Remaining mobile work is release operations: assign the real EAS project ID and FCM/APNs credentials, then complete physical iOS/Android notification and deep-link QA. The local Android emulator is being repaired as a secondary smoke path.
 - **External provider validation (pre-launch):** real Paystack sandbox/live smoke (subaccounts, split, recurring authorization, webhooks); production WhatsApp/SMS provider credentials + approved message templates + a provider sandbox smoke; live `CLOUDINARY_URL`; waitlist transport (`MARKETING_WAITLIST_WEBHOOK_URL` or Resend env).
 - **Quality gate + tests:** rerun `pnpm sonar` with real `SONAR_HOST_URL`/`SONAR_ORGANIZATION`/`SONAR_TOKEN`; broaden HTTP integration / end-to-end flow coverage (unit + key money/booking/notification integration exist; full order→pay→stage→handover and admin-decision E2E are thin).
 - **Customer-side growth surfacing:** promotions apply at checkout, admin/business creation is complete, storefront reward/attribution status is visible, and marketing now loads labelled sponsored/featured placements through the public growth API. Remaining work is live provider/data smoke evidence with real campaigns and the owner policy decisions below.
@@ -561,6 +561,7 @@ Audited by reading `apps/api` (37 migrations through `000037`; `internal/{domain
 
 ## Current Work
 
+- Mobile release-readiness continuation (2026-08-02): completed the business push client lifecycle over the existing API/worker foundation. The app now configures the Android `orders` channel, requests notification permission, resolves the real EAS project ID at runtime, registers the Expo token both on authenticated launch and immediately after password, MFA, OTP, or new-store authentication, unregisters before business logout, presents foreground alerts, and deep-links notification taps to the referenced order. A parity re-audit against the actual dashboard/storefront routes also closed missing native acquisition flows: business store registration with live handle validation and plan selection, business password reset, and affiliate password recovery with recovery-token deep-link hydration. Corrected the push client to use the mobile API base's existing `/v1` prefix and added a regression contract proving exactly one prefix. Added the `expo-notifications` config plugin and reconciled stale mobile-parity language in this ledger. The previously stuck Android AVD now cold-boots successfully with snapshots disabled and SwiftShader (`Pixel_9_Pro_XL`, Android 16, boot complete in 26 seconds); installing Expo Go was abandoned at 4% because the download projected roughly 45 minutes and Expo Go cannot validate production push credentials. Verified with mobile TypeScript and five surface/API-base tests, mobile ESLint, focused API notification/Postgres tests, worker typecheck and all 46 worker tests, `git diff --check`, resolved Expo public config, and a fresh 1,110-module production web export. EAS CLI is authenticated as `vladislaus`, but the repository is not linked to an EAS project; creating/linking the intended project and configuring FCM/APNs are the remaining owner-authorized release operations before physical-device push QA.
 - Milestone 1 (Backend Foundation and Money Rails) is complete, including database-enforced tenant isolation: auth/identity, JWT verification + middleware with server-derived tenant scope, refresh-token rotation and logout, the Paystack money rails (subaccount provisioning on verification, the commission split, and idempotent webhook confirmation), and row-level security now actively enforced by the database — all built, unit-tested, and verified end-to-end against Postgres with the dev payment provider.
 - Milestone 2 (Catalogue and Storefront) backend is in place: store settings, collections, designs (with images, status lifecycle and unguessable handles), business-defined size bands, per-band pricing, and the public storefront by handle (browse, single design/collection, search) with active-only visibility — all RLS-enforced, unit-tested, and verified end-to-end.
 - The `apps/storefront` public storefront (the customer-facing shop over the catalogue API) is built and verified in the browser: store-by-handle with the business's own brand colour, a polished public store header, richer design cards with pricing/custom badges, collection entry points, collection pages with dark editorial framing, listed-size checkout, bespoke self-measure requests, real home-visit slot booking/deposit checkout, shop-measurement requests, reward/attribution code carry-through with visible promo/referral/affiliate status, a two-panel tracking page that accepts order IDs and provider references, server-side search, SSR + hydration, mobile-responsive, and 404 handling.
@@ -707,6 +708,8 @@ Audited by reading `apps/api` (37 migrations through `000037`; `internal/{domain
 
 ## Opened / Pending
 
+- **Mobile completion takeover (complete, 2026-08-02):** redesigned `apps/mobile` end to end in the established wine/cream identity, with visible page watermarks, dark mode, reduced-motion support, richer empty/loading/error states, and a role-aware studio command centre. Customer parity now covers discovery, sponsored stores, collection filtering, full design checkout modes, persistent multi-studio cart, Paystack return reconciliation, accounts/orders, promotions/referrals/affiliate attribution, and tracking. Business parity covers orders, stages, payments, visits, handovers, waitlist, CRM/measurements, catalogue/collections/imagery/variations/size-band pricing and lifecycle, delivery zones, store branding/services/fees/layout, team, Money Desk/payout onboarding, Ghana Card verification, profile/phone/password/MFA, billing, analytics, scheduled reports, authenticated CSV/PDF/DOCX/XLSX exports, help, and editable creator programmes/affiliates. Affiliate parity covers authentication, overview, links, earnings, and settings. Protected sessions use Expo SecureStore on iOS/Android with legacy migration. Business push now has API registration/list/unregister storage, paid-order outbox delivery, Expo dead-token retirement, an Android `orders` channel, permission/token registration on authenticated launch, unregister-before-logout, foreground presentation, and order-detail deep linking. Fixed defects include staff seeing owner-only destinations and settled revenue, successful 204 commands being reported as network errors, checkout baskets clearing before confirmed payment, dark-theme hardcoded colors, and malformed lint annotations. Verification passes: ESLint, TypeScript, four surface tests, `git diff --check`, and a 1,045-module production Expo web export to `apps/mobile/dist-redesign-final-2`. Physical iOS/Android push inspection remains a release-operations gate until the real EAS project ID and FCM/APNs credentials are configured.
+- **Mobile native release-readiness continuation (2026-08-02):** linked the app to `@vladislaus/xtiitch-mobile` (EAS project `f3a92a87-5abc-403b-a93b-3ac4412e2346`), created remote Android signing credentials, added development/preview APK profiles and a secret-safe `.easignore`, and aligned the Expo 56 native dependency set after the first Gradle build exposed an incompatible React Native 0.86/Reanimated 4.2 pairing. The corrected development APK build `55af35c7-eb6a-43e0-b9fa-00be984d7580` completed and installed as `com.xtiitch.mobile` on the Android 16 emulator. The self-contained 96 MB preview APK build `69d36fa2-be0f-485c-8455-7b2b631eeae0` also completed successfully; repeated installation/launch attempts on both the existing AVD and a clean 4-core/4 GB data-wiped Android 16 AVD stalled inside Android's package manager, so final visual launch evidence is blocked by the local emulator rather than compilation or packaging. Notification-channel creation now runs at every native app startup while token registration remains authenticated. Final checks pass: Expo dependency check, TypeScript, five mobile tests, mobile ESLint, the repository file-size guard, and `git diff --check`. Oversized mobile route files were split into route coordination, overview components, KPI, and theme-style modules; every mobile TS/TSX source is at or below the 400-line CI budget. Live remote push remains an external release-operations check requiring production FCM/APNs credentials and a physical device.
 - Code-owned admin, storefront, dashboard, marketing, contract, and test placeholder gaps in this ledger are closed as of the latest audit; continue to commit and push each new slice to `origin/main`.
 - Subscription invoice/payment-link/manual billing controls, Paystack recurring authorization capture/verify controls, recurring charge initiation for saved authorization refs, operator-run and worker-scheduled dunning/grace-expiry sweeps, cancellation-to-free downgrade rules, subscription webhook reconciliation, sponsored-placement payment collection, and catalogue design plan-limit enforcement now exist; production Paystack sandbox validation is still pending.
 - React Router's v8 Vite Environment API future warning still appears in admin, dashboard, and storefront production builds; clean this up once the current React Router/Vercel adapter configuration supports the flag path cleanly.
@@ -715,7 +718,7 @@ Audited by reading `apps/api` (37 migrations through `000037`; `internal/{domain
 - Final privacy, terms, refund, cancellation, subscription renewal, and chargeback language must receive legal review before public launch.
 - Configure production WhatsApp/SMS provider credentials/templates and run a provider sandbox smoke. The worker now has a generic HTTP live transport, lifecycle text templates, and provider response/id persistence, but no real production provider token is committed.
 - Growth and monetisation owner decisions still need final sign-off before launch: default funding for business promos; whether platform-wide admin promos are opt-in per business; affiliate payout KYC/threshold policy; sponsored pricing model and rate card; whether referral vouchers are store-scoped or platform-wide; precedence when promo, referral, and affiliate collide on one order; and subscription-billing policy details that depend on commercial ownership.
-- Native mobile product work is started, not launch-complete: the current launch-ready surfaces remain the dedicated web/admin/storefront/dashboard apps until mobile parity, secure storage, push registration, and device QA are complete.
+- Native mobile product implementation and Android EAS project/signing setup are complete. Release operations still require production FCM/APNs credentials plus physical-device push, cold-start notification deep-link, and real-provider checkout smokes; these cannot be proven by the repository or Android emulator alone.
 
 ## Product Boundary
 
@@ -1556,7 +1559,9 @@ Do not skip the plan update. This file is the handoff surface for the next agent
 Source: `Xtiitch-Updates-Refined.md`. **Cross-check each item against current code before building — much is already implemented; do NOT re-do done work.** Status set by the cross-check audit: `[ ]` TODO · `[~]` PARTIAL · `[x]` DONE. Colour-variation UI = Amazon-style swatch boxes above sizes (per reference screenshots).
 
 ## PRIORITY 0 — Payments (Paystack): the blocker
+
 Full checkout→payment end-to-end for three payment kinds; test each until a real payment settles.
+
 - **P0.1 Subscriptions/upgrades** — owners pay Starter/Growth/Studio + renewals; upgrade+pay must succeed. `[~]`
 - **P0.2 Store sales** — MTW (full) + bespoke (deposit now / balance later); customer checkout+pay must succeed. `[~]`
 - **P0.3 AI assistant add-on** — owners pay for the AI-writing add-on. `[ ]`
@@ -1565,21 +1570,25 @@ Full checkout→payment end-to-end for three payment kinds; test each until a re
 - **P0.6 Fees (implement exactly):** Xtiitch fee = PER DESIGN at source plan rate (Free 3% / Starter 1.5% / Growth 1% / Studio 0.5%), capped **GHS 50/design**; bulk = each design charged+capped separately; bespoke = fee on the Paystack deposit only, manual/offline = free. Paystack fee = **1.95% per total transaction** (once per charge, even multi-store), allocated across stores in the split. `[x]` commission+cap; `[~]` per-design-in-bulk + marketplace allocation.
 
 ## 1. Design setup — Catalogue (dashboard)
+
 - **1a/§6. Per-design size-band override** — adjust chart values + rename a band for THAT design only (overrides master; no effect on others); storefront shows effective chart. `[ ]`
 - **1b. Colour variations — NEW.** name + images per variation; default = first variation; caps incl. default Free 2 / Starter 3 / Growth 5 / Studio 10; images/variation follow plan per-design limit (Free 2); over-limit → upgrade pop-up; variations share SAME price + order flow (only add colour-labelled clickable images). Storefront: "Colour variations" swatches ABOVE "Sizes and prices"; click swaps main gallery. Flows into cart/checkout/order/tracking (§13). `[ ]`
 - **1c. Bespoke "Allow customise" checkbox** → deposit + display amount fields; unchecked = no bespoke order. `[~]`
 
 ## 2. Buying flow — single design page
+
 - MTW default (bands + prices, "Starting from [lowest]"); browse variations. `[x]` (verify variations)
 - Allow-customise on → "Customise" button → view that REPLACES MTW prices/sizes with: fillable size chart + note area + deposit (here only) + variations visible. Three options (reveal chosen one's form): Self-measure (chart) / Home visit (booking time + address) / Come to shop (select+continue); deposit same for all; **note area on all three + MTW**. `[~]`
 
 ## 3. Basket & checkout
+
 - **Remove name/email/phone from design/customise forms** → only Add-to-Cart + Pay-Now; collect details at checkout. `[~]`
 - No account → create/login before pay; account → add freely, login before pay; account shows current + past orders. `[~]`
 - **Two phones at account creation:** WhatsApp (owner chat / button) + Phone (SMS, OTP-verified). `[~]`
 - **Super Admin CRM** of all buyers (searchable). `[~]`
 
 ## 4. Marketplace (store.xtiitch.com) — one basket across shops
+
 - Unified marketplace basket; many shops → one basket, one account, pay once. `[ ]`
 - Per-store totals at checkout + per-store distinction in account. `[ ]`
 - Per-store tracking (store contact, track each bespoke, per-store notify). `[~]`
@@ -1589,22 +1598,45 @@ Full checkout→payment end-to-end for three payment kinds; test each until a re
 - **BUG:** KD Designs LTD 10 designs, only 4 show → show ALL designs + ALL stores, leave none out. `[ ]`
 
 ## 5. Catalogue tidy (dashboard)
+
 - Collections card: remove "Add collection" (keep "All collections"); remove "Size bands" section in its pop-up. `[ ]`
 - Size Bands card: remove "Add size band" (keep "All size bands"); remove "Collections" section in its pop-up. `[ ]`
 
 ## 7. Share links (404) → open correct design/collection; deleted → "no longer available" (never 404, never leak). `[ ]`
+
 ## 8. Forms reset after successful submit (whole-app: modals close, inline forms clear+refresh). `[~]`
+
 ## 9. Orders — SMS matches stage; customer account shows shop contact name+phone; order board **all 4 stages** (Order received → Being made → Ready for fitting → Ready/Delivered) with drag + Advance; each change → notification. `[~]`
+
 ## 10. Measurements page — remove "Size band library", keep "Measurement setup". `[ ]`
+
 ## 11. Availability — add per-day availability (day-by-day hours / mark day unavailable) alongside every-day/weekly/monthly. `[ ]`
+
 ## 12. Login session — make session duration **3× longer**. `[ ]`
+
 ## 13. System-wide sweep — variations→cart/checkout/order/tracking; per-design fee+split single AND marketplace + bespoke deposit/balance; OTP into signup+checkout; 4-stage model in dashboard+notifications+tracking; Paystack every money path. Flag inconsistencies.
 
 **Build order:** P0 → §1–2 → §3–4 → §5–12 → §13 continuous.
 **Cross-check audit results appended below once run.**
 
+## Partner Programme v1.5 implementation — 2026-09-01
+
+Status: `[x] implemented and locally verified`
+
+- `[x]` Single platform-owned Partner Programme at 20% recurring subscription commission with a 14-day maturity period.
+- `[x]` Permanent registered-business attribution and idempotent commission creation for initial and renewal subscription payments.
+- `[x]` Immediate Partner enrollment, mandatory WhatsApp capture, activation, referral-code availability, and updated Partner branding.
+- `[x]` Partner portal overview, privacy-safe referral statuses, earnings, links, payout setup, and milestone progress.
+- `[x]` Company controls remain available through programme settings, registration flag, payout approval/holds, suspension, and commission reversal paths; business-owned affiliate programme navigation is parked.
+- `[x]` Migration 000146 passed the full fresh migration chain and a populated down/up round trip.
+- `[x]` API acceptance proved two recurring payments on one subscription create GHS 20 and GHS 30 commission records at 20%, both maturing after 14 days.
+- `[x]` Browser acceptance proved signup validation, immediate enrollment, login, dashboard totals, and a referral view exposing only `@handle` plus Active/Inactive/Not Activated status.
+- `[x]` Verification passed: `go test ./internal/...`, `go vet ./...`, `go build ./...`, focused Go tests, affiliate/marketing/dashboard checks and production builds, affected-file lint, and `git diff --check`.
+
 ### Updated-spec delta (Xtiitch-Updates-Refined v2, 2026-07-10 22:29) — apply these
+
 Diff vs the version above:
+
 - **P0: AI assistant add-on payment REMOVED.** Now only TWO payment kinds — subscriptions/upgrades + store sales. **Drop P0.3.** Paystack paths to make work = subscription upgrades, single-store checkout, marketplace multi-store checkout, bespoke **deposits AND balances**.
 - **P0.6 bespoke fee CHANGED (supersedes deposit-only):** Xtiitch's per-design fee now applies to **BOTH the bespoke deposit AND the balance** — each is its own Paystack transaction. Manual/offline logged money stays **free** (not a Paystack transaction). See [[offline-takings-fee-free]] — still true for manual; the change is that the balance, when paid via Paystack, is now feed.
 - **P0.5:** payout subaccount linked to store MoMo **or bank**.
@@ -1614,7 +1646,9 @@ Diff vs the version above:
 - **§4 bug:** generalized ("one shop has 10 designs, only 4 show") — not tied to a named shop.
 
 ### Session progress (2026-07-10, this build session)
+
 Shipped & pushed to main this session (backend-first; dashboard UI in flight):
+
 - `3a132f0` signup: require explicit plan choice before "Create store" (no auto-forward).
 - `dd75f96` marketplace: show ALL stores/designs (LEFT join + no LIMIT 4); session TTLs (access 3h, refresh 90d, customer 90d) [§12].
 - `ad0a4d9` §5/§10 catalogue tidy + measurements page.
@@ -1628,6 +1662,7 @@ Shipped & pushed to main this session (backend-first; dashboard UI in flight):
 - `9c35bff` `GET /stages` (business stage templates) for the §9 four-stage board.
 
 Also shipped after the list above:
+
 - `bedbde2` §7 storefront share-link 404 fix (redirect /design,/collection → /d,/c; graceful not-found).
 - `0ad1374` §3c two-phone customer identity (migration 000079 customers.whatsapp_phone; GET/PATCH /customer/me + storefront account field).
 - `8140f22` §3b account-gate before pay (checkout + bespoke-deposit flows require a verified customer session; prefill from profile).
@@ -1637,6 +1672,7 @@ Also shipped after the list above:
 - `3b95310` §4 item 4 unified multi-store basket + per-store checkout (accumulate across shops, grouped by store; `checkout?store=HANDLE` settles one store, clears only its lines; single-store path unchanged). Deferred P0.4 (single Paystack charge split across N subaccounts) — money-path/webhook change needing every store's subaccount provisioned.
 
 STATUS: every Xtiitch-Updates item is now implemented and shipped.
+
 - P0.5 marketplace gate: `ListPublicShops` lists only stores with a provisioned subaccount (`b18dfbd`).
 - P0.4 multi-store "pay once": backend `b658283` (provider split object; migration 000080 marketplace_charges + members; payments.InitiateMarketplaceCharge; checkout.PlaceMarketplaceOrder → POST /public/marketplace/orders; ISOLATED webhook reconcile that settles each shop's group under its own tenant scope + writes per-shop money rows). Storefront: unified cart's "Pay for all N studios at once" → /checkout-all → one split charge. Existing single-store money path is byte-for-byte unchanged.
 - VALIDATED against the live Paystack TEST API (2026-07-11):
@@ -1647,6 +1683,7 @@ STATUS: every Xtiitch-Updates item is now implemented and shipped.
 - LIVE-VALIDATED END-TO-END (2026-07-11): fresh DB (all 76 migrations, seed-demo-full), two stores swapped to real Paystack test subaccounts, API run on :8080 with `sk_test` behind a trycloudflare tunnel. A real multi-store order returned a real Paystack checkout URL; a REAL browser payment (GHS 790) fired a genuine Paystack webhook (`remote_ip 52.x`, `user_agent Paystack/2.0`) through the tunnel → signature verified → cross-tenant settlement confirmed BOTH shops' orders and wrote each shop's money row with the correct 1% split; idempotent on re-delivery. P0.4 is proven with real money movement (test mode). See [[paystack-integration]].
 
 REMAINING (item 4 core + P0.4) — deliberately NOT rushed; it changes the money path + webhook/settlement:
+
 - item 4 (a,b,c): multi-store UNIFIED cart on the apex/marketplace context, grouped by store, kept SEPARATE from the subdomain single-shop cart (two cart cookies / host-keyed, "don't merge"); cart UI grouped by store with per-store subtotals; per-store checkout.
 - P0.4: Paystack DYNAMIC split (N subaccounts + platform 1.95% share) in the provider client + ports.InitializeTransactionInput, so one marketplace charge settles across N stores; the webhook must confirm all per-store order groups idempotently. Depends on every store having a provisioned subaccount (P0.5).
 - SAFE INCREMENT if not doing P0.4: multi-store cart + PER-STORE checkout reusing the proven single-store split charge (no webhook change), deferring the single-charge multi-split.
@@ -1655,19 +1692,23 @@ REMAINING (item 4 core + P0.4) — deliberately NOT rushed; it changes the money
 DECISION — P0.5 marketplace gate NOW APPLIED (user requested "go on with p0.5"): `ListPublicShops` lists only stores with a provisioned payout subaccount (`settlement_provider_subaccount <> ''`). This reverses the earlier §4 "show all" behaviour — the marketplace is a shoppable, checkout-ready surface and the §4 multi-store split settles to each store's subaccount, so only payment-ready stores are listed; a store appears the moment it sets up payouts (dashboard payout UI + onboarding banner already shipped). A store's OWN subdomain storefront is unaffected (resolved via ResolveStore, not the directory).
 
 ### Cross-check audit → BUILD QUEUE (2026-07-10, verified vs code)
+
 DONE (skip): P0.1 subs pay, P0.2 store sales (MTW+bespoke deposit/balance), P0.3 AI addon (also removed from v2), 3d CRM, single-store Paystack direct split, §3b delivery. Remaining gaps, priority order:
 
 **Tier 0 — P0 payments**
-- `[ ]` **P0.6a per-design cap in CART (BUG):** bulk cart caps Xtiitch commission ONCE on the whole total, not per design — `payments/service.go:125` computes one commission+GHS50 cap on the cart total. Fix: commission+cap PER LINE. Effort S. *(isolated, do now)*
+
+- `[ ]` **P0.6a per-design cap in CART (BUG):** bulk cart caps Xtiitch commission ONCE on the whole total, not per design — `payments/service.go:125` computes one commission+GHS50 cap on the cart total. Fix: commission+cap PER LINE. Effort S. _(isolated, do now)_
 - `[ ]` **P0.6b bespoke BALANCE fee (v2):** add Xtiitch per-design commission to the bespoke balance charge (`order/service.go` CollectBalance) — v2 charges deposit AND balance. Effort S.
 - `[ ]` **P0.5 payout setup UI:** dashboard Money/Settings payout section (collect MoMo/settlement → `POST /businesses/me/verify`, endpoint exists) + onboarding banner; gate marketplace appearance on a provisioned subaccount (`ListPublicShops` currently lists unverified). Effort M.
 - `[ ]` **P0.4 marketplace multi-store split:** Paystack dynamic `split` (N subaccounts/shares) in the client + `ports.InitializeTransactionInput`; + 1.95% allocation across stores. Depends on item 4 + P0.5. Effort L.
 
 **Tier 1 — marketplace**
-- `[x]` **4-bug (done):** marketplace shows 4/10 designs — `loadShopSamples` `LIMIT 4` (`storefront_repository.go:112`); Designs tab built from samples. Show ALL active designs; also make the `store_settings` join LEFT so no active store drops. Effort S. *(quick win)*
+
+- `[x]` **4-bug (done):** marketplace shows 4/10 designs — `loadShopSamples` `LIMIT 4` (`storefront_repository.go:112`); Designs tab built from samples. Show ALL active designs; also make the `store_settings` join LEFT so no active store drops. Effort S. _(quick win)_
 - `[ ]` **item 4 unified marketplace basket:** multi-store cart grouped by store_handle (stop cross-store wipe `cart.ts:72`); two separate cart contexts (subdomain single-shop vs apex unified, don't merge); per-store totals at checkout + per-store account grouping; marketplace design click stays on marketplace. Effort L.
 
 **Tier 2 — design + buying**
+
 - `[ ]` **1b colour variations:** migration `design_variations` (name, ordered images, default) + plan caps (Free2/Starter3/Growth5/Studio10) + Free 2 img/variation + upgrade popup; dashboard editor; storefront swatches above sizes, click swaps gallery; flow into cart/checkout/order/tracking. Effort L.
 - `[ ]` **1a/6 per-design size-band override:** per-design band label + chart values override master; storage + catalogue read/write + dashboard UI + storefront effective chart. Effort L.
 - `[ ]` **1c bespoke display amount:** add per-design bespoke "display amount" alongside deposit (edit+create modals + column). Effort M.
@@ -1677,10 +1718,26 @@ DONE (skip): P0.1 subs pay, P0.2 store sales (MTW+bespoke deposit/balance), P0.3
 - `[ ]` **3c two phones:** add separate WhatsApp phone to customer identity (schema + domain + capture at signup), distinct from OTP-verified SMS phone. Effort L.
 
 **Tier 3 — fixes**
-- `[ ]` **5 catalogue tidy:** remove "Add collection" + "Add size band" buttons + cross-sections in their popups. Effort S. *(quick win)*
-- `[ ]` **10 measurements page:** remove SizeBandLibraryPanel, keep Measurement setup. Effort S. *(quick win)*
-- `[x]` **12 session length (done):** triple session TTL (owner+customer refresh 30d→90d; consider access token → ~3h per v2 "3 hours"). Effort S. *(quick win)*
+
+- `[ ]` **5 catalogue tidy:** remove "Add collection" + "Add size band" buttons + cross-sections in their popups. Effort S. _(quick win)_
+- `[ ]` **10 measurements page:** remove SizeBandLibraryPanel, keep Measurement setup. Effort S. _(quick win)_
+- `[x]` **12 session length (done):** triple session TTL (owner+customer refresh 30d→90d; consider access token → ~3h per v2 "3 hours"). Effort S. _(quick win)_
 - `[ ]` **9 orders 4-stage board:** render all 4 stage columns from stage_templates (not just live orders); per-stage-change notification Kind + SMS wording per stage; customer account shows shop contact name+phone. Effort L.
 - `[ ]` **7 share links 404:** fix design/collection share URLs (→ /d/ /c/ or add redirect routes); deleted → "no longer available". Effort M.
 - `[ ]` **8 forms reset:** clear inline add-forms on success + close remaining modals lacking useCloseOnSuccess. Effort M.
 - `[ ]` **11 per-day availability:** day-by-day hours + mark-day-unavailable, alongside every-day/weekly/monthly. Effort L.
+
+## General Platform Updates v1.3 implementation — 2026-09-01
+
+Status: `[x] implemented and locally verified`
+
+- `[x]` Business registration now requires both the SMS phone and WhatsApp number in the dashboard and at the API boundary; customer checkout/profile also require WhatsApp.
+- `[x]` Business owners can edit their display name without changing the immutable store handle/subdomain; password change remains available in Security.
+- `[x]` New-business registrations and verification submissions send an operational email to `xtiitch.brand@gmail.com` without attaching sensitive verification documents.
+- `[x]` Customer order lifecycle SMS messages include the store name plus the order design/stage context.
+- `[x]` Catalogue pricing supports a required Actual Price and an optional lower Discounted Price. The active checkout price is the discounted value, while the storefront exposes the struck-through actual value beside it.
+- `[x]` Marketing desktop/mobile navigation includes Log in linked to `https://business.xtiitch.com/login`; business-login handle guidance explicitly asks for lowercase and submitted handles are normalized.
+- `[x]` Business-owned affiliate navigation remains parked in favor of the platform Partner Programme implemented under the v1.5 section above.
+- `[x]` Migration 000147 passed application, populated-price, and down/up validation. Live API acceptance returned `actual_price_minor=50000`, `discounted_price_minor=40000`, and active `price_minor=40000`.
+- `[x]` Browser acceptance proved required registration contacts, login guidance, marketing login navigation, and a storefront design rendering GHS 500 actual / GHS 400 discounted with the GHS 400 size selected for purchase.
+- `[x]` Verification passed: focused and full Go tests, `go vet ./...`, `go build ./...`, dashboard/storefront/marketing checks and production builds, worker tests/typecheck, and `git diff --check`.

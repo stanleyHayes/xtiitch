@@ -152,10 +152,12 @@ type variationResponse struct {
 }
 
 type priceResponse struct {
-	SizeBandID string              `json:"size_band_id"`
-	Label      string              `json:"label"`
-	PriceMinor int64               `json:"price_minor"`
-	Chart      []sizeChartItemBody `json:"chart"`
+	SizeBandID           string              `json:"size_band_id"`
+	Label                string              `json:"label"`
+	PriceMinor           int64               `json:"price_minor"`
+	ActualPriceMinor     int64               `json:"actual_price_minor"`
+	DiscountedPriceMinor *int64              `json:"discounted_price_minor"`
+	Chart                []sizeChartItemBody `json:"chart"`
 }
 
 type promotionResponse struct {
@@ -249,10 +251,12 @@ func toPrices(prices []catalogue.BandPrice) []priceResponse {
 	out := make([]priceResponse, 0, len(prices))
 	for _, p := range prices {
 		out = append(out, priceResponse{
-			SizeBandID: p.SizeBandID.String(),
-			Label:      p.Label,
-			PriceMinor: p.PriceMinor,
-			Chart:      toSizeChartBody(p.Chart),
+			SizeBandID:           p.SizeBandID.String(),
+			Label:                p.Label,
+			PriceMinor:           p.PriceMinor,
+			ActualPriceMinor:     p.ActualPriceMinor,
+			DiscountedPriceMinor: p.DiscountedPriceMinor,
+			Chart:                toSizeChartBody(p.Chart),
 		})
 	}
 	return out

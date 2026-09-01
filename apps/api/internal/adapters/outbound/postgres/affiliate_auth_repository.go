@@ -542,16 +542,17 @@ func (repo AffiliateAuthRepository) GetAffiliateDashboard(
 					where conversion_type = 'purchase'
 				)::bigint as purchases,
 				count(*) filter (
-					where conversion_type = 'paid_plan_signup'
+					where conversion_type = 'subscription_payment'
 				)::bigint as paid_plan_signups,
 				coalesce(sum(gross_minor) filter (
 					where conversion_type = 'purchase'
 				), 0)::bigint as gross_minor,
 				coalesce(sum(commission_minor) filter (
-					where status = 'pending'
+					where status = 'pending' and hold_until > now()
 				), 0)::bigint as pending_minor,
 				coalesce(sum(commission_minor) filter (
 					where status = 'approved'
+						or (status = 'pending' and hold_until <= now())
 				), 0)::bigint as available_minor,
 				coalesce(sum(commission_minor) filter (
 					where status = 'settled'
@@ -600,10 +601,124 @@ func (repo AffiliateAuthRepository) GetAffiliateDashboard(
 	if err != nil {
 		return ports.AffiliateDashboardRecord{}, err
 	}
+	err = tx.QueryRow(ctx, `
+		with referrals as (
+			select signup.business_id,
+				case
+					when subscription.status = 'active'
+						and subscription.current_period_end > now() then 'active'
+					when exists (
+						select 1 from affiliate_conversions conversion
+						where conversion.affiliate_id = $1::uuid
+						  and conversion.business_id = signup.business_id
+						  and conversion.conversion_type = 'subscription_payment'
+					) then 'inactive'
+					else 'not_activated'
+				end as state
+			from affiliate_signups signup
+			left join business_subscriptions subscription
+				on subscription.business_id = signup.business_id
+			where signup.affiliate_id = $1::uuid
+			  and signup.subject_type = 'business'
+			  and signup.status = 'qualified'
+		), active_count as (
+			select count(*)::bigint as total from referrals where state = 'active'
+		), next_milestone as (
+			select threshold, title from partner_milestones
+			where status = 'active' and threshold > (select total from active_count)
+			order by threshold limit 1
+		), invites as (
+			select count(*)::bigint as total from partner_invitations
+			where inviter_affiliate_id = $1::uuid and accepted_at is not null
+		)
+		select
+			count(*) filter (where state = 'active')::bigint,
+			count(*) filter (where state = 'inactive')::bigint,
+			count(*) filter (where state = 'not_activated')::bigint,
+			coalesce((select threshold from next_milestone), 0),
+			coalesce((select title from next_milestone), ''),
+			(select total from invites)
+		from referrals
+	`, input.AffiliateID.String()).Scan(
+		&record.ActiveReferralCount, &record.InactiveReferralCount,
+		&record.NotActivatedCount, &record.NextMilestoneThreshold,
+		&record.NextMilestoneTitle, &record.PartnersInvitedCount,
+	)
+	if err != nil {
+		return ports.AffiliateDashboardRecord{}, err
+	}
+	_, err = tx.Exec(ctx, `
+		insert into partner_milestone_achievements (
+			affiliate_id, partner_milestone_id
+		)
+		select $1::uuid, milestone.partner_milestone_id
+		from partner_milestones milestone
+		where milestone.status = 'active'
+		  and milestone.threshold <= $2
+		on conflict (affiliate_id, partner_milestone_id) do nothing
+	`, input.AffiliateID.String(), record.ActiveReferralCount)
+	if err != nil {
+		return ports.AffiliateDashboardRecord{}, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return ports.AffiliateDashboardRecord{}, err
 	}
 	return record, nil
+}
+
+func (repo AffiliateAuthRepository) ListPartnerReferrals(
+	ctx context.Context,
+	affiliateID common.ID,
+) ([]ports.PartnerReferralRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return nil, err
+	}
+	rows, err := tx.Query(ctx, `
+		select business.handle,
+			case
+				when subscription.status = 'active'
+					and subscription.current_period_end > now() then 'active'
+				when exists (
+					select 1 from affiliate_conversions conversion
+					where conversion.affiliate_id = $1::uuid
+					  and conversion.business_id = signup.business_id
+					  and conversion.conversion_type = 'subscription_payment'
+				) then 'inactive'
+				else 'not_activated'
+			end
+		from affiliate_signups signup
+		join businesses business on business.business_id = signup.business_id
+		left join business_subscriptions subscription
+			on subscription.business_id = signup.business_id
+		where signup.affiliate_id = $1::uuid
+		  and signup.subject_type = 'business'
+		  and signup.status = 'qualified'
+		order by signup.qualified_at desc
+	`, affiliateID.String())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	records := []ports.PartnerReferralRecord{}
+	for rows.Next() {
+		var record ports.PartnerReferralRecord
+		if err := rows.Scan(&record.Handle, &record.Status); err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return records, nil
 }
 
 func (repo AffiliateAuthRepository) ListAffiliateConversions(

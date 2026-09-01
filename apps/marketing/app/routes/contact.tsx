@@ -101,7 +101,7 @@ function ContactPromoPanel({ signupUrl }: { signupUrl: string }) {
           right: -24,
           bottom: -28,
           color: "inherit",
-          fontFamily: "var(--font-display, inherit)",
+          fontFamily: '"Outfit", sans-serif',
           fontSize: { xs: 94, sm: 132, lg: 112 },
           fontWeight: 900,
           lineHeight: 0.8,
@@ -134,7 +134,7 @@ function ContactPromoPanel({ signupUrl }: { signupUrl: string }) {
           sx={{
             mt: 4,
             maxWidth: 420,
-            fontFamily: "var(--font-display, inherit)",
+            fontFamily: '"Outfit", sans-serif',
             fontSize: { xs: "2.35rem", sm: "3rem", lg: "3.25rem" },
             fontWeight: 800,
             lineHeight: 1,
@@ -317,7 +317,7 @@ export default function Contact() {
               component="h2"
               sx={{
                 mt: 1,
-                fontFamily: "var(--font-display, inherit)",
+                fontFamily: '"Outfit", sans-serif',
                 fontSize: { xs: "2rem", sm: "2.6rem" },
                 fontWeight: 800,
                 lineHeight: 1.06,

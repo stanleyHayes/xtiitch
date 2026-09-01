@@ -7,6 +7,7 @@ import (
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
@@ -30,8 +31,9 @@ func (s Service) GetOwnProfile(ctx context.Context, scope common.TenantScope, us
 // pointer means "field not supplied, keep the stored value", so an empty
 // PATCH body is a no-op rather than a wipe.
 type UpdateOwnProfileCommand struct {
-	Scope  common.TenantScope
-	UserID common.ID
+	Scope        common.TenantScope
+	UserID       common.ID
+	BusinessName *string
 	// DisplayName, Email and WhatsAppNumber update directly when supplied
 	// (validated + normalized exactly like their signup counterparts).
 	DisplayName    *string
@@ -59,6 +61,16 @@ func (s Service) UpdateOwnProfile(ctx context.Context, cmd UpdateOwnProfileComma
 	current, err := s.businesses.FindBusinessUserProfileByID(ctx, cmd.Scope, cmd.UserID)
 	if err != nil {
 		return ports.BusinessUserProfileRecord{}, err
+	}
+	businessName := current.BusinessName
+	if cmd.BusinessName != nil {
+		if current.Role != business.UserRoleOwner {
+			return ports.BusinessUserProfileRecord{}, authdomain.ErrForbidden
+		}
+		businessName = strings.TrimSpace(*cmd.BusinessName)
+		if businessName == "" {
+			return ports.BusinessUserProfileRecord{}, authdomain.ErrInvalidInput
+		}
 	}
 
 	displayName := current.DisplayName
@@ -120,6 +132,7 @@ func (s Service) UpdateOwnProfile(ctx context.Context, cmd UpdateOwnProfileComma
 
 	return s.businesses.UpdateOwnBusinessUserProfile(ctx, cmd.Scope, ports.UpdateOwnBusinessUserProfileInput{
 		UserID:         cmd.UserID,
+		BusinessName:   businessName,
 		Email:          email,
 		DisplayName:    displayName,
 		Phone:          phone,

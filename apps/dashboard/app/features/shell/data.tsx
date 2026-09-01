@@ -54,13 +54,6 @@ export const managementWorkspaceNav: WorkspaceNavItem[] = [
     icon: <AccountBalanceWalletRounded />,
   },
   {
-    href: "/dashboard/affiliates",
-    section: "affiliates",
-    label: "Affiliates",
-    helper: "Creator partnerships",
-    icon: <CampaignRounded />,
-  },
-  {
     href: "/dashboard/customers",
     section: "customers",
     label: "Customers",
@@ -195,7 +188,6 @@ export const managementWorkspaceGroups: WorkspaceNavGroup[] = [
     items: workspaceNavItems(managementWorkspaceNav, [
       "orders",
       "money",
-      "affiliates",
       "customers",
       "visits",
       "handovers",

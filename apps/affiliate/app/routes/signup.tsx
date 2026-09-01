@@ -27,10 +27,10 @@ import { PhoneField } from "../components/PhoneField";
 import { ArrowLeftIcon, ArrowRightIcon, CheckIcon } from "../components/Icons";
 
 export const meta: MetaFunction = () => [
-  { title: "Join | Xtiitch Affiliates" },
+	{ title: "Join | Xtiitch Partner Program" },
   {
     name: "description",
-    content: "Create a Xtiitch affiliate account and earn on every referral.",
+		content: "Create a Xtiitch Partner account and earn recurring commission on eligible subscriptions.",
   },
 ];
 
@@ -66,6 +66,7 @@ const REQUIRED: { name: string; label: string }[][] = [
   ],
   [
     { name: "email", label: "Enter your email address" },
+		{ name: "phone", label: "Enter your WhatsApp number" },
     { name: "requested_code", label: "Enter your preferred referral code" },
   ],
   [],
@@ -76,7 +77,7 @@ function fieldErrorMessage(code: string): string {
     return "That referral code is already taken. Try another one.";
   }
   if (code === "affiliate_email_taken") {
-    return "An affiliate account already exists for this email. Sign in or reset your password.";
+    return "A Partner account already exists for this email. Sign in or reset your password.";
   }
   if (code === "invalid_application") {
     return "Some details are missing or invalid. Check the form and try again.";
@@ -261,8 +262,8 @@ export default function Signup() {
   return (
     <AuthLayout
       wide
-      title="Earn on every business you bring to Xtiitch."
-      lede="Share your link and earn commission on qualified signups and sales. Create your account and start promoting without waiting for approval."
+		title="Earn recurring commission when businesses subscribe."
+		lede="Share your Partner link and earn 20% on eligible Xtiitch subscription payments. Join now with no credential approval."
     >
       <Form
         method="post"
@@ -271,9 +272,9 @@ export default function Signup() {
         onSubmit={onSubmit}
       >
         <div className="form-head">
-          <h2>Create your affiliate account</h2>
+					<h2>Create your Partner account</h2>
           <p className="muted">
-            Tell us who you are and how you'll promote Xtiitch. We'll email your
+					Tell us who you are and how you'll promote Xtiitch. We'll email your
             secure activation link as soon as you finish.
           </p>
         </div>
@@ -441,7 +442,7 @@ export default function Signup() {
             <span>
               I have read and accept the{" "}
               <Link to="/terms" target="_blank" rel="noopener noreferrer">
-                affiliate programme terms
+								Partner Program terms
               </Link>
               , and agree to receive programme and account messages.
             </span>
@@ -513,7 +514,7 @@ export default function Signup() {
         )}
 
         <p className="form-foot">
-          Already an affiliate? <Link to="/login">Sign in</Link>
+				Already a Partner? <Link to="/login">Sign in</Link>
         </p>
       </Form>
     </AuthLayout>

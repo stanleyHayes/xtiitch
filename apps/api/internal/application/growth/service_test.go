@@ -117,7 +117,7 @@ func TestSubmitAffiliateApplicationNormalizesInput(t *testing.T) {
 	}
 	if len(emails.sent) != 1 ||
 		emails.sent[0].To != "ama@example.com" ||
-		emails.sent[0].Subject != "Activate your Xtiitch affiliate account" {
+		emails.sent[0].Subject != "Activate your Xtiitch Partner account" {
 		t.Fatalf("unexpected application email: %+v", emails.sent)
 	}
 }
@@ -146,6 +146,7 @@ func TestSubmitAffiliateApplicationValidatesConsentAndCodeConflict(t *testing.T)
 			DisplayName:       "Ama Creates",
 			ContactName:       "Ama Mensah",
 			Email:             "ama@example.com",
+			Phone:             "+233200000000",
 			RequestedCode:     "AMACREATES",
 			PromotionChannels: []string{"instagram"},
 			Consent:           true,

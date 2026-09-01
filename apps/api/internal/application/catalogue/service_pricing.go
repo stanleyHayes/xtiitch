@@ -90,11 +90,12 @@ func (s Service) DeleteSizeBand(ctx context.Context, cmd DeleteSizeBandCommand) 
 }
 
 type SetDesignPriceCommand struct {
-	Scope      common.TenantScope
-	ActorRole  business.UserRole
-	DesignID   common.ID
-	SizeBandID common.ID
-	PriceMinor int64
+	Scope                common.TenantScope
+	ActorRole            business.UserRole
+	DesignID             common.ID
+	SizeBandID           common.ID
+	PriceMinor           int64
+	DiscountedPriceMinor *int64
 }
 
 func (s Service) SetDesignPrice(ctx context.Context, cmd SetDesignPriceCommand) error {
@@ -104,10 +105,13 @@ func (s Service) SetDesignPrice(ctx context.Context, cmd SetDesignPriceCommand) 
 	if cmd.PriceMinor < 0 {
 		return ErrInvalidInput
 	}
+	if cmd.DiscountedPriceMinor != nil && (*cmd.DiscountedPriceMinor < 0 || *cmd.DiscountedPriceMinor >= cmd.PriceMinor) {
+		return ErrInvalidInput
+	}
 	// Pricing-mode exclusivity (customisation designs are priced by deposit, not
 	// size-band prices) is enforced atomically inside the repository's write
 	// transaction, which returns ports.ErrPricingModeConflict.
-	return s.catalogue.SetDesignPrice(ctx, cmd.Scope, cmd.DesignID, cmd.SizeBandID, cmd.PriceMinor)
+	return s.catalogue.SetDesignPrice(ctx, cmd.Scope, cmd.DesignID, cmd.SizeBandID, cmd.PriceMinor, cmd.DiscountedPriceMinor)
 }
 
 // ListDesignPrices returns a design's per-band prices with the EFFECTIVE band

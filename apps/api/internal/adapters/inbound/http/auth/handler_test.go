@@ -40,7 +40,9 @@ func TestRegisterBusinessReturnsCreatedAuthResponse(t *testing.T) {
 		"business_handle": "ama-stitch",
 		"owner_display_name": "Ama",
 		"owner_email": "ama@example.com",
-		"owner_password": "strong-password"
+		"owner_password": "strong-password",
+		"owner_phone": "0244000111",
+		"whatsapp_number": "0244000111"
 	}`)
 	request := httptest.NewRequest(http.MethodPost, "/auth/business/register", bytes.NewReader(requestBody))
 	request.Header.Set("Content-Type", "application/json")
@@ -62,7 +64,6 @@ func TestRegisterBusinessReturnsCreatedAuthResponse(t *testing.T) {
 	if service.registerCommand.IPAddress != "203.0.113.10" {
 		t.Fatalf("expected first forwarded IP, got %q", service.registerCommand.IPAddress)
 	}
-
 	var body authResponse
 	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
 		t.Fatalf("decode response: %v", err)
@@ -72,6 +73,47 @@ func TestRegisterBusinessReturnsCreatedAuthResponse(t *testing.T) {
 	}
 	if body.AccessExpiresAt != expiresAt.Format(time.RFC3339) {
 		t.Fatalf("unexpected access expiry %q", body.AccessExpiresAt)
+	}
+}
+
+func TestRegisterBusinessRequiresPhoneAndWhatsApp(t *testing.T) {
+	t.Parallel()
+	for _, testCase := range []struct {
+		name       string
+		ownerPhone string
+		whatsapp   string
+	}{
+		{name: "missing phone", whatsapp: "0244000111"},
+		{name: "missing WhatsApp", ownerPhone: "0244000111"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			service := &fakeAuthService{}
+			router := newTestRouter(service)
+			requestBody, err := json.Marshal(map[string]string{
+				"business_name":      "Ama Stitch House",
+				"business_handle":    "ama-stitch",
+				"owner_display_name": "Ama",
+				"owner_email":        "ama@example.com",
+				"owner_password":     "strong-password",
+				"owner_phone":        testCase.ownerPhone,
+				"whatsapp_number":    testCase.whatsapp,
+			})
+			if err != nil {
+				t.Fatalf("marshal request: %v", err)
+			}
+
+			request := httptest.NewRequest(http.MethodPost, "/auth/business/register", bytes.NewReader(requestBody))
+			request.Header.Set("Content-Type", "application/json")
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, request)
+
+			if response.Code != http.StatusBadRequest {
+				t.Fatalf("expected status %d, got %d with body %s", http.StatusBadRequest, response.Code, response.Body.String())
+			}
+			if service.registerCalled {
+				t.Fatal("registration service must not run without both required phone numbers")
+			}
+		})
 	}
 }
 
@@ -108,7 +150,9 @@ func TestLoginBusinessRejectsTrailingJSON(t *testing.T) {
 	request := httptest.NewRequest(http.MethodPost, "/auth/business/login", bytes.NewReader([]byte(`{
 		"business_handle": "ama-stitch",
 		"owner_email": "ama@example.com",
-		"owner_password": "strong-password"
+		"owner_password": "strong-password",
+		"owner_phone": "0244000111",
+		"whatsapp_number": "0244000111"
 	} {}`)))
 	response := httptest.NewRecorder()
 
@@ -132,7 +176,9 @@ func TestRegisterBusinessReturnsConflictWhenHandleTaken(t *testing.T) {
 		"business_handle": "ama-stitch",
 		"owner_display_name": "Ama",
 		"owner_email": "ama@example.com",
-		"owner_password": "strong-password"
+		"owner_password": "strong-password",
+		"owner_phone": "0244000111",
+		"whatsapp_number": "0244000111"
 	}`)))
 	response := httptest.NewRecorder()
 

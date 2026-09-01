@@ -16,7 +16,7 @@ import { commitAffiliateSession } from "../lib/session.server";
 import { PasswordField } from "../components/PasswordField";
 
 export const meta: MetaFunction = () => [
-  { title: "Activate account | Xtiitch Affiliates" }
+  { title: "Activate account | Xtiitch Partners" }
 ];
 
 export async function action({ request }: ActionFunctionArgs) {

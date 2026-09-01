@@ -220,8 +220,8 @@ export async function action({ request }: Route.ActionArgs) {
   const customerEmail = String(form.get("customer_email") ?? "").trim();
   const customerPhone = String(form.get("customer_phone") ?? "").trim();
   const customerWhatsApp = String(form.get("customer_whatsapp") ?? "").trim();
-  if (!customerName || !customerEmail) {
-    return { error: "Add your name and email to check out." };
+  if (!customerName || !customerEmail || !customerPhone || !customerWhatsApp) {
+    return { error: "Add your name, email, phone number, and WhatsApp number to check out." };
   }
 
   const fulfilment = String(form.get("fulfilment") ?? "pickup");

@@ -27,6 +27,8 @@ export type BandPrice = {
   size_band_id: string;
   label: string;
   price_minor: number;
+  actual_price_minor: number;
+  discounted_price_minor: number | null;
 };
 
 export type DesignVariation = {

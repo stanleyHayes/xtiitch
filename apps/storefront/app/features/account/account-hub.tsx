@@ -217,6 +217,7 @@ export function AccountHub({ // eslint-disable-line complexity, max-lines-per-fu
                 <TextField
                   name="whatsapp_phone"
                   label="WhatsApp number"
+                  required
                   type="tel"
                   inputMode="tel"
                   autoComplete="tel"

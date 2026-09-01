@@ -394,6 +394,13 @@ func (*fakeAffiliateAuthRepository) ListAffiliatePayouts(
 	return nil, nil
 }
 
+func (*fakeAffiliateAuthRepository) ListPartnerReferrals(
+	context.Context,
+	common.ID,
+) ([]ports.PartnerReferralRecord, error) {
+	return nil, nil
+}
+
 type fakePasswords struct{}
 
 func (fakePasswords) Hash(password string) (string, error) {

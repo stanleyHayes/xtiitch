@@ -100,6 +100,12 @@ export async function action({ request }: Route.ActionArgs) { // eslint-disable-
   if (payload.owner_password.length < 8) {
     return { error: "Choose a password with at least 8 characters." };
   }
+  if (!payload.owner_phone) {
+    return { error: "Enter and verify your phone number." };
+  }
+  if (!payload.whatsapp_number) {
+    return { error: "Enter your WhatsApp number." };
+  }
 
   let response: Response;
   try {

@@ -23,7 +23,7 @@ export function PortalHeader({
   return (
     <header className="portal-header">
       <div className="portal-header-inner">
-        <Logo href="/portal" size={32} subtitle="Affiliates" />
+				<Logo href="/portal" size={32} subtitle="Partners" />
         <div className="header-actions">
           {code ? (
             <span className="header-code" title="Your referral code">
@@ -34,7 +34,7 @@ export function PortalHeader({
             <span className="avatar" aria-hidden="true">
               {initials(name)}
             </span>
-            <span className="header-name">{name || "Affiliate"}</span>
+						<span className="header-name">{name || "Partner"}</span>
           </span>
           {/* POST, not a link: signing out revokes the refresh token server
               side, and a GET would let any page prefetch you out of session. */}

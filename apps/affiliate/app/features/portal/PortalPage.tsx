@@ -6,9 +6,10 @@ import { OverviewSection } from "./OverviewSection";
 import { PortalHeader } from "./PortalHeader";
 import { PortalNav, type TabID } from "./PortalNav";
 import { SettingsSection } from "./SettingsSection";
+import { ReferralsSection } from "./ReferralsSection";
 import type { PortalActionResult, PortalData } from "./types";
 
-const TABS: TabID[] = ["overview", "links", "earnings", "settings"];
+const TABS: TabID[] = ["overview", "referrals", "links", "earnings", "settings"];
 
 // The portal used to be one long scroll: overview, campaign tools, settings,
 // earnings and both ledgers stacked in a single column, so finding payout
@@ -84,6 +85,9 @@ export function PortalPage({
             result={actionData}
           />
         ) : null}
+				{active === "referrals" ? (
+					<ReferralsSection referrals={data.referrals} dashboard={data.dashboard} />
+				) : null}
         {active === "earnings" ? (
           <EarningsSection
             dashboard={data.dashboard}

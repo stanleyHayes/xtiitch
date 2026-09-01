@@ -12,6 +12,17 @@ export type Dashboard = {
   paid_commission_minor: number;
   reversed_commission_minor: number;
   lifetime_earnings_minor: number;
+	active_referrals: number;
+	inactive_referrals: number;
+	not_activated_referrals: number;
+	next_milestone_threshold: number;
+	next_milestone_title: string;
+	partners_invited: number;
+};
+
+export type PartnerReferral = {
+	handle: string;
+	status: "active" | "inactive" | "not_activated";
 };
 
 export type Conversion = {
@@ -79,6 +90,7 @@ export type PortalData = {
   profile: PayoutProfile;
   preferences: NotificationPreferences;
   account: Account | null;
+	referrals: PartnerReferral[];
   displayName: string | undefined;
 };
 

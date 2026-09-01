@@ -109,10 +109,10 @@ func (s Service) sendAffiliateWelcomeEmail(
 	}
 	_ = s.emails.Send(ctx, ports.EmailMessage{
 		To:      record.Email,
-		Subject: "Activate your Xtiitch affiliate account",
-		Body: "Hi " + record.DisplayName + ",\n\nYour affiliate code " +
+		Subject: "Activate your Xtiitch Partner account",
+		Body: "Hi " + record.DisplayName + ",\n\nYour Partner code " +
 			record.RequestedCode + " is ready. Set your password and open your dashboard within 48 hours:\n" +
-			"https://affiliate.xtiitch.com/activate?token=" + url.QueryEscape(activationToken),
+			"https://partners.xtiitch.com/activate?token=" + url.QueryEscape(activationToken),
 		ReplyTo: notification.ReplyToOperational,
 	})
 }
@@ -131,7 +131,8 @@ func normalizeAffiliateApplication(
 	displayName := limitText(cmd.DisplayName, 120)
 	contactName := limitText(cmd.ContactName, 120)
 	email, err := normalizeApplicationEmail(cmd.Email)
-	if displayName == "" || contactName == "" || err != nil {
+	phone := limitText(cmd.Phone, 40)
+	if displayName == "" || contactName == "" || phone == "" || err != nil {
 		return ports.SubmitAffiliateApplicationInput{}, ErrInvalidInput
 	}
 
@@ -154,7 +155,7 @@ func normalizeAffiliateApplication(
 		DisplayName:       displayName,
 		ContactName:       contactName,
 		Email:             email,
-		Phone:             limitText(cmd.Phone, 40),
+		Phone:             phone,
 		WebsiteURL:        websiteURL,
 		RequestedCode:     code,
 		AudienceSummary:   limitText(cmd.AudienceSummary, 1000),

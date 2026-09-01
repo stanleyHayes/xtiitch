@@ -247,18 +247,20 @@ func (handler Handler) setPrice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		PriceMinor int64 `json:"price_minor"`
+		PriceMinor           int64  `json:"price_minor"`
+		DiscountedPriceMinor *int64 `json:"discounted_price_minor"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request")
 		return
 	}
 	if err := handler.service.SetDesignPrice(r.Context(), catalogueapp.SetDesignPriceCommand{
-		Scope:      scope,
-		ActorRole:  role,
-		DesignID:   common.ID(chi.URLParam(r, "id")),
-		SizeBandID: common.ID(chi.URLParam(r, "bandId")),
-		PriceMinor: body.PriceMinor,
+		Scope:                scope,
+		ActorRole:            role,
+		DesignID:             common.ID(chi.URLParam(r, "id")),
+		SizeBandID:           common.ID(chi.URLParam(r, "bandId")),
+		PriceMinor:           body.PriceMinor,
+		DiscountedPriceMinor: body.DiscountedPriceMinor,
 	}); err != nil {
 		writeServiceError(w, err)
 		return

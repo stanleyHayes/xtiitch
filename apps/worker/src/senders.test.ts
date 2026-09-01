@@ -300,6 +300,16 @@ test("renderNotificationText renders lifecycle templates", () => {
     'Update: your order has moved to the "Cutting" stage. Design: Linen Kaftan.',
   );
 
+  assert.equal(
+    renderNotificationText(
+      makeMessage({
+        kind: "order_confirmed",
+        payload: { store: "Ama Stitch House", design: "Linen Kaftan" },
+      }),
+    ),
+    "Ama Stitch House: Your order is confirmed. We will update you when production moves forward. Design: Linen Kaftan.",
+  );
+
   // Missing stage name falls back to a generic line.
   assert.equal(
     renderNotificationText(

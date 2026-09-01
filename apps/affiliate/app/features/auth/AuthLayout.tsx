@@ -25,7 +25,7 @@ export function AuthLayout({
       <section className="auth-intro">
         <Logo href="https://xtiitch.com" tone="inverse" size={40} />
         <div className="auth-intro-body">
-          <p className="eyebrow">Affiliate portal</p>
+					<p className="eyebrow">Partner portal</p>
           <h1>{title}</h1>
           <p className="lede">{lede}</p>
         </div>

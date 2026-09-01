@@ -118,7 +118,7 @@ func (repo EmbeddingRepository) SearchCandidates(ctx context.Context) ([]ports.E
 			d.title,
 			d.handle,
 			coalesce((d.images)[1], ''),
-			coalesce(min(dp.price_minor), 0),
+			coalesce(min(coalesce(dp.discounted_price_minor, dp.price_minor)), 0),
 			b.name,
 			b.handle,
 			lower(coalesce(d.title, '') || ' ' || coalesce(d.description, '') || ' ' || coalesce(d.style_category, '') || ' ' || coalesce(c.name, '')),

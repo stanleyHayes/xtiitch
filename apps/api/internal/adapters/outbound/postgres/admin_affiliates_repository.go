@@ -242,13 +242,21 @@ func (repo AdminAuthRepository) CreateAdminAffiliatePayout(
 	}
 
 	record, err := scanAdminAffiliatePayoutRecord(tx.QueryRow(ctx, `
-		with affiliate as (
+		with matured as (
+			update affiliate_conversions
+			set status = 'approved', approved_at = coalesce(approved_at, now()),
+				updated_at = now(),
+				metadata = metadata || jsonb_build_object('matured_automatically_at', now())
+			where affiliate_id = $2::uuid and status = 'pending'
+			  and hold_until <= now()
+			returning affiliate_conversion_id
+		), affiliate as (
 			select
 				affiliate_id,
 				display_name,
 				payout_mode,
 				payout_reference
-			from affiliates
+			from affiliates cross join (select count(*) from matured) maturity
 			where affiliate_id = $2::uuid
 				and status <> 'archived'
 		),

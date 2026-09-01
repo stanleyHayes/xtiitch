@@ -38,7 +38,7 @@ type CatalogueRepository interface {
 	UpdateSizeBand(ctx context.Context, scope common.TenantScope, input SizeBandUpdateInput) error
 	DeleteSizeBand(ctx context.Context, scope common.TenantScope, sizeBandID common.ID) error
 
-	SetDesignPrice(ctx context.Context, scope common.TenantScope, designID common.ID, sizeBandID common.ID, priceMinor int64) error
+	SetDesignPrice(ctx context.Context, scope common.TenantScope, designID common.ID, sizeBandID common.ID, actualPriceMinor int64, discountedPriceMinor *int64) error
 	ListDesignPrices(ctx context.Context, scope common.TenantScope, designID common.ID) ([]catalogue.BandPrice, error)
 
 	// Per-design size-band overrides: a design may override a master band's label

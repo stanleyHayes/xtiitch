@@ -60,7 +60,7 @@ export function Footer() {
         // Hiding this in the header only would leave the footer advertising a
         // page that redirects home — the programme has more than one entry
         // point, so the gate has to cover each of them.
-        if (item.href === "/affiliates") {
+				if (item.href === "/partners") {
           return flags.affiliate_signup;
         }
         return true;
@@ -122,7 +122,7 @@ export function Footer() {
               sx={{
                 mt: 1,
                 maxWidth: 760,
-                fontFamily: '"Fraunces", Georgia, serif',
+                fontFamily: '"Outfit", sans-serif',
                 fontSize: { xs: 30, md: 46 },
                 fontWeight: 800,
                 lineHeight: 1.04,

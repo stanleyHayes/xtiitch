@@ -27,6 +27,7 @@ type AffiliatePortalRepository interface {
 	GetAffiliateNotificationPreferences(context.Context, common.ID) (AffiliateNotificationPreferencesRecord, error)
 	UpsertAffiliateNotificationPreferences(context.Context, AffiliateNotificationPreferencesRecord) (AffiliateNotificationPreferencesRecord, error)
 	ExportAffiliateConversions(context.Context, AffiliateDashboardQuery) ([]AffiliateConversionRecord, error)
+	ListPartnerReferrals(context.Context, common.ID) ([]PartnerReferralRecord, error)
 }
 
 type AffiliateCampaignLinkRecord struct {
@@ -102,6 +103,19 @@ type AffiliateDashboardRecord struct {
 	PaidCommissionMinor      int64
 	ReversedCommissionMinor  int64
 	LifetimeEarningsMinor    int64
+	ActiveReferralCount      int64
+	InactiveReferralCount    int64
+	NotActivatedCount        int64
+	NextMilestoneThreshold   int
+	NextMilestoneTitle       string
+	PartnersInvitedCount     int64
+}
+
+// PartnerReferralRecord is deliberately privacy-minimal. Do not add contact,
+// billing or owner fields: the Partner Program contract exposes handle + state.
+type PartnerReferralRecord struct {
+	Handle string `json:"handle"`
+	Status string `json:"status"`
 }
 
 type AffiliateConversionRecord struct {

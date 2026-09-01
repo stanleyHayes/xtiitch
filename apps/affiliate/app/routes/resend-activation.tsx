@@ -11,7 +11,7 @@ import { AuthLayout } from "../features/auth/AuthLayout";
 import { MailIcon } from "../components/Icons";
 
 export const meta: MetaFunction = () => [
-  { title: "New activation link | Xtiitch Affiliates" }
+  { title: "New activation link | Xtiitch Partners" }
 ];
 
 export async function action({ request }: ActionFunctionArgs) {
@@ -43,7 +43,7 @@ export default function ResendActivation() {
           <div className="form-head">
             <h2>Check your email</h2>
             <p className="muted">
-              If that address belongs to an affiliate account awaiting
+              If that address belongs to a Partner account awaiting
               activation, a fresh link is on its way.
             </p>
           </div>
@@ -56,7 +56,7 @@ export default function ResendActivation() {
         <Form method="post" className="form">
           <div className="form-head">
             <h2>Send a fresh link</h2>
-            <p className="muted">Enter the email address used during affiliate sign-up.</p>
+            <p className="muted">Enter the email address used during Partner sign-up.</p>
           </div>
           <label>
             Email address

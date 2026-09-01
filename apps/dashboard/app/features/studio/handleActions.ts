@@ -218,6 +218,7 @@ export async function handleStudioActions( // eslint-disable-line complexity, ma
     const designID = String(form.get("design_id") ?? "").trim();
     const sizeBandID = String(form.get("size_band_id") ?? "").trim();
     const priceMinor = parseMoneyMinor(form.get("price_ghs"));
+    const discountedPriceMinor = parseOptionalMoneyMinor(form.get("discounted_price_ghs"));
     if (!designID || !sizeBandID || priceMinor === null) {
       return { priceError: "Choose a design, size, and valid price." };
     }
@@ -227,7 +228,7 @@ export async function handleStudioActions( // eslint-disable-line complexity, ma
       {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ price_minor: priceMinor }),
+        body: JSON.stringify({ price_minor: priceMinor, discounted_price_minor: discountedPriceMinor }),
       },
     );
     if (!response.ok) {
@@ -332,7 +333,10 @@ export async function handleStudioActions( // eslint-disable-line complexity, ma
           {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ price_minor: priceMinor }),
+            body: JSON.stringify({
+              price_minor: priceMinor,
+              discounted_price_minor: parseOptionalMoneyMinor(form.get(`discounted_price_ghs_${sizeBandID}`)),
+            }),
           },
         );
       }

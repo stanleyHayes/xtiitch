@@ -121,13 +121,10 @@ export function RegisterForm({ // eslint-disable-line complexity, max-lines-per-
     handleStatus === "taken" || handleStatus === "reserved";
   const step0Valid =
     businessName.trim().length > 1 && handleOk && !handleUnavailable;
-  // The phone is OPTIONAL (the API accepts signup without one) — but once a
-  // number IS entered, §8 makes verification the gate: the step only advances
-  // after the code verifies, not merely after a code was requested.
-  const phoneProvided = ownerPhone.trim().length > 0;
-  const phoneStepOk =
-    !phoneProvided || (phoneOk && phoneStepComplete(verification));
-  const whatsappStepOk = !whatsappNumber.trim() || whatsappOk;
+  // General Platform Updates v1.3: both numbers are mandatory, and the direct
+  // phone must complete its SMS proof before signup can continue.
+  const phoneStepOk = phoneOk && phoneStepComplete(verification);
+  const whatsappStepOk = whatsappOk;
   const step1Valid =
     ownerName.trim().length > 0 &&
     emailOk &&

@@ -30,6 +30,7 @@ export function ProfileSection({ // eslint-disable-line max-lines-per-function -
 }) {
   const navigation = useNavigation();
   const busy = navigation.state !== "idle";
+  const [businessName, setBusinessName] = useState(profile.business_name);
   const [displayName, setDisplayName] = useState(profile.display_name);
   const [email, setEmail] = useState(profile.email);
   const [whatsappNumber, setWhatsappNumber] = useState(profile.whatsapp_number);
@@ -42,6 +43,7 @@ export function ProfileSection({ // eslint-disable-line max-lines-per-function -
   // Revalidation after a save returns the live row — show the saved state and
   // clear the one-time code flow (§1.2, the settings-panel pattern).
   useEffect(() => {
+    setBusinessName(profile.business_name);
     setDisplayName(profile.display_name);
     setEmail(profile.email);
     setWhatsappNumber(profile.whatsapp_number);
@@ -153,6 +155,15 @@ export function ProfileSection({ // eslint-disable-line max-lines-per-function -
             <input type="hidden" name="otp_code" value={code} />
             <Stack spacing={1.75} sx={{ mt: 2.5 }}>
               <TextField
+                name="business_name"
+                label="Business name"
+                required
+                fullWidth
+                value={businessName}
+                onChange={(event) => setBusinessName(event.target.value)}
+                helperText="Your display name across Xtiitch. Your store handle and subdomain will not change."
+              />
+              <TextField
                 name="display_name"
                 label="Your name"
                 required
@@ -246,6 +257,7 @@ export function ProfileSection({ // eslint-disable-line max-lines-per-function -
               <TextField
                 name="whatsapp_number"
                 label="WhatsApp number"
+                required
                 fullWidth
                 value={whatsappNumber}
                 onChange={(event) => setWhatsappNumber(event.target.value)}

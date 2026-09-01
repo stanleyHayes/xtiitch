@@ -20,6 +20,7 @@ func scanBusinessUserProfileRecord(row pgx.Row) (ports.BusinessUserProfileRecord
 	if err := row.Scan(
 		&user.UserID,
 		&user.BusinessID,
+		&user.BusinessName,
 		&user.Email,
 		&user.DisplayName,
 		&user.Phone,
@@ -62,8 +63,9 @@ func (repo BusinessIdentityRepository) FindBusinessUserProfileByID(
 
 	user, err := scanBusinessUserProfileRecord(tx.QueryRow(ctx, `
 		select
-			business_user_id::text,
-			business_id::text,
+			u.business_user_id::text,
+			u.business_id::text,
+			b.name,
 			email,
 			display_name,
 			coalesce(phone, ''),
@@ -73,9 +75,10 @@ func (repo BusinessIdentityRepository) FindBusinessUserProfileByID(
 			is_active,
 			created_at,
 			updated_at
-		from business_users
-		where business_user_id = $1
-			and business_id = $2
+		from business_users u
+		join businesses b on b.business_id = u.business_id
+		where u.business_user_id = $1
+			and u.business_id = $2
 	`, userID.String(), scope.BusinessID.String()))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -111,6 +114,12 @@ func (repo BusinessIdentityRepository) UpdateOwnBusinessUserProfile(
 	if err := setTenantScope(ctx, tx, scope); err != nil {
 		return ports.BusinessUserProfileRecord{}, err
 	}
+	if _, err := tx.Exec(ctx, `
+		update businesses set name = $2, updated_at = now()
+		where business_id = $1
+	`, scope.BusinessID.String(), input.BusinessName); err != nil {
+		return ports.BusinessUserProfileRecord{}, err
+	}
 
 	user, err := scanBusinessUserProfileRecord(tx.QueryRow(ctx, `
 		update business_users
@@ -125,6 +134,7 @@ func (repo BusinessIdentityRepository) UpdateOwnBusinessUserProfile(
 		returning
 			business_user_id::text,
 			business_id::text,
+			(select name from businesses where business_id = $2),
 			email,
 			display_name,
 			coalesce(phone, ''),

@@ -2,6 +2,7 @@ package authhttp
 
 import (
 	"net/http"
+	"strings"
 
 	authapp "github.com/xcreativs/xtiitch/apps/api/internal/application/auth"
 )
@@ -10,6 +11,10 @@ func (handler Handler) registerBusiness(w http.ResponseWriter, r *http.Request) 
 	var request registerBusinessRequest
 	if err := decodeJSON(r, &request); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	if strings.TrimSpace(request.OwnerPhone) == "" || strings.TrimSpace(request.WhatsAppNumber) == "" {
+		writeError(w, http.StatusBadRequest, "invalid_input")
 		return
 	}
 

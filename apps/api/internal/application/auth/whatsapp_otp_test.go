@@ -501,6 +501,7 @@ func TestRegisterBusinessRejectsBadPhoneCode(t *testing.T) {
 		OwnerPassword:    "strong-password",
 		OwnerPhone:       "0244000111",
 		OwnerPhoneCode:   "000000",
+		WhatsAppNumber:   "0244000111",
 	})
 	if !errors.Is(err, ErrInvalidCode) {
 		t.Fatalf("expected ErrInvalidCode, got %v", err)

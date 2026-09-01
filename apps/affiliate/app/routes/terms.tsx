@@ -2,7 +2,7 @@ import { Link, type MetaFunction } from "react-router";
 import { Logo } from "../components/Logo";
 
 export const meta: MetaFunction = () => [
-  { title: "Affiliate programme terms | Xtiitch" },
+  { title: "Partner Programme terms | Xtiitch" },
   { name: "robots", content: "noindex, nofollow" },
 ];
 
@@ -17,20 +17,20 @@ export const meta: MetaFunction = () => [
 //
 // To replace: swap the SECTIONS array. The banner and LAST_UPDATED come with
 // it — delete the banner once the copy is real.
-const LAST_UPDATED = "31 July 2026";
+const LAST_UPDATED = "1 September 2026";
 
 const SECTIONS: { heading: string; paragraphs: string[] }[] = [
   {
     heading: "1. Joining the programme",
     paragraphs: [
-      "Creating an affiliate account enrolls you immediately under Xtiitch's current default programme. You'll receive an activation link by email to set a password and open your portal.",
-      "You must be at least 18 years old and provide accurate details. One person or business may hold one affiliate account unless we agree otherwise in writing.",
+      "Creating a Partner account enrolls you immediately in the Xtiitch Partner Programme. You'll receive an activation link by email to set a password and open your portal.",
+      "You must be at least 18 years old and provide accurate details, including an active WhatsApp number. One person or business may hold one Partner account unless we agree otherwise in writing.",
     ],
   },
   {
     heading: "2. Your referral link",
     paragraphs: [
-      "You'll be issued a referral code and link. A signup or purchase is attributed to you when it follows an eligible click on your link within the attribution window shown in your portal (currently 30 days).",
+      "You'll be issued a referral code and link. A click is captured for 30 days. Once an eligible business registers through your link, that business remains attributed to you for qualifying subscription payments.",
       "You may create named campaign links to tell your channels apart. You may not bid on Xtiitch brand terms in paid search, or present your link as an official Xtiitch page.",
     ],
   },
@@ -44,7 +44,7 @@ const SECTIONS: { heading: string; paragraphs: string[] }[] = [
   {
     heading: "4. Commission and approval",
     paragraphs: [
-      "Commission is earned on qualified conversions as described in your portal. Newly recorded commission is Pending while it sits inside the approval window, then becomes Available once it clears.",
+      "You earn 20% recurring commission on each qualifying subscription payment made by an attributed business. Newly recorded commission is Pending for 14 days, then becomes Available if the payment remains valid.",
       "Commission on a transaction that is refunded, charged back, cancelled, or found to breach these terms is reversed, and may be deducted from your balance.",
     ],
   },
@@ -59,14 +59,14 @@ const SECTIONS: { heading: string; paragraphs: string[] }[] = [
     heading: "6. Ending your participation",
     paragraphs: [
       "You may leave the programme at any time from your portal or by contacting support. We may suspend or end your participation, with notice where reasonable, and immediately in cases of fraud or abuse.",
-      "When participation ends, your links stop attributing. Commission already cleared and not forfeited under these terms remains payable.",
+      "When participation ends, your links stop creating new attribution. Commission already cleared and not forfeited under these terms remains payable, subject to any lawful hold or reversal.",
     ],
   },
   {
     heading: "7. Brand and data",
     paragraphs: [
       "You may use Xtiitch names and logos only to promote Xtiitch, in their supplied form, and we may ask you to stop at any time. You gain no other rights in our brand.",
-      "Your portal reports aggregate performance only. You will not receive personal details of the customers or businesses you refer, and you must not attempt to identify them.",
+      "Your portal reports aggregate performance and privacy-safe business handles and statuses only. You will not receive personal, billing, or contact details of the businesses you refer, and you must not attempt to identify them.",
     ],
   },
   {
@@ -81,14 +81,14 @@ export default function Terms() {
   return (
     <div className="doc-shell">
       <header className="doc-header">
-        <Logo href="/login" size={32} subtitle="Affiliates" />
+        <Logo href="/login" size={32} subtitle="Partners" />
         <Link className="ghost-button" to="/signup">
           Back to signup
         </Link>
       </header>
 
       <main className="doc">
-        <p className="eyebrow">Affiliate programme</p>
+        <p className="eyebrow">Partner Programme</p>
         <h1>Terms and conditions</h1>
         <p className="muted doc-meta">Last updated {LAST_UPDATED}</p>
 
@@ -99,7 +99,7 @@ export default function Terms() {
         </div>
 
         <p className="lede">
-          These terms cover taking part in the Xtiitch affiliate programme — how
+          These terms cover taking part in the Xtiitch Partner Programme — how
           you're accepted, how referrals are attributed, how commission is
           earned and paid, and what ends participation. Read them before you
           join.

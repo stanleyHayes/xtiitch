@@ -33,13 +33,13 @@ test("countLabel accepts an explicit plural", () => {
 test("priceLabel handles empty, single and ranged price bands", () => {
   assert.equal(priceLabel([]), "Price on request");
   assert.equal(
-    priceLabel([{ size_band_id: "s", label: "Small", price_minor: 15000 }]),
+    priceLabel([{ size_band_id: "s", label: "Small", price_minor: 15000, actual_price_minor: 15000, discounted_price_minor: null }]),
     "GH\u20B5150.00",
   );
   assert.equal(
     priceLabel([
-      { size_band_id: "m", label: "Medium", price_minor: 24000 },
-      { size_band_id: "s", label: "Small", price_minor: 18000 },
+      { size_band_id: "m", label: "Medium", price_minor: 24000, actual_price_minor: 24000, discounted_price_minor: null },
+      { size_band_id: "s", label: "Small", price_minor: 18000, actual_price_minor: 18000, discounted_price_minor: null },
     ]),
     "From GH\u20B5180.00",
   );

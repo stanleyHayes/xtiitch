@@ -16,7 +16,8 @@ func (repo CatalogueRepository) SetDesignPrice(
 	scope common.TenantScope,
 	designID common.ID,
 	sizeBandID common.ID,
-	priceMinor int64,
+	actualPriceMinor int64,
+	discountedPriceMinor *int64,
 ) error {
 	return repo.inTenantTx(ctx, scope, func(tx pgx.Tx) error {
 		// Pricing-mode exclusivity, enforced atomically with the write: a
@@ -39,11 +40,11 @@ func (repo CatalogueRepository) SetDesignPrice(
 			return ports.ErrPricingModeConflict
 		}
 		_, err = tx.Exec(ctx, `
-			insert into design_prices (design_id, size_band_id, business_id, price_minor)
-			values ($1, $2, $3, $4)
+			insert into design_prices (design_id, size_band_id, business_id, price_minor, discounted_price_minor)
+			values ($1, $2, $3, $4, $5)
 			on conflict (design_id, size_band_id)
-			do update set price_minor = excluded.price_minor, updated_at = now()
-		`, designID.String(), sizeBandID.String(), scope.BusinessID.String(), priceMinor)
+			do update set price_minor = excluded.price_minor, discounted_price_minor = excluded.discounted_price_minor, updated_at = now()
+		`, designID.String(), sizeBandID.String(), scope.BusinessID.String(), actualPriceMinor, nullableInt64Arg(discountedPriceMinor))
 		return err
 	})
 }
@@ -56,7 +57,8 @@ func (repo CatalogueRepository) ListDesignPrices(
 	var prices []catalogue.BandPrice
 	err := repo.inTenantTx(ctx, scope, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, `
-			select dp.size_band_id, sb.label, dp.price_minor, sb.chart
+			select dp.size_band_id, sb.label, dp.price_minor,
+				dp.discounted_price_minor, coalesce(dp.discounted_price_minor, dp.price_minor), sb.chart
 			from design_prices dp
 			join size_bands sb on sb.size_band_id = dp.size_band_id
 			where dp.design_id = $1 and dp.business_id = $2
@@ -70,8 +72,13 @@ func (repo CatalogueRepository) ListDesignPrices(
 		for rows.Next() {
 			var p catalogue.BandPrice
 			var chartRaw []byte
-			if err := rows.Scan(&p.SizeBandID, &p.Label, &p.PriceMinor, &chartRaw); err != nil {
+			var discounted sql.NullInt64
+			if err := rows.Scan(&p.SizeBandID, &p.Label, &p.ActualPriceMinor, &discounted, &p.PriceMinor, &chartRaw); err != nil {
 				return err
+			}
+			if discounted.Valid {
+				value := discounted.Int64
+				p.DiscountedPriceMinor = &value
 			}
 			p.Chart = unmarshalSizeChart(chartRaw)
 			prices = append(prices, p)

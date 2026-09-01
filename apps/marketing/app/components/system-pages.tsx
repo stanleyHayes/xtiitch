@@ -78,7 +78,7 @@ export function MarketingSystemPage({
                 aria-hidden
                 sx={{
                   mt: 0.5,
-                  fontFamily: '"Fraunces", Georgia, serif',
+                  fontFamily: '"Outfit", sans-serif',
                   fontSize: { xs: 86, md: 126 },
                   fontWeight: 800,
                   lineHeight: 0.9,

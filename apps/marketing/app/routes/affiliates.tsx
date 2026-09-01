@@ -18,10 +18,10 @@ import { requireMarketingFlag } from "../lib/launch-gate";
 
 export function meta(): MetaDescriptor[] {
   return pageMeta({
-    title: "Become a Xtiitch affiliate",
+		title: "Become a Xtiitch Partner",
     description:
-      "Create a trackable Xtiitch affiliate code and earn approved commission from qualifying purchases and paid-plan signups.",
-    path: "/affiliates",
+			"Create your Partner link and earn 20% recurring commission from eligible Xtiitch subscription payments.",
+		path: "/partners",
   });
 }
 
@@ -32,7 +32,7 @@ export async function loader() {
       ? process.env.XTIITCH_AFFILIATE_URL
       : undefined) ??
     (process.env.NODE_ENV === "production"
-      ? "https://affiliate.xtiitch.com"
+			? "https://partners.xtiitch.com"
       : "http://localhost:3404");
   const portalUrl = base.replace(/\/+$/, "");
   return {
@@ -50,7 +50,7 @@ const steps = [
   {
     number: "02",
     title: "Activate",
-    body: "Use the secure email link to set your password and open your affiliate portal.",
+    body: "Use the secure email link to set your password and open your Partner portal.",
   },
   {
     number: "03",
@@ -148,7 +148,7 @@ function AffiliateHero({
                 opacity: 0.72,
               }}
             >
-              Xtiitch affiliate programme
+              Xtiitch Partner Programme
             </Typography>
             <Typography
               component="h1"
@@ -199,7 +199,7 @@ function AffiliateHero({
                 size="large"
                 sx={{ color: "#fff8fa", opacity: 0.84 }}
               >
-                Already an affiliate? Sign in
+                Already a Partner? Sign in
               </Button>
             </Stack>
           </Box>
@@ -664,7 +664,7 @@ function FinalCallToAction({
               size="large"
               sx={{ color: "#fff8fa" }}
             >
-              Affiliate sign in
+              Partner sign in
             </Button>
           </Stack>
         </Box>

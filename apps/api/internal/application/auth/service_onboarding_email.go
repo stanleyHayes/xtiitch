@@ -7,12 +7,14 @@ import (
 	"strings"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/notification"
 )
 
 const (
 	onboardingVerificationPath = "/dashboard/settings#verification"
 	onboardingPayoutsPath      = "/dashboard/settings#payouts"
+	platformAdminEmail         = "xtiitch.brand@gmail.com"
 )
 
 // sendRegistrationWelcomeEmail is the post-signup nudge from noreply@: finish
@@ -70,6 +72,26 @@ func (s Service) sendRegistrationWelcomeEmail(
 			"email", to,
 			"error", err.Error(),
 		)
+	}
+}
+
+func (s Service) sendNewBusinessAdminEmail(ctx context.Context, businessName, handle string) {
+	if s.emails == nil {
+		return
+	}
+	message := fmt.Sprintf("A new Xtiitch business has registered.\n\nBusiness: %s\nStore handle: %s\n\nReview and manage the business in Company Admin.", strings.TrimSpace(businessName), strings.TrimSpace(handle))
+	if err := s.emails.Send(ctx, ports.EmailMessage{To: platformAdminEmail, Subject: "New Xtiitch business registered: " + strings.TrimSpace(businessName), Body: message, ReplyTo: notification.ReplyToOperational}); err != nil {
+		s.logger.Warn("new business admin notification failed", "handle", handle, "error", err.Error())
+	}
+}
+
+func (s Service) sendVerificationSubmittedAdminEmail(ctx context.Context, businessID common.ID) {
+	if s.emails == nil {
+		return
+	}
+	message := fmt.Sprintf("A business verification submission is waiting for review.\n\nBusiness ID: %s\nStatus: Admin review required.\n\nOpen Company Admin to review the secure submission.", businessID)
+	if err := s.emails.Send(ctx, ports.EmailMessage{To: platformAdminEmail, Subject: "Business verification submitted for review", Body: message, ReplyTo: notification.ReplyToOperational}); err != nil {
+		s.logger.Warn("verification admin notification failed", "business_id", businessID, "error", err.Error())
 	}
 }
 

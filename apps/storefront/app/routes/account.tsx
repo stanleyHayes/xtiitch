@@ -133,10 +133,14 @@ export async function action({ request }: Route.ActionArgs) {
     if (!token) {
       return redirect("/account");
     }
+    const whatsappPhone = String(form.get("whatsapp_phone") ?? "").trim();
+    if (!whatsappPhone) {
+      return { step: "identify", profileError: "Enter your WhatsApp number." } as ActionResult;
+    }
     const updated = await updateCustomerProfile(token, {
       display_name: String(form.get("display_name") ?? "").trim(),
       email: String(form.get("email") ?? "").trim(),
-      whatsapp_phone: String(form.get("whatsapp_phone") ?? "").trim(),
+      whatsapp_phone: whatsappPhone,
     });
     return {
       step: "identify",

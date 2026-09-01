@@ -58,6 +58,7 @@ type Service interface {
 		common.ID,
 		string,
 	) (affiliateauthapp.PayoutPage, error)
+	Referrals(context.Context, common.ID) ([]ports.PartnerReferralRecord, error)
 	ShareLinks(context.Context, common.ID) (string, string, int, error)
 	CampaignLinks(context.Context, common.ID) ([]ports.AffiliateCampaignLinkRecord, error)
 	CreateCampaignLink(context.Context, common.ID, common.ID, string, string, string) (ports.AffiliateCampaignLinkRecord, error)
@@ -89,6 +90,7 @@ func (handler Handler) Register(router chi.Router) {
 	router.With(handler.authenticate).Get("/affiliate/dashboard", handler.dashboard)
 	router.With(handler.authenticate).Get("/affiliate/conversions", handler.conversions)
 	router.With(handler.authenticate).Get("/affiliate/payouts", handler.payouts)
+	router.With(handler.authenticate).Get("/affiliate/referrals", handler.referrals)
 	router.With(handler.authenticate).Get("/affiliate/share-links", handler.shareLinks)
 	router.With(handler.authenticate).Get("/affiliate/share-links/qr.png", handler.shareLinkQR)
 	router.With(handler.authenticate).Get("/affiliate/campaign-links", handler.campaignLinks)
@@ -171,6 +173,12 @@ type dashboardResponse struct {
 	PaidCommissionMinor      int64  `json:"paid_commission_minor"`
 	ReversedCommissionMinor  int64  `json:"reversed_commission_minor"`
 	LifetimeEarningsMinor    int64  `json:"lifetime_earnings_minor"`
+	ActiveReferrals          int64  `json:"active_referrals"`
+	InactiveReferrals        int64  `json:"inactive_referrals"`
+	NotActivatedReferrals    int64  `json:"not_activated_referrals"`
+	NextMilestoneThreshold   int    `json:"next_milestone_threshold"`
+	NextMilestoneTitle       string `json:"next_milestone_title"`
+	PartnersInvited          int64  `json:"partners_invited"`
 }
 
 type conversionResponse struct {
@@ -406,6 +414,21 @@ func (handler Handler) payouts(w http.ResponseWriter, r *http.Request) {
 		"payouts":     records,
 		"next_cursor": result.NextCursor,
 	})
+}
+
+func (handler Handler) referrals(w http.ResponseWriter, r *http.Request) {
+	principal, ok := principalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+	records, err := handler.service.Referrals(r.Context(), principal.AffiliateID)
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"referrals": records})
 }
 
 func (handler Handler) shareLinks(w http.ResponseWriter, r *http.Request) {
@@ -714,6 +737,12 @@ func newDashboardResponse(result affiliateauthapp.DashboardResult) dashboardResp
 		PaidCommissionMinor:      record.PaidCommissionMinor,
 		ReversedCommissionMinor:  record.ReversedCommissionMinor,
 		LifetimeEarningsMinor:    record.LifetimeEarningsMinor,
+		ActiveReferrals:          record.ActiveReferralCount,
+		InactiveReferrals:        record.InactiveReferralCount,
+		NotActivatedReferrals:    record.NotActivatedCount,
+		NextMilestoneThreshold:   record.NextMilestoneThreshold,
+		NextMilestoneTitle:       record.NextMilestoneTitle,
+		PartnersInvited:          record.PartnersInvitedCount,
 	}
 }
 

@@ -19,7 +19,8 @@ export function MobileNav({
             sx={{
               px: 0.5,
               mb: 0.75,
-              fontWeight: 800,
+              fontFamily: '"Outfit", sans-serif',
+              fontWeight: 700,
               fontSize: 12,
               textTransform: "uppercase",
               letterSpacing: "0.06em",

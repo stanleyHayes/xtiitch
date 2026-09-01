@@ -20,7 +20,7 @@ export function DesignPricesSection({
   error?: string;
 }) {
   const priceByBand = new Map(
-    design.prices.map((price) => [price.size_band_id, price.price_minor]),
+    design.prices.map((price) => [price.size_band_id, price]),
   );
   return (
     <Box sx={{ mt: 1 }}>
@@ -52,9 +52,9 @@ export function DesignPricesSection({
                 <TextField
                   name="price_ghs"
                   size="small"
-                  label="Price"
+                  label="Actual price"
                   defaultValue={moneyInputValue(
-                    priceByBand.get(band.size_band_id) ?? null,
+                    priceByBand.get(band.size_band_id)?.actual_price_minor ?? null,
                   )}
                   slotProps={{
                     input: {
@@ -65,6 +65,17 @@ export function DesignPricesSection({
                     htmlInput: { inputMode: "decimal" },
                   }}
                   sx={{ width: 150 }}
+                />
+                <TextField
+                  name="discounted_price_ghs"
+                  size="small"
+                  label="Discounted price"
+                  defaultValue={moneyInputValue(
+                    priceByBand.get(band.size_band_id)?.discounted_price_minor ?? null,
+                  )}
+                  helperText="Optional; must be lower"
+                  slotProps={{ input: { startAdornment: <InputAdornment position="start">GHS</InputAdornment> }, htmlInput: { inputMode: "decimal" } }}
+                  sx={{ width: 170 }}
                 />
                 <Button type="submit" size="small" variant="outlined">
                   Save

@@ -32,6 +32,7 @@ export function Header() {
   const marketplaceUrl =
     rootData?.marketplaceUrl ?? "https://store.xtiitch.com";
   const signupUrl = rootData?.signupUrl ?? site.primaryCta.href;
+  const businessLoginUrl = "https://business.xtiitch.com/login";
   // Pre-launch gating: the "Discover" group (and its sub-items) only show when
   // the discover flag is live; the "Browse the store" button only when
   // browse_store is live. Both default hidden.
@@ -132,9 +133,26 @@ export function Header() {
           <Stack
             direction="row"
             spacing={1}
-            sx={{ display: { xs: "none", md: "flex" }, alignItems: "center" }}
+            sx={{
+              display: { xs: "none", md: "flex" },
+              alignItems: "center",
+              "& .MuiButton-root": {
+                fontFamily: '"Outfit", sans-serif',
+                fontSize: 12,
+                letterSpacing: "0.045em",
+                textTransform: "uppercase",
+              },
+            }}
           >
             <ThemeModeToggle />
+            <Button
+              component="a"
+              href={businessLoginUrl}
+              variant="text"
+              sx={{ fontWeight: 800 }}
+            >
+              Log in
+            </Button>
             {flags.browse_store ? (
               <Button
                 href={marketplaceUrl}
@@ -265,8 +283,29 @@ export function Header() {
           </Typography>
         </Box>
         <Divider sx={{ my: 2.25 }} />
-        <Stack component="nav" aria-label="Mobile navigation" spacing={0.75}>
+        <Stack
+          component="nav"
+          aria-label="Mobile navigation"
+          spacing={0.75}
+          sx={{
+            "& .MuiButton-root": {
+              fontFamily: '"Outfit", sans-serif',
+              fontSize: 12,
+              letterSpacing: "0.045em",
+              textTransform: "uppercase",
+            },
+          }}
+        >
           <MobileNav onNavigate={close} groups={visibleGroups} />
+          <Button
+            component="a"
+            href={businessLoginUrl}
+            onClick={close}
+            variant="outlined"
+            size="large"
+          >
+            Log in
+          </Button>
           {flags.browse_store ? (
             <Button
               href={marketplaceUrl}

@@ -45,13 +45,17 @@ func (s Service) SubmitIdentityVerification(ctx context.Context, cmd SubmitIdent
 		!ghanaCardPattern.MatchString(card) || !validPhotoURL(front) || !validPhotoURL(back) {
 		return authdomain.ErrInvalidInput
 	}
-	return s.businesses.SubmitIdentityDocument(ctx, ports.SubmitIdentityDocumentInput{
+	if err := s.businesses.SubmitIdentityDocument(ctx, ports.SubmitIdentityDocumentInput{
 		BusinessID:     cmd.Scope.BusinessID,
 		FullLegalName:  name,
 		CardNumber:     card,
 		IDPhotoURL:     front,
 		IDPhotoBackURL: back,
-	})
+	}); err != nil {
+		return err
+	}
+	s.sendVerificationSubmittedAdminEmail(ctx, cmd.Scope.BusinessID)
+	return nil
 }
 
 // maxFullLegalNameLength bounds the legal-name field; Ghana Card names are far

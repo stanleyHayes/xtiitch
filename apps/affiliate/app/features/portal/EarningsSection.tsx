@@ -95,7 +95,7 @@ export function EarningsSection({
               <WalletIcon size={22} />
               <p className="empty-title">No conversions yet</p>
               <p className="muted">
-                Share your link — signups and sales show up here.
+                Share your link — signups and subscription payments show up here.
               </p>
             </div>
           ) : (

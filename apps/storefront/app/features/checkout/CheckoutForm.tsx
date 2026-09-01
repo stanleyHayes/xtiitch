@@ -170,6 +170,7 @@ export default function CheckoutForm({
         <TextField
           name="customer_phone"
           label="Phone"
+          required
           helperText="For calls and SMS order updates."
           fullWidth
           defaultValue={profile?.phone ?? ""}
@@ -177,6 +178,7 @@ export default function CheckoutForm({
         <TextField
           name="customer_whatsapp"
           label="WhatsApp number"
+          required
           placeholder="e.g. 024 123 4567"
           helperText="The store owner uses this to chat with you about your order (incl. bespoke pricing)."
           fullWidth

@@ -99,6 +99,7 @@ export function PasswordForm({
           required
           autoComplete="username"
           fullWidth
+          helperText="Enter your store handle in lowercase letters."
           slotProps={{
             input: {
               startAdornment: (
@@ -235,7 +236,8 @@ export function WhatsappForm({ // eslint-disable-line max-lines-per-function -- 
           autoComplete="username"
           fullWidth
           value={waHandle}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => onWaHandleChange(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => onWaHandleChange(e.target.value.toLowerCase())}
+          helperText="Enter your store handle in lowercase letters."
           slotProps={{
             input: {
               readOnly: otpSent,

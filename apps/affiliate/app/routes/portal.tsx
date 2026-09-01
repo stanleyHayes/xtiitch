@@ -11,7 +11,7 @@ import { loadPortal } from "../features/portal/load-portal.server";
 import { PortalPage } from "../features/portal/PortalPage";
 
 export const meta: MetaFunction = () => [
-  { title: "Performance | Xtiitch Affiliates" }
+	{ title: "Performance | Xtiitch Partners" }
 ];
 
 // Both the loader and the action may refresh an expired access token. The API

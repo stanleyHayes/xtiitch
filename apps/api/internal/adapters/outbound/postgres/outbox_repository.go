@@ -68,8 +68,9 @@ func enqueueOrderNotification(ctx context.Context, tx pgx.Tx, businessID, orderI
 	_, err := tx.Exec(ctx, `
 		insert into outbound_messages (message_id, business_id, channel, kind, recipient, payload, dedup_key)
 		select gen_random_uuid(), o.business_id, $3, $4, coalesce(c.phone, ''),
-			jsonb_build_object('order_id', o.order_id::text, 'design', coalesce(d.title, '')), $5
+			jsonb_build_object('order_id', o.order_id::text, 'design', coalesce(d.title, ''), 'store', b.name), $5
 		from orders o
+		join businesses b on b.business_id = o.business_id
 		join customers c on c.customer_id = o.customer_id
 		left join designs d on d.design_id = o.design_id
 		where o.order_id = $1 and o.business_id = $2
@@ -93,9 +94,11 @@ func enqueueStageAdvanceNotification(ctx context.Context, tx pgx.Tx, businessID,
 				'stage', coalesce(st.name, ''),
 				'stage_colour', coalesce(st.colour, ''),
 				'stage_sequence', st.sequence,
-				'design', coalesce(d.title, '')
+				'design', coalesce(d.title, ''),
+				'store', b.name
 			), $6
 		from orders o
+		join businesses b on b.business_id = o.business_id
 		join customers c on c.customer_id = o.customer_id
 		join stage_templates st on st.stage_id = $3 and st.business_id = o.business_id
 		left join designs d on d.design_id = o.design_id and d.business_id = o.business_id

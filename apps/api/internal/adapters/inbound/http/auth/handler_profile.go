@@ -69,6 +69,7 @@ func (handler Handler) updateOwnProfile(w http.ResponseWriter, r *http.Request) 
 	profile, err := handler.service.UpdateOwnProfile(r.Context(), authapp.UpdateOwnProfileCommand{
 		Scope:          principal.TenantScope(),
 		UserID:         principal.UserID,
+		BusinessName:   request.BusinessName,
 		DisplayName:    request.DisplayName,
 		Email:          request.Email,
 		WhatsAppNumber: request.WhatsAppNumber,
@@ -88,6 +89,7 @@ func newOwnProfileResponse(profile ports.BusinessUserProfileRecord) ownProfileRe
 	return ownProfileResponse{
 		UserID:         profile.UserID.String(),
 		BusinessID:     profile.BusinessID.String(),
+		BusinessName:   profile.BusinessName,
 		Email:          profile.Email,
 		DisplayName:    profile.DisplayName,
 		Phone:          profile.Phone,

@@ -68,10 +68,10 @@ export default function Growth() { // eslint-disable-line max-lines-per-function
               {flags.affiliate_signup ? (
                 <Button
                   component={RouterLink}
-                  to="/affiliates"
+									to="/partners"
                   variant="outlined"
                 >
-                  Become an affiliate
+									Become a Partner
                 </Button>
               ) : null}
             </Stack>

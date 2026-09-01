@@ -13,6 +13,7 @@ type requestProfilePhoneOTPRequest struct {
 // fields distinguish "field omitted" (nil: keep stored value) from an empty
 // value supplied on purpose; otp_code gates a phone change.
 type updateOwnProfileRequest struct {
+	BusinessName   *string `json:"business_name"`
 	DisplayName    *string `json:"display_name"`
 	Email          *string `json:"email"`
 	WhatsAppNumber *string `json:"whatsapp_number"`
@@ -26,6 +27,7 @@ type updateOwnProfileRequest struct {
 type ownProfileResponse struct {
 	UserID         string `json:"business_user_id"`
 	BusinessID     string `json:"business_id"`
+	BusinessName   string `json:"business_name"`
 	Email          string `json:"email"`
 	DisplayName    string `json:"display_name"`
 	Phone          string `json:"phone"`

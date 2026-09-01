@@ -63,6 +63,7 @@ export async function action({ request }: Route.ActionArgs) {
     return { error: "Unknown action." } satisfies ProfileActionResult;
   }
   const displayName = String(form.get("display_name") ?? "").trim();
+  const businessName = String(form.get("business_name") ?? "").trim();
   const email = String(form.get("email") ?? "").trim();
   const whatsappNumber = String(form.get("whatsapp_number") ?? "").trim();
   const phone = String(form.get("phone") ?? "").trim();
@@ -70,13 +71,20 @@ export async function action({ request }: Route.ActionArgs) {
   if (!displayName) {
     return { error: "Enter your name." } satisfies ProfileActionResult;
   }
+  if (!businessName) {
+    return { error: "Enter your business name." } satisfies ProfileActionResult;
+  }
   if (!email) {
     return { error: "Enter your email address." } satisfies ProfileActionResult;
+  }
+  if (!whatsappNumber) {
+    return { error: "Enter your WhatsApp number." } satisfies ProfileActionResult;
   }
   const response = await apiFetch(request, "/auth/business/me", {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
+      business_name: businessName,
       display_name: displayName,
       email,
       whatsapp_number: whatsappNumber,

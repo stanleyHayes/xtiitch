@@ -42,14 +42,17 @@ export function OverviewSection({
   share: ShareLinks;
   displayName?: string;
 }) {
-  const signups = dashboard.customer_signups + dashboard.business_signups;
   const firstName = displayName?.trim().split(/\s+/)[0];
+	const nextMilestone = dashboard.next_milestone_threshold;
+	const progress = nextMilestone > 0
+		? Math.min(100, (dashboard.active_referrals / nextMilestone) * 100)
+		: 100;
 
   return (
     <div className="section">
       <div className="section-head">
         <div>
-          <p className="eyebrow">Affiliate performance</p>
+			<p className="eyebrow">Partner performance</p>
           <h1>{firstName ? `Welcome back, ${firstName}` : "Your overview"}</h1>
           <p className="muted">
             Your last 30 days of momentum, with lifetime earnings.
@@ -76,7 +79,7 @@ export function OverviewSection({
         />
       </div>
 
-      <section className="stat-row" aria-label="Traffic and conversion">
+      <section className="stat-row" aria-label="Partner referral progress">
         <article className="stat">
           <span className="stat-label">Link clicks</span>
           <strong className="stat-value">
@@ -84,59 +87,43 @@ export function OverviewSection({
           </strong>
         </article>
         <article className="stat">
-          <span className="stat-label">Qualified signups</span>
-          <strong className="stat-value">{signups.toLocaleString()}</strong>
+			<span className="stat-label">Referred businesses</span>
+			<strong className="stat-value">{dashboard.business_signups.toLocaleString()}</strong>
           <span className="stat-hint">
-            {dashboard.business_signups.toLocaleString()} business ·{" "}
-            {dashboard.customer_signups.toLocaleString()} customer
+				{dashboard.active_referrals.toLocaleString()} active
           </span>
         </article>
         <article className="stat">
-          <span className="stat-label">Purchases</span>
+			<span className="stat-label">Subscription payments</span>
           <strong className="stat-value">
-            {dashboard.purchases.toLocaleString()}
+				{dashboard.paid_plan_signups.toLocaleString()}
           </strong>
-          <span className="stat-hint">
-            {formatMoney(dashboard.gross_eligible_minor)} eligible volume
-          </span>
+			<span className="stat-hint">20% recurring on eligible payments</span>
         </article>
         <article className="stat">
-          <span className="stat-label">Paid plan signups</span>
+			<span className="stat-label">Partners invited</span>
           <strong className="stat-value">
-            {dashboard.paid_plan_signups.toLocaleString()}
+				{dashboard.partners_invited.toLocaleString()}
           </strong>
+			<span className="stat-hint">Community growth · no commission</span>
         </article>
       </section>
 
-      <section className="conversion-story" aria-labelledby="conversion-title">
+		<section className="conversion-story" aria-labelledby="conversion-title">
         <div className="conversion-story-head">
           <div>
-            <span className="stat-label">Conversion journey</span>
-            <h2 id="conversion-title">From attention to action</h2>
+				<span className="stat-label">Next achievement</span>
+				<h2 id="conversion-title">{dashboard.next_milestone_title || "Top milestone reached"}</h2>
           </div>
-          <span className="period-badge">Last 30 days</span>
+			<span className="period-badge">{nextMilestone > 0 ? `${dashboard.active_referrals} / ${nextMilestone}` : "Complete"}</span>
         </div>
-        <div className="journey" aria-label="Affiliate conversion funnel">
-          <JourneyStep label="Clicks" value={dashboard.clicks} index="01" />
-          <JourneyStep label="Signups" value={signups} index="02" />
-          <JourneyStep
-            label="Purchases"
-            value={dashboard.purchases}
-            index="03"
-          />
-        </div>
+		<div className="bar" aria-label={`${Math.round(progress)}% milestone progress`}><div className="bar-fill" style={{ width: `${progress}%` }} /></div>
+		<p className="muted">{nextMilestone > 0 ? `${Math.max(0, nextMilestone - dashboard.active_referrals)} more active paid referrals to unlock your next configured reward.` : "You have reached every configured milestone."}</p>
         <div className="funnel">
           <article>
             <span className="stat-label">Click → signup</span>
             <strong>{formatRateBps(dashboard.click_to_signup_rate_bps)}</strong>
             <Bar bps={dashboard.click_to_signup_rate_bps} />
-          </article>
-          <article>
-            <span className="stat-label">Click → purchase</span>
-            <strong>
-              {formatRateBps(dashboard.click_to_purchase_rate_bps)}
-            </strong>
-            <Bar bps={dashboard.click_to_purchase_rate_bps} />
           </article>
         </div>
       </section>
@@ -152,24 +139,6 @@ export function OverviewSection({
         ))}
       </section>
     </div>
-  );
-}
-
-function JourneyStep({
-  label,
-  value,
-  index,
-}: {
-  label: string;
-  value: number;
-  index: string;
-}) {
-  return (
-    <article className="journey-step">
-      <span className="journey-index">{index}</span>
-      <span className="stat-label">{label}</span>
-      <strong>{value.toLocaleString()}</strong>
-    </article>
   );
 }
 

@@ -49,7 +49,11 @@ func (repo AffiliateRepository) SubmitAffiliateApplication(
 
 	var record ports.AffiliateApplicationRecord
 	row := tx.QueryRow(ctx, `
-		with application as (
+		with settings as (
+			select commission_bps, maturity_days
+			from partner_programme_settings
+			where settings_id and registration_open
+		), application as (
 		insert into affiliate_applications (
 			affiliate_application_id,
 			applicant_type,
@@ -81,6 +85,7 @@ func (repo AffiliateRepository) SubmitAffiliateApplication(
 				'user_agent', $13::text,
 				'source', 'public_api'
 			)
+		from settings
 		where not exists (
 			select 1
 			from affiliates
@@ -101,7 +106,8 @@ func (repo AffiliateRepository) SubmitAffiliateApplication(
 			updated_at = now()
 		returning *
 		), programme as (
-			select * from affiliate_programmes
+			select programme.*, settings.commission_bps, settings.maturity_days
+			from affiliate_programmes programme cross join settings
 			where owner_type = 'platform' and is_default and status = 'active'
 			limit 1
 		), inserted_affiliate as (
@@ -115,9 +121,9 @@ func (repo AffiliateRepository) SubmitAffiliateApplication(
 			select $14::uuid, application.applicant_type, application.requested_code,
 				application.display_name, application.contact_name, application.email,
 				application.phone, application.website_url, 'percentage',
-				programme.default_purchase_commission_bps,
-				programme.default_purchase_commission_bps,
-				programme.default_first_paid_plan_commission_bps,
+				programme.commission_bps,
+				0,
+				programme.commission_bps,
 				programme.cookie_window_days, programme.payout_mode, 'active',
 				concat('Self-service affiliate signup ', application.affiliate_application_id::text),
 				programme.affiliate_programme_id, application.affiliate_application_id

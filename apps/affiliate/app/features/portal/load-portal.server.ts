@@ -8,6 +8,7 @@ import type {
   NotificationPreferences,
   Payout,
   PayoutProfile,
+	PartnerReferral,
   PortalData,
   ShareLinks,
 } from "./types";
@@ -36,6 +37,7 @@ async function loadPortalData(headers: HeadersInit): Promise<PortalData> {
     profile,
     preferences,
     account,
+		referrals,
   ] = await Promise.all([
     affiliateAPI<Dashboard>("/affiliate/dashboard", { headers }),
     affiliateAPI<{ conversions: Conversion[] }>("/affiliate/conversions", {
@@ -56,6 +58,7 @@ async function loadPortalData(headers: HeadersInit): Promise<PortalData> {
     // its email. A failure here must not blank the whole portal, so it
     // degrades to null and Settings hides the account card.
     affiliateAPI<Account>("/affiliate/me", { headers }).catch(() => null),
+		affiliateAPI<{ referrals: PartnerReferral[] }>("/affiliate/referrals", { headers }),
   ]);
 
   return {
@@ -67,6 +70,7 @@ async function loadPortalData(headers: HeadersInit): Promise<PortalData> {
     profile,
     preferences,
     account,
+		referrals: referrals.referrals,
     displayName: account?.display_name,
   };
 }

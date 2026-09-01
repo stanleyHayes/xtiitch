@@ -51,16 +51,17 @@ export function PhoneField() {
 
   return (
     <label>
-      Phone number
+			WhatsApp number
       <input type="hidden" name="phone" value={normalizePhone(displayValue)} />
       <input
         type="tel"
         inputMode="tel"
         placeholder="+233 20 000 0000"
         autoComplete="tel"
+			required
         value={displayValue}
         onChange={(event) => setDisplayValue(formatPhone(event.target.value))}
-        aria-label="Phone number"
+			aria-label="WhatsApp number"
       />
     </label>
   );

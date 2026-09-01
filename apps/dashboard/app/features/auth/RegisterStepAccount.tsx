@@ -24,7 +24,6 @@ import {
   type PhoneVerificationState,
 } from "../../lib/phone-verification";
 import { tokens } from "../../theme";
-
 export function RegisterStepAccount({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
   ownerName,
   onOwnerNameChange,
@@ -141,6 +140,7 @@ export function RegisterStepAccount({ // eslint-disable-line complexity, max-lin
         <TextField
           name="owner_phone"
           label="Phone number"
+          required
           autoComplete="tel"
           inputMode="tel"
           fullWidth
@@ -276,12 +276,12 @@ export function RegisterStepAccount({ // eslint-disable-line complexity, max-lin
           />
         ) : null}
       </Box>
-      {/* §8.4: no WhatsApp field at all until the phone is verified — then it
-          appears beneath the code field. */}
+      {/* §8.4: reveal WhatsApp beneath the code only after phone verification. */}
       {showWhatsapp ? (
         <TextField
           name="whatsapp_number"
-          label="WhatsApp number (optional)"
+          label="WhatsApp number"
+          required
           autoComplete="tel"
           inputMode="tel"
           fullWidth
@@ -292,7 +292,7 @@ export function RegisterStepAccount({ // eslint-disable-line complexity, max-lin
           helperText={
             whatsappNumber.length > 0 && !whatsappOk
               ? "Enter a valid WhatsApp number."
-              : "Optional — used to chat with customers about their orders."
+              : "Required — used to chat with customers about their orders."
           }
           slotProps={{
             input: {

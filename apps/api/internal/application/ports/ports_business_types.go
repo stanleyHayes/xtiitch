@@ -369,6 +369,7 @@ type UpdateBusinessUserInput struct {
 type BusinessUserProfileRecord struct {
 	UserID          common.ID
 	BusinessID      common.ID
+	BusinessName    string
 	Email           string
 	DisplayName     string
 	Phone           string
@@ -389,6 +390,7 @@ type BusinessUserProfileRecord struct {
 // repo stamps phone_verified_at anew; when false the column is left alone.
 type UpdateOwnBusinessUserProfileInput struct {
 	UserID         common.ID
+	BusinessName   string
 	Email          string
 	DisplayName    string
 	Phone          string

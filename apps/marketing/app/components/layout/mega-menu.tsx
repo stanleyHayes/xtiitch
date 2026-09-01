@@ -98,7 +98,16 @@ export function MegaItem({
       </Box>
       <Box sx={{ position: "relative", zIndex: 1, minWidth: 0, flex: 1 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-          <Typography sx={{ fontWeight: 800, fontSize: 15, lineHeight: 1.3 }}>
+          <Typography
+            sx={{
+              fontFamily: '"Outfit", sans-serif',
+              fontWeight: 700,
+              fontSize: 13,
+              lineHeight: 1.3,
+              letterSpacing: "0.045em",
+              textTransform: "uppercase",
+            }}
+          >
             {item.label}
           </Typography>
           <ArrowForwardRoundedIcon
@@ -208,7 +217,11 @@ export function MegaMenu({ // eslint-disable-line max-lines-per-function -- larg
                 px: 1.5,
                 py: 1,
                 borderRadius: 1,
+                fontFamily: '"Outfit", sans-serif',
                 fontWeight: 700,
+                fontSize: 12,
+                letterSpacing: "0.055em",
+                textTransform: "uppercase",
                 whiteSpace: "nowrap",
                 color: isOpen || hasActive ? "primary.main" : "text.primary",
                 bgcolor:

@@ -178,7 +178,7 @@ func (r *fakeCatalogueRepo) DeleteSizeBand(_ context.Context, _ common.TenantSco
 	r.deletedSizeBand = sizeBandID
 	return nil
 }
-func (r *fakeCatalogueRepo) SetDesignPrice(_ context.Context, _ common.TenantScope, _ common.ID, sizeBandID common.ID, _ int64) error {
+func (r *fakeCatalogueRepo) SetDesignPrice(_ context.Context, _ common.TenantScope, _ common.ID, sizeBandID common.ID, _ int64, _ *int64) error {
 	// Mirror the real repository's atomic pricing-mode guard.
 	if r.getDesign.CustomisationAllowed {
 		return ports.ErrPricingModeConflict

@@ -5,6 +5,7 @@ import { apiFetch } from "../../lib/auth";
 // read live, so edits via PATCH are reflected here (and everywhere the
 // dashboard shows them) immediately after revalidation.
 export type OwnProfile = {
+  business_name: string;
   email: string;
   display_name: string;
   phone: string;
@@ -25,6 +26,8 @@ export async function loader({ request }: Route.LoaderArgs) {
   const body = (await response.json()) as Partial<OwnProfile>;
   return {
     profile: {
+      business_name:
+        typeof body.business_name === "string" ? body.business_name : "",
       email: typeof body.email === "string" ? body.email : "",
       display_name:
         typeof body.display_name === "string" ? body.display_name : "",

@@ -342,11 +342,14 @@ func (s Service) UpdateProfile(
 	error,
 ) {
 	whatsapp := strings.TrimSpace(whatsAppPhone)
-	if whatsapp != "" {
-		if canonical, err := normalizeGhanaPhone(whatsapp); err == nil {
-			whatsapp = canonical
-		}
+	if whatsapp == "" {
+		return ports.CustomerProfile{}, ErrInvalidPhone
 	}
+	canonical, err := normalizeGhanaPhone(whatsapp)
+	if err != nil {
+		return ports.CustomerProfile{}, err
+	}
+	whatsapp = canonical
 	return s.repo.UpdateCustomerProfile(ctx, customerID, strings.TrimSpace(displayName), strings.TrimSpace(email), whatsapp)
 }
 

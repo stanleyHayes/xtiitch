@@ -5,12 +5,13 @@ import type { OutboundMessage } from "../outbox";
 // eslint-disable-next-line complexity
 export function renderNotificationText(message: OutboundMessage): string {
   const design = stringPayload(message.payload.design);
+  const store = stringPayload(message.payload.store);
   switch (message.kind) {
     case "order_confirmed":
-      return withDesign(
+      return withStore(withDesign(
         "Your order is confirmed. We will update you when production moves forward.",
         design,
-      );
+      ), store);
     case "order_stage_advanced": {
       // Stages are business-defined, so the message names the stage the order
       // just reached; fall back to a generic line when the name is missing.
@@ -18,13 +19,13 @@ export function renderNotificationText(message: OutboundMessage): string {
       const text = stage
         ? `Update: your order has moved to the "${stage}" stage.`
         : "Update: your order has moved to the next production stage.";
-      return withDesign(text, design);
+      return withStore(withDesign(text, design), store);
     }
     case "order_fulfilled":
-      return withDesign(
+      return withStore(withDesign(
         "Your order is ready. Please contact the business to arrange pickup or delivery.",
         design,
-      );
+      ), store);
     case "booking_confirmed":
       return `Your home-visit booking is confirmed${dateClause(
         message.payload.slot_start,
@@ -148,6 +149,10 @@ function withDesign(text: string, design: string): string {
     return text;
   }
   return `${text} Design: ${design}.`;
+}
+
+function withStore(text: string, store: string): string {
+  return store === "" ? text : `${store}: ${text}`;
 }
 
 function dateClause(value: unknown): string {

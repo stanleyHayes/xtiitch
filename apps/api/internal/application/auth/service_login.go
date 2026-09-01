@@ -87,8 +87,8 @@ type RegisterBusinessCommand struct {
 	UserAgent        string
 	IPAddress        string
 	// OwnerPhone is the number Xtiitch sends SMS notifications to, so it is the
-	// number we prove at signup: when it is supplied, OwnerPhoneCode must be a
-	// valid one-time code for it. Optional (an owner may sign up without one).
+	// number we prove at signup. General Platform Updates v1.3 requires both the
+	// phone and WhatsApp numbers, so a valid proof is mandatory.
 	OwnerPhone     string
 	OwnerPhoneCode string
 	// WhatsAppNumber is used for owner<->customer chat, not as an identity, so it
@@ -127,16 +127,14 @@ func (s Service) RegisterBusiness(ctx context.Context, cmd RegisterBusinessComma
 	if err != nil {
 		return AuthResult{}, err
 	}
-
 	passwordHash, err := s.passwords.Hash(normalized.OwnerPassword)
 	if err != nil {
 		return AuthResult{}, err
 	}
 
 	// The PHONE is the number we send SMS to, so it is the one proven at signup:
-	// when supplied it must carry a valid one-time code — either proven earlier
-	// via the verify-only endpoint (§8) or presented with this request. No phone
-	// → register with email + password only (backward compatible).
+	// it must carry a valid one-time code — either proven earlier via the
+	// verify-only endpoint (§8) or presented with this request.
 	var ownerPhone string
 	var phoneVerified bool
 	if strings.TrimSpace(cmd.OwnerPhone) != "" {
@@ -208,6 +206,7 @@ func (s Service) RegisterBusiness(ctx context.Context, cmd RegisterBusinessComma
 		normalized.OwnerDisplayName,
 		normalized.BusinessName,
 	)
+	s.sendNewBusinessAdminEmail(ctx, normalized.BusinessName, normalized.BusinessHandle)
 
 	return result, nil
 }

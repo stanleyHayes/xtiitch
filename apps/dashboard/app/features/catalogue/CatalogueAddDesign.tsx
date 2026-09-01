@@ -235,7 +235,7 @@ export function CatalogueAddDesign({
                         </Typography>
                         <TextField
                           name={`price_ghs_${band.size_band_id}`}
-                          label="Price"
+                          label="Actual price"
                           size="small"
                           slotProps={{
                             input: {
@@ -255,6 +255,14 @@ export function CatalogueAddDesign({
                               sm: 180,
                             },
                           }}
+                        />
+                        <TextField
+                          name={`discounted_price_ghs_${band.size_band_id}`}
+                          label="Discounted price"
+                          size="small"
+                          helperText="Optional; lower than actual"
+                          slotProps={{ input: { startAdornment: <InputAdornment position="start">GHS</InputAdornment> }, htmlInput: { inputMode: "decimal" } }}
+                          sx={{ width: { xs: "100%", sm: 180 } }}
                         />
                       </Stack>
                     ))}

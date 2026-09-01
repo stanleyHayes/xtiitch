@@ -19,7 +19,8 @@ export const tokens = {
 } as const;
 
 export type AppThemeMode = XtiitchThemeMode;
-export const fontStylesheetHref = xtiitchFonts.googleFontsHref;
+export const fontStylesheetHref =
+  "https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap";
 
 const controlRadius = 8;
 const buttonRadius = 999;
@@ -51,42 +52,42 @@ export function createAppTheme(mode: AppThemeMode = "light"): Theme {
       fontFamily: xtiitchFonts.body,
       // The style guide forbids negative letter spacing and viewport-scaled type.
       h1: {
-        fontFamily: xtiitchFonts.display,
+        fontFamily: xtiitchFonts.body,
         fontWeight: 800,
         fontSize: "3rem",
         lineHeight: 1,
         letterSpacing: 0,
       },
       h2: {
-        fontFamily: xtiitchFonts.display,
+        fontFamily: xtiitchFonts.body,
         fontWeight: 800,
         fontSize: "2.35rem",
         lineHeight: 1.05,
         letterSpacing: 0,
       },
       h3: {
-        fontFamily: xtiitchFonts.display,
+        fontFamily: xtiitchFonts.body,
         fontWeight: 800,
         fontSize: "1.8rem",
         lineHeight: 1.08,
         letterSpacing: 0,
       },
       h4: {
-        fontFamily: xtiitchFonts.display,
+        fontFamily: xtiitchFonts.body,
         fontWeight: 800,
         fontSize: "1.25rem",
         lineHeight: 1.25,
         letterSpacing: 0,
       },
       h5: {
-        fontFamily: xtiitchFonts.display,
+        fontFamily: xtiitchFonts.body,
         fontWeight: 800,
         fontSize: "1.125rem",
         lineHeight: 1.3,
         letterSpacing: 0,
       },
       h6: {
-        fontFamily: xtiitchFonts.display,
+        fontFamily: xtiitchFonts.body,
         fontWeight: 800,
         fontSize: "1rem",
         lineHeight: 1.3,

@@ -54,6 +54,8 @@ export type BandPrice = {
   size_band_id: string;
   label: string;
   price_minor: number;
+  actual_price_minor: number;
+  discounted_price_minor: number | null;
   // The size band's measurement chart, shown to customers under the size option.
   chart?: SizeChartItem[];
 };

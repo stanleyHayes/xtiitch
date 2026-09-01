@@ -83,8 +83,8 @@ export const navGroups: NavGroup[] = [
         icon: <TrendingUpRoundedIcon />,
       },
       {
-        label: "Affiliate programme",
-        href: "/affiliates",
+				label: "Partner Program",
+				href: "/partners",
         description: "Apply for a trackable partner code.",
         icon: <CampaignRoundedIcon />,
         flag: "affiliate_signup",

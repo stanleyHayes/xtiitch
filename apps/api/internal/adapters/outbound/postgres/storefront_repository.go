@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 
 	"github.com/jackc/pgx/v5"
@@ -120,7 +121,7 @@ func (repo StorefrontRepository) ListPublicShops(ctx context.Context) ([]ports.P
 func loadShopSamples(ctx context.Context, tx pgx.Tx, businessID common.ID) ([]ports.PublicShopDesign, error) {
 	rows, err := tx.Query(ctx, `
 		select d.title, d.handle, coalesce(d.style_category, ''), d.images,
-			coalesce((select min(dp.price_minor) from design_prices dp
+			coalesce((select min(coalesce(dp.discounted_price_minor, dp.price_minor)) from design_prices dp
 				where dp.design_id = d.design_id), 0)
 		from designs d
 		where d.business_id = $1 and d.status = 'active'
@@ -373,7 +374,8 @@ func attachPrices(ctx context.Context, tx pgx.Tx, designs []catalogue.Design) ([
 	results := make([]ports.StorefrontDesign, 0, len(designs))
 	for _, design := range designs {
 		rows, err := tx.Query(ctx, `
-			select dp.size_band_id, sb.label, dp.price_minor, sb.chart
+			select dp.size_band_id, sb.label, dp.price_minor,
+				dp.discounted_price_minor, coalesce(dp.discounted_price_minor, dp.price_minor), sb.chart
 			from design_prices dp
 			join size_bands sb on sb.size_band_id = dp.size_band_id
 			where dp.design_id = $1
@@ -387,9 +389,14 @@ func attachPrices(ctx context.Context, tx pgx.Tx, designs []catalogue.Design) ([
 		for rows.Next() {
 			var price catalogue.BandPrice
 			var chartRaw []byte
-			if err := rows.Scan(&price.SizeBandID, &price.Label, &price.PriceMinor, &chartRaw); err != nil {
+			var discounted sql.NullInt64
+			if err := rows.Scan(&price.SizeBandID, &price.Label, &price.ActualPriceMinor, &discounted, &price.PriceMinor, &chartRaw); err != nil {
 				rows.Close()
 				return nil, err
+			}
+			if discounted.Valid {
+				value := discounted.Int64
+				price.DiscountedPriceMinor = &value
 			}
 			price.Chart = unmarshalSizeChart(chartRaw)
 			prices = append(prices, price)

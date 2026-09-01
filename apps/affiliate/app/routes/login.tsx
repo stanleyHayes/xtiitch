@@ -15,10 +15,10 @@ import { PasswordField } from "../components/PasswordField";
 import { SignInIcon } from "../components/Icons";
 
 export const meta: MetaFunction = () => [
-  { title: "Sign in | Xtiitch Affiliates" },
+  { title: "Sign in | Xtiitch Partners" },
   {
     name: "description",
-    content: "Sign in to view your Xtiitch affiliate performance and earnings.",
+    content: "Sign in to view your Xtiitch Partner performance and earnings.",
   },
 ];
 
@@ -70,7 +70,7 @@ export default function Login() {
   return (
     <AuthLayout
       title="Your referrals, earnings and payouts in one place."
-      lede="Track qualified signups and sales without exposing customer details."
+		lede="Track referred business status and recurring subscription earnings without exposing merchant details."
     >
       <Form method="post" className="form auth-form">
         <div className="form-head">
@@ -130,7 +130,7 @@ export default function Login() {
         </button>
 
         <p className="form-foot">
-          Not an affiliate yet? <Link to="/signup">Create an account</Link>
+					Not a Partner yet? <Link to="/signup">Create an account</Link>
         </p>
       </Form>
     </AuthLayout>

@@ -38,25 +38,23 @@ func (repo AffiliateRepository) ReserveFirstPaidPlanAttribution(
 				a.affiliate_id,
 				s.affiliate_click_id,
 				a.affiliate_programme_id,
-				a.first_paid_plan_commission_bps,
-				p.hold_days
+				settings.commission_bps,
+				settings.maturity_days as hold_days
 			from affiliate_signups s
 			join affiliates a on a.affiliate_id = s.affiliate_id
 			join affiliate_programmes p
 				on p.affiliate_programme_id = a.affiliate_programme_id
-			join affiliate_clicks c
-				on c.affiliate_click_id = s.affiliate_click_id
+			cross join partner_programme_settings settings
 			where s.subject_type = 'business'
 				and s.business_id = $2::uuid
 				and s.status = 'qualified'
 				and a.status = 'active'
 				and a.owner_business_id is null
 				and a.target_scope = 'platform'
-				and a.first_paid_plan_commission_bps > 0
+				and settings.commission_bps > 0
 				and p.owner_type = 'platform'
 				and p.status = 'active'
-				and c.clicked_at >=
-					now() - make_interval(days => a.cookie_window_days)
+				and now() >= settings.recurring_effective_at
 			order by s.qualified_at desc
 			limit 1
 		),
@@ -72,10 +70,10 @@ func (repo AffiliateRepository) ReserveFirstPaidPlanAttribution(
 				affiliate_programme_id, $2::uuid, $3::uuid, $4, $5::bigint,
 				least(
 					$5::bigint,
-					($5::bigint * first_paid_plan_commission_bps::bigint) / 10000
+					($5::bigint * commission_bps::bigint) / 10000
 				),
-				first_paid_plan_commission_bps, hold_days,
-				jsonb_build_object('source', 'subscription_checkout')
+				commission_bps, hold_days,
+				jsonb_build_object('source', 'subscription_payment')
 			from eligible
 			on conflict (payment_reference) do nothing
 			returning *
@@ -156,7 +154,7 @@ func (repo AffiliateRepository) FinalizeFirstPaidPlanAttribution(
 			select
 				$1::uuid, affiliate_id, affiliate_click_id,
 				affiliate_programme_id, 'platform', 'platform',
-				business_id, 'paid_plan_signup', subscription_id,
+				business_id, 'subscription_payment', subscription_id,
 				payment_reference, gross_minor, commission_minor,
 				'percentage', commission_rate, 'last_click', 'pending',
 				now() + make_interval(days => hold_days),
@@ -165,8 +163,8 @@ func (repo AffiliateRepository) FinalizeFirstPaidPlanAttribution(
 					'source', 'verified_subscription_payment'
 				)
 			from reservation
-			on conflict (subscription_id)
-				where conversion_type = 'paid_plan_signup'
+			on conflict (payment_reference)
+				where conversion_type = 'subscription_payment'
 				do nothing
 			returning *, true as created
 		),
@@ -185,8 +183,8 @@ func (repo AffiliateRepository) FinalizeFirstPaidPlanAttribution(
 				existing.gross_minor, existing.commission_minor,
 				existing.status, false
 			from affiliate_conversions existing
-			where existing.subscription_id = $3::uuid
-				and existing.conversion_type = 'paid_plan_signup'
+			where existing.payment_reference = $4
+				and existing.conversion_type = 'subscription_payment'
 			limit 1
 		),
 		voided as (
@@ -318,7 +316,7 @@ func (repo AffiliateRepository) ApplyFirstPaidPlanProviderEvent(
 					'provider_reversal_event', $2
 				),
 				updated_at = now()
-			where conversion_type = 'paid_plan_signup'
+			where conversion_type = 'subscription_payment'
 				and payment_reference = $1
 				and status <> 'reversed'
 		`, reference, reason)

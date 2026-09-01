@@ -104,7 +104,11 @@ func ValidSizeChartUnit(unit string) bool {
 type BandPrice struct {
 	SizeBandID common.ID
 	Label      string
-	PriceMinor int64
+	// ActualPriceMinor is the required original price. PriceMinor is the active
+	// selling price and equals DiscountedPriceMinor when a valid discount exists.
+	ActualPriceMinor     int64
+	DiscountedPriceMinor *int64
+	PriceMinor           int64
 	// Chart is the size band's measurement chart, surfaced to customers on the
 	// storefront alongside the price. Empty when the band has no chart, or when
 	// loaded from a context that does not need it (e.g. the dashboard price board).
