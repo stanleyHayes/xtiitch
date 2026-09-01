@@ -2,6 +2,8 @@ package paystack
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"net/url"
 	"sync"
 
@@ -61,6 +63,16 @@ func (p DevProvider) CreateBusinessSubaccount(
 ) {
 	return ports.CreateBusinessSubaccountResult{
 		ProviderReference: "DEV_SUB_" + input.BusinessID.String(),
+	}, nil
+}
+
+func (p DevProvider) CreateAffiliateTransferRecipient(
+	_ context.Context,
+	input ports.CreateAffiliateTransferRecipientInput,
+) (ports.CreateAffiliateTransferRecipientResult, error) {
+	digest := sha256.Sum256([]byte(input.BankCode + ":" + input.AccountNumber))
+	return ports.CreateAffiliateTransferRecipientResult{
+		RecipientCode: "RCP_dev_" + hex.EncodeToString(digest[:6]),
 	}, nil
 }
 

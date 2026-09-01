@@ -15,7 +15,10 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
-var campaignSlugPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}$`)
+var (
+	campaignSlugPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}$`)
+	ghanaPhonePattern   = regexp.MustCompile(`^0[0-9]{9}$`)
+)
 
 func (s Service) CampaignLinks(ctx context.Context, affiliateID common.ID) ([]ports.AffiliateCampaignLinkRecord, error) {
 	if affiliateID.IsZero() {
@@ -76,22 +79,72 @@ func (s Service) UpdatePayoutProfile(
 	accountName = strings.TrimSpace(accountName)
 	providerName = strings.TrimSpace(providerName)
 	identifier = strings.ReplaceAll(strings.TrimSpace(identifier), " ", "")
-	if affiliateID.IsZero() || s.sensitiveCipher == nil ||
-		(method != "mobile_money" && method != "bank" && method != "manual") ||
+	if affiliateID.IsZero() || s.sensitiveCipher == nil || s.payouts == nil ||
+		(method != "mobile_money" && method != "bank") ||
 		accountName == "" || providerName == "" || len(identifier) < 4 ||
-		len(identifier) > 64 {
+		len(identifier) > 64 || (method == "mobile_money" && !ghanaPhonePattern.MatchString(identifier)) {
 		return ports.AffiliatePayoutProfileRecord{}, ErrInvalidInput
 	}
 	encrypted, err := s.sensitiveCipher.EncryptSecret(identifier)
 	if err != nil {
 		return ports.AffiliatePayoutProfileRecord{}, err
 	}
+	recipientType, bankCode, ok := affiliatePayoutProviderDetails(method, providerName)
+	if !ok {
+		return ports.AffiliatePayoutProfileRecord{}, ErrInvalidInput
+	}
+	recipient, err := s.payouts.CreateAffiliateTransferRecipient(ctx,
+		ports.CreateAffiliateTransferRecipientInput{
+			RecipientType: recipientType, AccountName: accountName,
+			AccountNumber: identifier, BankCode: bankCode,
+		})
+	if err != nil {
+		return ports.AffiliatePayoutProfileRecord{}, err
+	}
+	if strings.TrimSpace(recipient.RecipientCode) == "" {
+		return ports.AffiliatePayoutProfileRecord{}, ErrInvalidInput
+	}
 	return s.portal.UpsertAffiliatePayoutProfile(ctx, ports.UpsertAffiliatePayoutProfileInput{
 		AffiliateID: affiliateID, PayoutMethod: method,
 		AccountName: accountName, ProviderName: providerName,
-		EncryptedIdentifier: base64.RawStdEncoding.EncodeToString(encrypted),
-		IdentifierLast4:     identifier[len(identifier)-4:],
+		EncryptedIdentifier:  base64.RawStdEncoding.EncodeToString(encrypted),
+		IdentifierLast4:      identifier[len(identifier)-4:],
+		ProviderRecipientRef: recipient.RecipientCode,
 	})
+}
+
+func affiliatePayoutProviderDetails(method, provider string) (string, string, bool) {
+	provider = strings.ToLower(strings.TrimSpace(provider))
+	if method == "mobile_money" {
+		codes := map[string]string{
+			"mtn momo": "MTN", "mtn": "MTN",
+			"telecel cash": "VOD", "vodafone cash": "VOD", "telecel": "VOD",
+			"at money": "ATL", "airteltigo money": "ATL", "airteltigo": "ATL",
+		}
+		code, ok := codes[provider]
+		return "mobile_money", code, ok
+	}
+	if method != "bank" {
+		return "", "", false
+	}
+	bankCodes := map[string]string{
+		"absa bank ghana ltd": "030100", "access bank": "280100", "adb bank limited": "080100",
+		"adehyeman savings and loans ltd": "300345", "affinity ghana savings and loans": "300341",
+		"arb apex bank": "070101", "bank of africa ghana": "210100",
+		"best point savings & loans": "300335", "cal bank limited": "140100",
+		"consolidated bank ghana limited": "340100", "ecobank ghana limited": "130100",
+		"fbnbank ghana limited": "200100", "fidelity bank ghana limited": "240100",
+		"first atlantic bank limited": "170100", "first national bank ghana limited": "330100",
+		"gcb bank limited": "040100", "guaranty trust bank (ghana) limited": "230100",
+		"national investment bank limited": "050100", "omnibsci bank": "360100",
+		"prudential bank limited": "180100", "republic bank (gh) limited": "110100",
+		"services integrity savings and loans": "300361", "sinapi aba savings and loans": "240092",
+		"société générale ghana limited": "090100", "stanbic bank ghana limited": "190100",
+		"standard chartered bank ghana limited": "020100", "united bank for africa ghana limited": "060100",
+		"universal merchant bank ghana limited": "100100", "zenith bank ghana": "120100",
+	}
+	code, ok := bankCodes[provider]
+	return "ghipss", code, ok
 }
 
 func (s Service) NotificationPreferences(ctx context.Context, affiliateID common.ID) (ports.AffiliateNotificationPreferencesRecord, error) {

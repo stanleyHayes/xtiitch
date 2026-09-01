@@ -10,9 +10,13 @@ import { tokens } from "../../../theme";
 import { affiliateConversionActions } from "../../shared/actionErrors";
 import { formatGHS } from "../../shared/formatting";
 import { shortID } from "../../shared/dates";
-import type { AdminAffiliate, AdminAffiliateAttribution } from "../../../lib/api";
+import type {
+  AdminAffiliate,
+  AdminAffiliateAttribution,
+} from "../../../lib/api";
 
-export function AffiliateConversionsPanel({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+// eslint-disable-next-line max-lines-per-function -- large presentational component; refactor in follow-up
+export function AffiliateConversionsPanel({
   affiliate,
   performance,
 }: {
@@ -77,8 +81,7 @@ export function AffiliateConversionsPanel({ // eslint-disable-line max-lines-per
                         {conversion.orderId
                           ? shortID(conversion.orderId)
                           : `Plan ${shortID(conversion.subscriptionId ?? "")}`}{" "}
-                        ·{" "}
-                        {conversion.attributionModel.replace("_", " ")}
+                        · {conversion.attributionModel.replace("_", " ")}
                       </Typography>
                     </Box>
                     <Stack
@@ -184,16 +187,23 @@ export function AffiliateConversionsPanel({ // eslint-disable-line max-lines-per
                   <Typography sx={{ fontWeight: 900 }}>
                     Approved payout
                   </Typography>
-                  <Typography
-                    variant="body2"
-                    sx={{ color: "text.secondary" }}
-                  >
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
                     {approvedConversionCount} rows ·{" "}
                     {formatGHS(recentApprovedCommissionMinor)}
                   </Typography>
+                  {affiliate.payoutMode === "paystack_transfer" ? (
+                    <Typography
+                      variant="body2"
+                      sx={{ color: "text.secondary" }}
+                    >
+                      Send through Paystack to{" "}
+                      {affiliate.payoutReference || "the Partner's recipient"},
+                      then record the returned TRF reference.
+                    </Typography>
+                  ) : null}
                 </Box>
                 <Button type="submit" size="small" variant="contained">
-                  Reconcile payout
+                  Record completed payout
                 </Button>
               </Stack>
               <Box
@@ -210,7 +220,8 @@ export function AffiliateConversionsPanel({ // eslint-disable-line max-lines-per
                   label="Payout reference"
                   name="payout_reference"
                   size="small"
-                  defaultValue={affiliate.payoutReference}
+                  defaultValue=""
+                  placeholder="TRF_..."
                 />
                 <TextField
                   label="Notes"

@@ -48,6 +48,7 @@ type Dependencies struct {
 	SensitiveCipher interface {
 		EncryptSecret(string) ([]byte, error)
 	}
+	Payouts ports.AffiliatePayoutProvider
 }
 
 type Service struct {
@@ -64,6 +65,7 @@ type Service struct {
 	sensitiveCipher interface {
 		EncryptSecret(string) ([]byte, error)
 	}
+	payouts ports.AffiliatePayoutProvider
 }
 
 func NewService(deps Dependencies) Service {
@@ -79,6 +81,7 @@ func NewService(deps Dependencies) Service {
 		portal:          deps.Portal,
 		shareBaseURL:    strings.TrimRight(strings.TrimSpace(deps.ShareBaseURL), "/"),
 		sensitiveCipher: deps.SensitiveCipher,
+		payouts:         deps.Payouts,
 	}
 }
 

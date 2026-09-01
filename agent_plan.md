@@ -80,6 +80,21 @@ each feature does and [architecture.md](architecture.md) for where it lives.
 - ✅ Focused PostgreSQL repository, auth HTTP-handler, and auth application
   tests pass. Production login re-verification follows the API deployment.
 
+### Partner payout rail + admin handoff — 2026-09-01
+
+- ✅ Reconciled `Xtiitch_Partner_Program_v1.5.pdf` with the implementation. The
+  specification requires a 14-day commission maturity window before payout, so
+  Partner destinations use Paystack transfer recipients (`RCP_...`), not
+  transaction subaccounts (`ACCT_...`) that would split revenue immediately.
+- ✅ Saving bank or mobile-money details now validates the Ghana provider code,
+  provisions the Paystack transfer recipient, stores only encrypted destination
+  data plus the masked last four, and mirrors the recipient reference into the
+  Company Admin affiliate record as `paystack_transfer`.
+- ✅ The Admin affiliate payout panel identifies the Paystack recipient and
+  tells operators to send matured commission through Paystack before recording
+  the returned `TRF_...` reference. It no longer pre-fills the recipient code as
+  though it were proof of a completed payout.
+
 ### Final Update follow-up audit — 2026-07-21
 
 - ✅ Checkout VAT/failed-return follow-up: store-sale quotes now disclose the

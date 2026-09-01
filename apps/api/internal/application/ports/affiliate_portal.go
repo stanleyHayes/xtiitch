@@ -50,22 +50,24 @@ type CreateAffiliateCampaignLinkInput struct {
 }
 
 type AffiliatePayoutProfileRecord struct {
-	AffiliateID      common.ID `json:"affiliate_id"`
-	PayoutMethod     string    `json:"payout_method"`
-	AccountName      string    `json:"account_name"`
-	ProviderName     string    `json:"provider_name"`
-	MaskedIdentifier string    `json:"masked_identifier"`
-	Status           string    `json:"status"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	AffiliateID          common.ID `json:"affiliate_id"`
+	PayoutMethod         string    `json:"payout_method"`
+	AccountName          string    `json:"account_name"`
+	ProviderName         string    `json:"provider_name"`
+	MaskedIdentifier     string    `json:"masked_identifier"`
+	ProviderRecipientRef string    `json:"provider_recipient_ref"`
+	Status               string    `json:"status"`
+	UpdatedAt            time.Time `json:"updated_at"`
 }
 
 type UpsertAffiliatePayoutProfileInput struct {
-	AffiliateID         common.ID
-	PayoutMethod        string
-	AccountName         string
-	ProviderName        string
-	EncryptedIdentifier string
-	IdentifierLast4     string
+	AffiliateID          common.ID
+	PayoutMethod         string
+	AccountName          string
+	ProviderName         string
+	EncryptedIdentifier  string
+	IdentifierLast4      string
+	ProviderRecipientRef string
 }
 
 type AffiliateNotificationPreferencesRecord struct {

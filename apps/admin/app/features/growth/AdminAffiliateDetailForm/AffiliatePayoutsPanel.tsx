@@ -6,7 +6,10 @@ import { alpha } from "@mui/material/styles";
 import { tokens } from "../../../theme";
 import { formatGHS } from "../../shared/formatting";
 import { shortID, shortTime } from "../../shared/dates";
-import type { AdminAffiliate, AdminAffiliateAttribution } from "../../../lib/api";
+import type {
+  AdminAffiliate,
+  AdminAffiliateAttribution,
+} from "../../../lib/api";
 
 export function AffiliatePayoutsPanel({
   affiliate,
@@ -66,15 +69,8 @@ export function AffiliatePayoutsPanel({
                   spacing={1}
                   sx={{ alignItems: "center", flexWrap: "wrap" }}
                 >
-                  <Chip
-                    size="small"
-                    label={payout.status}
-                    variant="outlined"
-                  />
-                  <Typography
-                    variant="body2"
-                    sx={{ color: "text.secondary" }}
-                  >
+                  <Chip size="small" label={payout.status} variant="outlined" />
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
                     {payout.conversionCount} rows ·{" "}
                     {shortTime(payout.createdAt)}
                   </Typography>
@@ -96,9 +92,17 @@ export function AffiliatePayoutsPanel({
           }}
         >
           {affiliate.payoutReference ? (
-            <Typography sx={{ overflowWrap: "anywhere" }}>
-              {affiliate.payoutReference}
-            </Typography>
+            <Box>
+              <Typography
+                variant="body2"
+                sx={{ color: "text.secondary", fontWeight: 900 }}
+              >
+                Paystack transfer recipient
+              </Typography>
+              <Typography sx={{ overflowWrap: "anywhere" }}>
+                {affiliate.payoutReference}
+              </Typography>
+            </Box>
           ) : null}
           {affiliate.notes ? (
             <Typography

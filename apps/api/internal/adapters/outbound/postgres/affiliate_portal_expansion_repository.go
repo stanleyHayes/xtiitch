@@ -97,10 +97,10 @@ func (repo AffiliateAuthRepository) GetAffiliatePayoutProfile(ctx context.Contex
 	var last4 string
 	err = tx.QueryRow(ctx, `
 		select affiliate_id::text, payout_method, account_name, provider_name,
-			account_identifier_last4, status, updated_at
+			account_identifier_last4, provider_recipient_ref, status, updated_at
 		from affiliate_payout_profiles where affiliate_id = $1::uuid
 	`, affiliateID.String()).Scan(&record.AffiliateID, &record.PayoutMethod,
-		&record.AccountName, &record.ProviderName, &last4, &record.Status,
+		&record.AccountName, &record.ProviderName, &last4, &record.ProviderRecipientRef, &record.Status,
 		&record.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ports.AffiliatePayoutProfileRecord{AffiliateID: affiliateID, Status: "unverified"}, nil
@@ -135,28 +135,37 @@ func (repo AffiliateAuthRepository) UpsertAffiliatePayoutProfile(
 	err = tx.QueryRow(ctx, `
 		insert into affiliate_payout_profiles (
 			affiliate_id, payout_method, account_name, provider_name,
-			account_identifier_encrypted, account_identifier_last4,
-			status, submitted_at
-		) values ($1::uuid, $2, $3, $4, $5, $6, 'pending_review', now())
+			account_identifier_encrypted, account_identifier_last4, provider_recipient_ref,
+			status, submitted_at, verified_at
+		) values ($1::uuid, $2, $3, $4, $5, $6, $7, 'verified', now(), now())
 		on conflict (affiliate_id) do update set
 			payout_method = excluded.payout_method,
 			account_name = excluded.account_name,
 			provider_name = excluded.provider_name,
 			account_identifier_encrypted = excluded.account_identifier_encrypted,
 			account_identifier_last4 = excluded.account_identifier_last4,
-			status = 'pending_review', submitted_at = now(),
-			verified_at = null, updated_at = now()
+			provider_recipient_ref = excluded.provider_recipient_ref,
+			status = 'verified', submitted_at = now(),
+			verified_at = now(), updated_at = now()
 		returning affiliate_id::text, payout_method, account_name, provider_name,
-			account_identifier_last4, status, updated_at
+			account_identifier_last4, provider_recipient_ref, status, updated_at
 	`, input.AffiliateID.String(), input.PayoutMethod, input.AccountName,
 		input.ProviderName, input.EncryptedIdentifier,
-		input.IdentifierLast4).Scan(&record.AffiliateID,
+		input.IdentifierLast4, input.ProviderRecipientRef).Scan(&record.AffiliateID,
 		&record.PayoutMethod, &record.AccountName, &record.ProviderName,
-		&last4, &record.Status, &record.UpdatedAt)
+		&last4, &record.ProviderRecipientRef, &record.Status, &record.UpdatedAt)
 	if err != nil {
 		return ports.AffiliatePayoutProfileRecord{}, err
 	}
 	record.MaskedIdentifier = "•••• " + last4
+	if _, err := tx.Exec(ctx, `
+		update affiliates
+		set payout_mode = 'paystack_transfer', payout_reference = $2,
+			updated_at = now()
+		where affiliate_id = $1::uuid
+	`, input.AffiliateID.String(), input.ProviderRecipientRef); err != nil {
+		return ports.AffiliatePayoutProfileRecord{}, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return ports.AffiliatePayoutProfileRecord{}, err
 	}

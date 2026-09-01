@@ -216,11 +216,21 @@ func testService(repo ports.AffiliateAuthRepository) Service {
 		IDs:           fakeIDs{},
 		PortalURL:     "https://affiliate.example.com",
 		ShareBaseURL:  "https://store.example.com",
+		Payouts:       fakeAffiliatePayouts{},
 	}
 	if portal, ok := repo.(ports.AffiliatePortalRepository); ok {
 		deps.Portal = portal
 	}
 	return NewService(deps)
+}
+
+type fakeAffiliatePayouts struct{}
+
+func (fakeAffiliatePayouts) CreateAffiliateTransferRecipient(
+	_ context.Context,
+	_ ports.CreateAffiliateTransferRecipientInput,
+) (ports.CreateAffiliateTransferRecipientResult, error) {
+	return ports.CreateAffiliateTransferRecipientResult{RecipientCode: "RCP_affiliate"}, nil
 }
 
 type fakeAffiliateAuthRepository struct {

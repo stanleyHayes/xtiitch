@@ -15,7 +15,6 @@ export const BANK_PROVIDERS = [
   "Affinity Ghana Savings and Loans",
   "ARB Apex Bank",
   "Bank of Africa Ghana",
-  "Bank of Ghana",
   "Best Point Savings & Loans",
   "CAL Bank Limited",
   "Consolidated Bank Ghana Limited",
