@@ -68,6 +68,18 @@ each feature does and [architecture.md](architecture.md) for where it lives.
 > accounting-record retention; consent capture needs storefront UX + a consent
 > log. Both are specced as the next compliance slice.
 
+### Business dashboard login regression — 2026-09-01
+
+- ✅ Production logs at the reported 20:09 GMT failure showed login,
+  `/businesses/me`, and subscription activation succeeding while
+  `/auth/business/me` consistently returned 500.
+- ✅ Fixed the current-user profile query introduced by the business-name
+  profile enhancement: every `business_users` projection is now explicitly
+  qualified across the `businesses` join, removing PostgreSQL's ambiguous
+  `created_at` / `updated_at` failure.
+- ✅ Focused PostgreSQL repository, auth HTTP-handler, and auth application
+  tests pass. Production login re-verification follows the API deployment.
+
 ### Final Update follow-up audit — 2026-07-21
 
 - ✅ Checkout VAT/failed-return follow-up: store-sale quotes now disclose the

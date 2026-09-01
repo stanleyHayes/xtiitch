@@ -66,15 +66,15 @@ func (repo BusinessIdentityRepository) FindBusinessUserProfileByID(
 			u.business_user_id::text,
 			u.business_id::text,
 			b.name,
-			email,
-			display_name,
-			coalesce(phone, ''),
-			phone_verified_at,
-			coalesce(whatsapp_number, ''),
-			role,
-			is_active,
-			created_at,
-			updated_at
+			u.email,
+			u.display_name,
+			coalesce(u.phone, ''),
+			u.phone_verified_at,
+			coalesce(u.whatsapp_number, ''),
+			u.role,
+			u.is_active,
+			u.created_at,
+			u.updated_at
 		from business_users u
 		join businesses b on b.business_id = u.business_id
 		where u.business_user_id = $1
