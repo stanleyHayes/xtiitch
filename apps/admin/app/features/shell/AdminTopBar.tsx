@@ -18,6 +18,7 @@ import { tokens } from "../../theme";
 import type { AdminSession } from "../../lib/session";
 import { AdminNavItem, Section } from "../shared/types";
 import { AdminUserMenu } from "./AdminUserMenu";
+import type { MouseEvent } from "react";
 
 // eslint-disable-next-line complexity, max-lines-per-function -- shell renders responsive navigation and all global actions in one stable toolbar
 export function AdminTopBar({
@@ -44,7 +45,7 @@ export function AdminTopBar({
   onToggleCollapsed: () => void;
   onToggleDarkChrome: (origin?: { x: number; y: number }) => void;
   onSelect: (section: Section) => void;
-  onOpenHelp: () => void;
+  onOpenHelp: (event: MouseEvent<HTMLButtonElement>) => void;
   launchEnabledCount: number;
   launchTotalCount: number;
   onOpenLaunchControls: () => void;
@@ -146,10 +147,11 @@ export function AdminTopBar({
               <Tooltip title={`Guide: ${currentSection.label}`}>
                 <IconButton
                   size="small"
-                  aria-label="Open section guide"
+                  aria-label={`Open help for ${currentSection.label}`}
+                  aria-haspopup="dialog"
                   onClick={onOpenHelp}
                   sx={{
-                    display: { xs: "none", sm: "inline-flex" },
+                    display: "inline-flex",
                     color: "inherit",
                     flexShrink: 0,
                     border: "1px solid",
@@ -176,8 +178,14 @@ export function AdminTopBar({
             <Button
               aria-label="Open launch controls"
               onClick={onOpenLaunchControls}
-              variant={launchEnabledCount === launchTotalCount ? "outlined" : "contained"}
-              color={launchEnabledCount === launchTotalCount ? "success" : "primary"}
+              variant={
+                launchEnabledCount === launchTotalCount
+                  ? "outlined"
+                  : "contained"
+              }
+              color={
+                launchEnabledCount === launchTotalCount ? "success" : "primary"
+              }
               startIcon={<RocketLaunchRounded />}
               sx={{
                 minWidth: { xs: 40, sm: "auto" },

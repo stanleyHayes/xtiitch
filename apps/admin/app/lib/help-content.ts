@@ -196,6 +196,102 @@ export const HELP_GUIDES: HelpGuide[] = [
       "Reference the audit log when reviewing any sensitive decision.",
     ],
   },
+  {
+    section: "reports",
+    title: "Reports",
+    helper: "Compliance and operating posture",
+    summary:
+      "A compact evidence view of money controls, compliance flags, platform policy and work that still needs an operator.",
+    steps: [
+      "Start with Report flags to see how many items are blocked or need watching.",
+      "Open a report row or compliance signal to move to the page where the issue can be resolved.",
+      "Select Download CSV when you need a dated posture snapshot for review or handoff.",
+    ],
+  },
+  {
+    section: "exports",
+    title: "Exports",
+    helper: "Downloadable admin snapshots",
+    summary:
+      "Build CSV snapshots from the admin console's current data for reporting, compliance review and operational handoff.",
+    steps: [
+      "Review the summary cards to confirm which export packs and rows are available.",
+      "Choose the dataset that matches the question you need to answer and review its description.",
+      "Download the CSV, then keep the generated file with the case or reporting period it supports.",
+    ],
+  },
+  {
+    section: "health",
+    title: "Health",
+    helper: "Platform operating posture",
+    summary:
+      "Combines payment, risk, support and audit signals into one operational health score and a list of conditions that need attention.",
+    steps: [
+      "Check the health score, then prioritise any signal marked blocked before watch items.",
+      "Open a health signal to jump to the responsible admin page and investigate the underlying records.",
+      "Return here after taking action to confirm the loaded posture no longer shows the issue.",
+    ],
+  },
+  {
+    section: "readiness",
+    title: "Readiness",
+    helper: "Production launch gates",
+    summary:
+      "Tracks credentials, provider transports, legal checks, quality scans and owner-controlled configuration required for launch.",
+    steps: [
+      "Review blocked gates first; each one must be cleared before launch.",
+      "Open the target page shown on a gate and complete the required configuration or evidence.",
+      "Recheck watch items and the readiness score before making a launch decision.",
+    ],
+  },
+  {
+    section: "promotions",
+    title: "Promotions",
+    helper: "Voucher rules and offers",
+    summary:
+      "Create and manage platform-wide or business-specific offers, including funding, redemption limits and active dates.",
+    steps: [
+      "Search or filter the promotion list to review an existing offer and its redemption activity.",
+      "Create a promotion with its audience, discount, funding owner, limits and valid dates.",
+      "Open an offer to update or archive it; confirm the scope before changing a live promotion.",
+    ],
+  },
+  {
+    section: "ads",
+    title: "Ads",
+    helper: "Sponsored placements",
+    summary:
+      "Review and manage paid featured businesses, promoted designs, placement windows, campaign budgets and engagement.",
+    steps: [
+      "Open pending campaigns first and check the business, creative, placement, dates and booked budget.",
+      "Approve only campaigns that are paid and suitable for the requested placement, or record why they cannot run.",
+      "Monitor active placement dates, impressions and clicks, then close completed campaigns cleanly.",
+    ],
+  },
+  {
+    section: "affiliates",
+    title: "Affiliates",
+    helper: "Partner programmes and payouts",
+    summary:
+      "Approve partners, manage affiliate programmes and codes, review attribution, and confirm payout-recipient readiness.",
+    steps: [
+      "Review pending applications and verify the partner details before approving access.",
+      "Open a partner to manage status, commission terms, cookie window, codes and payout destination readiness.",
+      "For matured commission, send the payout to the displayed Paystack recipient and record the completed transfer reference.",
+    ],
+  },
+  {
+    section: "referrals",
+    title: "Referrals",
+    helper: "Two-sided reward programmes",
+    summary:
+      "Create referral programmes with qualifying order rules, rewards for each side, payout holds, dates and lifecycle controls.",
+    steps: [
+      "Open an existing programme to review its issued codes, reward economics and current status.",
+      "Create a programme with the qualifying order minimum, both rewards, hold period and active dates.",
+      "Keep unfinished programmes in draft, pause them to stop new rewards, or archive them when they are no longer needed.",
+    ],
+  },
 ];
 
 export function spokenGuide(guide: HelpGuide): string {

@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { Link as RouterLink } from "react-router";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Drawer from "@mui/material/Drawer";
 import IconButton from "@mui/material/IconButton";
+import Popover from "@mui/material/Popover";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
@@ -138,14 +138,14 @@ export function HelpGuideCard({
   );
 }
 
-// Per-section help: a right-hand drawer showing the guide for the current admin
+// Per-section help: an anchored popover showing the guide for the current admin
 // section, opened from the "?" button next to the page title.
-export function HelpDrawer({
-  open,
+export function HelpPopover({
+  anchorEl,
   onClose,
   section,
 }: {
-  open: boolean;
+  anchorEl: HTMLElement | null;
   onClose: () => void;
   section: string;
 }) {
@@ -154,11 +154,29 @@ export function HelpDrawer({
     HELP_GUIDES[0];
 
   return (
-    <Drawer anchor="right" open={open} onClose={onClose}>
+    <Popover
+      open={Boolean(anchorEl)}
+      anchorEl={anchorEl}
+      onClose={onClose}
+      anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+      transformOrigin={{ vertical: "top", horizontal: "left" }}
+      slotProps={{
+        paper: {
+          elevation: 12,
+          sx: {
+            mt: 1,
+            borderRadius: 2.5,
+            border: "1px solid",
+            borderColor: alpha(tokens.burgundy, 0.18),
+            overflow: "hidden",
+          },
+        },
+      }}
+    >
       <Box
         sx={{
-          width: { xs: "92vw", sm: 400 },
-          maxWidth: "100vw",
+          width: { xs: "calc(100vw - 24px)", sm: 420 },
+          maxWidth: "100%",
           p: { xs: 2, md: 2.5 },
         }}
       >
@@ -167,7 +185,7 @@ export function HelpDrawer({
           sx={{ justifyContent: "space-between", alignItems: "center", mb: 2 }}
         >
           <Typography sx={{ fontWeight: 900, letterSpacing: 0.3 }}>
-            Section guide
+            How this page works
           </Typography>
           <IconButton onClick={onClose} aria-label="Close guide" size="small">
             <CloseRounded />
@@ -187,6 +205,6 @@ export function HelpDrawer({
           Open the full guide
         </Button>
       </Box>
-    </Drawer>
+    </Popover>
   );
 }

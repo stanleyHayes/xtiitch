@@ -95,6 +95,19 @@ each feature does and [architecture.md](architecture.md) for where it lives.
   the returned `TRF_...` reference. It no longer pre-fills the recipient code as
   though it were proof of a completed payout.
 
+### Admin contextual page help — 2026-09-01
+
+- ✅ Reworked the existing section guide into an anchored help popover beside
+  the live admin page title. The trigger is now available on mobile as well as
+  desktop and keeps keyboard, escape-key, click-away, and focus-return behavior
+  through the shared MUI popover primitive.
+- ✅ Added task-specific summaries and ordered usage steps for every one of the
+  23 admin sections, including reports, exports, health, launch readiness,
+  promotions, sponsored placements, affiliates, and referrals. The full guide
+  and browser read-aloud path reuse the same source content.
+- ✅ Added a coverage test that fails when an admin navigation section has no
+  matching guide or when duplicate guide entries drift into the registry.
+
 ### Final Update follow-up audit — 2026-07-21
 
 - ✅ Checkout VAT/failed-return follow-up: store-sale quotes now disclose the

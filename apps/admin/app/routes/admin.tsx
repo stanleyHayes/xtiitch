@@ -14,7 +14,7 @@ import { adminApi } from "../lib/api";
 import { logOut, requireAdminContext } from "../lib/session";
 import { tokens } from "../theme";
 import { useThemeMode } from "../theme-mode";
-import { HelpDrawer } from "../help-center";
+import { HelpPopover } from "../help-center";
 import {
   Section,
   AdminActionFeedback,
@@ -136,7 +136,7 @@ export default function AdminDashboard({
   );
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [railCollapsed, setRailCollapsed] = useState(false);
-  const [helpOpen, setHelpOpen] = useState(false);
+  const [helpAnchor, setHelpAnchor] = useState<HTMLElement | null>(null);
   const [launchControlsOpen, setLaunchControlsOpen] = useState(false);
   const settingsFeedback =
     actionFeedback?.section === "settings" && actionFeedback.message
@@ -298,7 +298,7 @@ export default function AdminDashboard({
           onToggleCollapsed={() => setRailCollapsed((value) => !value)}
           onToggleDarkChrome={toggleMode}
           onSelect={setSection}
-          onOpenHelp={() => setHelpOpen(true)}
+          onOpenHelp={(event) => setHelpAnchor(event.currentTarget)}
           launchEnabledCount={launchEnabledCount}
           launchTotalCount={launchTotalCount}
           onOpenLaunchControls={() => setLaunchControlsOpen(true)}
@@ -310,9 +310,9 @@ export default function AdminDashboard({
           platformSettings={platformSettings}
           roles={roleCatalog}
         />
-        <HelpDrawer
-          open={helpOpen}
-          onClose={() => setHelpOpen(false)}
+        <HelpPopover
+          anchorEl={helpAnchor}
+          onClose={() => setHelpAnchor(null)}
           section={currentSection.id}
         />
 
