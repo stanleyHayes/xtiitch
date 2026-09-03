@@ -28,16 +28,16 @@ const actionCopy: Record<LifecycleAction, { title: string; helper: string }> = {
 };
 
 // eslint-disable-next-line complexity -- status-specific icon and confirmation states share one compact lifecycle workflow
-export function AffiliateLifecycleActions({ affiliate }: { affiliate: AdminAffiliate }) {
+export function AffiliateLifecycleActions({ affiliate, compact = false }: { affiliate: AdminAffiliate; compact?: boolean }) {
   const [action, setAction] = useState<LifecycleAction | null>(null);
   if (affiliate.status === "archived") return null;
   const targetStatus = action === "block" ? "paused" : "active";
   const archive = action === "archive";
 
   return (
-    <Box sx={{ p: 1.25, border: "1px solid", borderColor: "divider", borderRadius: 1 }}>
-      <Stack direction="row" spacing={1} sx={{ alignItems: "center", justifyContent: "space-between" }}>
-        <Typography variant="body2" sx={{ fontWeight: 900 }}>Affiliate actions</Typography>
+    <Box sx={compact ? undefined : { p: 1.25, border: "1px solid", borderColor: "divider", borderRadius: 1 }}>
+      <Stack direction="row" spacing={1} sx={{ alignItems: "center", justifyContent: compact ? "flex-end" : "space-between" }}>
+        {!compact ? <Typography variant="body2" sx={{ fontWeight: 900 }}>Affiliate actions</Typography> : null}
         <Stack direction="row" spacing={0.5}>
           {affiliate.status === "pending_review" ? <ActionIcon label="Activate" onClick={() => setAction("activate")}><CheckCircleRounded /></ActionIcon> : null}
           {affiliate.status === "active" ? <ActionIcon label="Block" onClick={() => setAction("block")} color="warning"><BlockRounded /></ActionIcon> : null}

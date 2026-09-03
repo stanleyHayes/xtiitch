@@ -8,7 +8,16 @@ import DialogTitle from "@mui/material/DialogTitle";
 import IconButton from "@mui/material/IconButton";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import Tooltip from "@mui/material/Tooltip";
+import Chip from "@mui/material/Chip";
 import Typography from "@mui/material/Typography";
+import { alpha } from "@mui/material/styles";
 import type {
   AdminAffiliate,
   AdminAffiliateAttribution,
@@ -26,8 +35,17 @@ import {
 } from "../options";
 import CloseRounded from "@mui/icons-material/CloseRounded";
 import HandshakeRounded from "@mui/icons-material/HandshakeRounded";
+import VisibilityRounded from "@mui/icons-material/VisibilityRounded";
 import { AdminEmptyState } from "../../../components/ui/AdminEmptyState";
-import { AffiliateDetail } from "./AffiliateDetail";
+import { AffiliateLifecycleActions } from "../AdminAffiliateDetailForm/AffiliateLifecycleActions";
+import { formatGHS } from "../../shared/formatting";
+import {
+  affiliateCommissionLabel,
+  affiliateEntityLabel,
+  affiliatePayoutLabel,
+  affiliateStatusColor,
+  affiliateStatusLabel,
+} from "../utils";
 
 // eslint-disable-next-line max-lines-per-function -- large presentational component; refactor in follow-up
 export function AffiliateTable({
@@ -309,30 +327,72 @@ export function AffiliateTable({
 
       {!affiliatesError && affiliates.length > 0 ? (
         <>
-          <Box
-            sx={{
-              display: "grid",
-              gap: 2,
-              gridTemplateColumns: {
-                xs: "1fr",
-                xl: "repeat(2, minmax(0, 1fr))",
-              },
-            }}
-          >
-            {pagedAffiliates.map((affiliate) => (
-              <AffiliateDetail
-                key={affiliate.affiliateId}
-                affiliate={affiliate}
-                performance={attributionByAffiliate.get(affiliate.affiliateId)}
-                onOpen={() => onSelect(affiliate.affiliateId)}
-              />
-            ))}
-          </Box>
+          <Panel sx={{ overflow: "hidden" }}>
+            <TableContainer sx={{ overflowX: "auto" }}>
+              <Table size="small" aria-label="Affiliates" sx={{ minWidth: 980 }}>
+                <TableHead>
+                  <TableRow sx={{ bgcolor: "rgba(var(--surface-rgb), 0.72)" }}>
+                    <TableCell>Affiliate</TableCell>
+                    <TableCell>Contact</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Commission</TableCell>
+                    <TableCell align="right">Clicks</TableCell>
+                    <TableCell align="right">Conversions</TableCell>
+                    <TableCell align="right">Generated</TableCell>
+                    <TableCell>Payout</TableCell>
+                    <TableCell align="right" sx={{ position: "sticky", right: 0, bgcolor: "background.paper", zIndex: 1 }}>Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {pagedAffiliates.map((affiliate) => {
+                    const performance = attributionByAffiliate.get(affiliate.affiliateId);
+                    const statusColor = affiliateStatusColor(affiliate.status);
+                    return (
+                      <TableRow
+                        key={affiliate.affiliateId}
+                        hover
+                        sx={{ "&:last-child td": { borderBottom: 0 } }}
+                      >
+                        <TableCell>
+                          <Typography variant="body2" sx={{ fontWeight: 900 }}>{affiliate.displayName}</Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {affiliate.code} · {affiliateEntityLabel(affiliate.entityType)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2">{affiliate.email || affiliate.phone || "Not provided"}</Typography>
+                          {affiliate.email && affiliate.phone ? <Typography variant="caption" color="text.secondary">{affiliate.phone}</Typography> : null}
+                        </TableCell>
+                        <TableCell>
+                          <Chip size="small" label={affiliateStatusLabel(affiliate.status)} sx={{ bgcolor: alpha(statusColor, 0.12), color: statusColor, fontWeight: 900 }} />
+                        </TableCell>
+                        <TableCell>{affiliateCommissionLabel(affiliate)}</TableCell>
+                        <TableCell align="right" sx={{ fontVariantNumeric: "tabular-nums" }}>{performance?.clickCount ?? 0}</TableCell>
+                        <TableCell align="right" sx={{ fontVariantNumeric: "tabular-nums" }}>{performance?.conversionCount ?? 0}</TableCell>
+                        <TableCell align="right" sx={{ fontVariantNumeric: "tabular-nums", fontWeight: 800 }}>{formatGHS(performance?.commissionMinor ?? 0)}</TableCell>
+                        <TableCell>{affiliatePayoutLabel(affiliate.payoutMode)}</TableCell>
+                        <TableCell align="right" sx={{ position: "sticky", right: 0, bgcolor: "background.paper", zIndex: 1 }}>
+                          <Stack direction="row" spacing={0.25} sx={{ justifyContent: "flex-end", alignItems: "center" }}>
+                            <AffiliateLifecycleActions affiliate={affiliate} compact />
+                            <Tooltip title="View Affiliate details">
+                              <IconButton size="small" color="primary" aria-label={`View ${affiliate.displayName} details`} onClick={() => onSelect(affiliate.affiliateId)}>
+                                <VisibilityRounded />
+                              </IconButton>
+                            </Tooltip>
+                          </Stack>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Panel>
           <PaginationFooter
             count={pageCount}
             label="Affiliates"
             page={page}
-            pageSize={4}
+            pageSize={10}
             total={affiliates.length}
             onChange={onPageChange}
           />

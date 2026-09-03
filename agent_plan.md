@@ -1863,6 +1863,13 @@ Status: `[x] implemented and locally verified`
 - `[x]` Added real-PostgreSQL regression coverage for listing the seeded Affiliate through the joined Admin query.
 - `[x]` Verification: focused repository, Admin HTTP, and Admin service tests; `go vet ./...`; `go build ./...`; direct production-schema reproduction; and `git diff --check`.
 
+### Affiliate directory table redesign — 2026-09-03
+
+- `[x]` Replaced the repeated full-detail Affiliate card grid with a responsive comparison table showing identity, contact, status, commission terms, clicks, conversions, generated commission, and payout mode.
+- `[x]` Kept status-aware lifecycle icons in each row and added a dedicated visibility-eye action that opens the complete Affiliate record and all existing management workflows in a large scrollable dialog.
+- `[x]` Increased directory pagination from four cards to ten table rows and retained search, status filtering, empty/error states, accessible action labels, and mobile horizontal scrolling with a sticky actions column.
+- `[x]` Verification: Admin type-check, all 12 Admin tests, targeted ESLint, production build, dead-component reference scan, and `git diff --check`.
+
 ### Updated-spec delta (Xtiitch-Updates-Refined v2, 2026-07-10 22:29) — apply these
 
 Diff vs the version above:

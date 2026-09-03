@@ -8,6 +8,7 @@ import type {
 import { useEffect, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
+import Chip from "@mui/material/Chip";
 import Dialog from "@mui/material/Dialog";
 import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
@@ -17,6 +18,7 @@ import Typography from "@mui/material/Typography";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "../../../components/form-text-field";
 import CloseRounded from "@mui/icons-material/CloseRounded";
+import { alpha } from "@mui/material/styles";
 import { AdminActionFeedback } from "../../shared/types";
 import { formatGHS } from "../../shared/formatting";
 import { MetricCard } from "../../../components/ui/MetricCard";
@@ -30,8 +32,9 @@ import { AffiliateProgrammesPanel } from "./AffiliateProgrammesPanel";
 import { GrowthReportPanel } from "./GrowthReportPanel";
 import { AffiliatePerformancePanel } from "./AffiliatePerformancePanel";
 import { AffiliatePayoutQueuePanel } from "./AffiliatePayoutQueuePanel";
+import { affiliateStatusColor, affiliateStatusLabel } from "../utils";
 
-// eslint-disable-next-line max-lines-per-function -- large presentational component; refactor in follow-up
+// eslint-disable-next-line max-lines-per-function, complexity -- large presentational component; refactor in follow-up
 export function AffiliatesSection({
   affiliates,
   affiliatesError,
@@ -134,7 +137,7 @@ export function AffiliatesSection({
     pageCount: affiliatePageCount,
     pagedItems: pagedAffiliates,
     setPage: setAffiliatePage,
-  } = usePagedItems(filteredAffiliates, 4, filteredAffiliates.length);
+  } = usePagedItems(filteredAffiliates, 10, filteredAffiliates.length);
   const selectedAffiliate =
     affiliates.find((affiliate) => affiliate.affiliateId === detailID) ?? null;
 
@@ -313,7 +316,9 @@ export function AffiliatesSection({
         open={Boolean(selectedAffiliate)}
         onClose={() => setDetailID(null)}
         fullWidth
-        maxWidth="md"
+        maxWidth="lg"
+        scroll="paper"
+        slotProps={{ paper: { sx: { maxHeight: "min(90dvh, 960px)" } } }}
       >
         <DialogTitle>
           <Stack
@@ -322,9 +327,21 @@ export function AffiliatesSection({
             sx={{ alignItems: "center", justifyContent: "space-between" }}
           >
             <Box sx={{ minWidth: 0 }}>
-              <Typography variant="h6">
-                {selectedAffiliate?.displayName ?? "Affiliate details"}
-              </Typography>
+              <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap" }}>
+                <Typography variant="h6">
+                  {selectedAffiliate?.displayName ?? "Affiliate details"}
+                </Typography>
+                {selectedAffiliate ? <Chip size="small" label={selectedAffiliate.code} variant="outlined" /> : null}
+                {selectedAffiliate ? <Chip
+                  size="small"
+                  label={affiliateStatusLabel(selectedAffiliate.status)}
+                  sx={{
+                    bgcolor: alpha(affiliateStatusColor(selectedAffiliate.status), 0.12),
+                    color: affiliateStatusColor(selectedAffiliate.status),
+                    fontWeight: 900,
+                  }}
+                /> : null}
+              </Stack>
               <Typography variant="body2" sx={{ color: "text.secondary" }}>
                 Review conversions and payouts, edit terms, or archive.
               </Typography>
