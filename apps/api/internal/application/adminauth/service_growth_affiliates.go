@@ -108,9 +108,17 @@ func (s Service) UpdateAffiliateMilestoneAchievement(ctx context.Context, cmd Up
 		ActorUserID: cmd.ActorUserID, ActorRole: cmd.ActorRole,
 		Action: "Updated affiliate milestone reward", TargetType: "affiliate_milestone_achievement",
 		TargetID: record.AchievementID.String(), TargetLabel: record.Title,
-		Summary:   "Marked affiliate milestone reward " + status + ". Reason: " + normalizeOperatorNote(cmd.Reason),
+		Summary: "Marked affiliate milestone reward " + record.PreviousRewardStatus + " -> " +
+			status + ". Reason: " + normalizeOperatorNote(cmd.Reason),
 		Severity:  admindomain.AuditSeverityInfo,
-		Metadata:  map[string]string{"affiliate_id": record.AffiliateID.String(), "reward_status": record.RewardStatus, "fulfilment_note": record.FulfilmentNote, "reason": normalizeOperatorNote(cmd.Reason)},
+		Metadata: map[string]string{
+			"affiliate_id":             record.AffiliateID.String(),
+			"reward_status":            record.RewardStatus,
+			"previous_reward_status":   record.PreviousRewardStatus,
+			"fulfilment_note":          record.FulfilmentNote,
+			"previous_fulfilment_note": record.PreviousFulfilmentNote,
+			"reason":                   normalizeOperatorNote(cmd.Reason),
+		},
 		IPAddress: cmd.IPAddress, UserAgent: cmd.UserAgent,
 	}); err != nil {
 		return ports.AdminAffiliateMilestoneAchievementRecord{}, err
@@ -267,13 +275,14 @@ func (s Service) UpdateAffiliateConversionStatus(
 		TargetType:  "affiliate_conversion",
 		TargetID:    record.ConversionID.String(),
 		TargetLabel: fallbackString(record.BusinessName, record.OrderID.String()),
-		Summary:     action + ". Reason: " + reason,
+		Summary:     action + " (" + record.PreviousStatus + " -> " + record.Status + "). Reason: " + reason,
 		Severity:    severity,
 		Metadata: map[string]string{
 			"affiliate_id":     record.AffiliateID.String(),
 			"business_id":      record.BusinessID.String(),
 			"order_id":         record.OrderID.String(),
 			"status":           record.Status,
+			"previous_status":  record.PreviousStatus,
 			"hold_reason":      record.HoldReason,
 			"commission_minor": intString64(record.CommissionMinor),
 			"reason":           reason,
@@ -419,7 +428,8 @@ func (s Service) UpdateAffiliate(
 		TargetType:  "affiliate",
 		TargetID:    record.AffiliateID.String(),
 		TargetLabel: record.DisplayName,
-		Summary:     affiliateAuditSummary(record) + " Reason: " + normalizeOperatorNote(cmd.Reason),
+		Summary: affiliateAuditSummary(record) + " Status " + affiliateStatusTransition(record) +
+			". Reason: " + normalizeOperatorNote(cmd.Reason),
 		Severity:    affiliateAuditSeverity(record.Status),
 		Metadata:    affiliateUpdateAuditMetadata(record, cmd.Reason),
 		IPAddress:   cmd.IPAddress,
@@ -459,6 +469,7 @@ func (s Service) ArchiveAffiliate(
 
 	metadata := affiliateAuditMetadata(record)
 	metadata["reason"] = reason
+	metadata["previous_status"] = record.PreviousStatus
 	if err := s.recordAudit(ctx, auditInput{
 		ActorUserID: cmd.ActorUserID,
 		ActorRole:   cmd.ActorRole,
@@ -466,7 +477,7 @@ func (s Service) ArchiveAffiliate(
 		TargetType:  "affiliate",
 		TargetID:    record.AffiliateID.String(),
 		TargetLabel: record.DisplayName,
-		Summary:     reason,
+		Summary:     "Status " + affiliateStatusTransition(record) + ". " + reason,
 		Severity:    admindomain.AuditSeverityWarning,
 		Metadata:    metadata,
 		IPAddress:   cmd.IPAddress,
@@ -719,6 +730,15 @@ func affiliateConversionAuditAction(status string) string {
 	}
 }
 
+// affiliateStatusTransition renders the account-status change an action made,
+// so the audit list answers "what changed" without opening the metadata.
+func affiliateStatusTransition(record ports.AdminAffiliateRecord) string {
+	if record.PreviousStatus == "" || record.PreviousStatus == record.Status {
+		return "unchanged at " + record.Status
+	}
+	return record.PreviousStatus + " -> " + record.Status
+}
+
 func affiliateAuditSummary(record ports.AdminAffiliateRecord) string {
 	return record.DisplayName + " uses code " + record.Code +
 		" with " + affiliateCommissionLabel(record) + "."
@@ -740,6 +760,9 @@ func affiliateAuditMetadata(record ports.AdminAffiliateRecord) map[string]string
 func affiliateUpdateAuditMetadata(record ports.AdminAffiliateRecord, reason string) map[string]string {
 	metadata := affiliateAuditMetadata(record)
 	metadata["reason"] = normalizeOperatorNote(reason)
+	// Item 12: suspension, reactivation and termination must record the state
+	// they moved away from, not only the state they landed on.
+	metadata["previous_status"] = record.PreviousStatus
 	return metadata
 }
 

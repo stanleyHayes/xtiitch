@@ -347,3 +347,21 @@ func affiliateAccountEmailTaken(err error) bool {
 		pgErr.Code == pgUniqueViolation &&
 		pgErr.ConstraintName == "affiliate_accounts_email_unique_idx"
 }
+
+// lockAdminAffiliateStatus snapshots an Affiliate's account status inside the
+// caller's transaction and holds the row until commit. Item 12 requires the
+// audit trail to name the state a sensitive action moved away from, and taking
+// the snapshot under the same lock as the update is what makes "previous" and
+// "new" describe the same transition rather than two racing ones.
+func lockAdminAffiliateStatus(ctx context.Context, tx pgx.Tx, affiliateID string) (string, error) {
+	var status string
+	if err := tx.QueryRow(ctx, `
+		select status from affiliates where affiliate_id = $1::uuid for update
+	`, affiliateID).Scan(&status); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", ErrNotFound
+		}
+		return "", err
+	}
+	return status, nil
+}

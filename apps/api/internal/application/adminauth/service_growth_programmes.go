@@ -229,12 +229,43 @@ func (s Service) auditAffiliateProgramme(
 		ActorUserID: actorID, ActorRole: role,
 		Action: action + " affiliate programme", TargetType: "affiliate_programme",
 		TargetID: record.AffiliateProgrammeID.String(), TargetLabel: record.Name,
-		Summary:  action + " affiliate programme policy.",
+		Summary:  action + " affiliate programme policy. " + affiliateProgrammePolicySummary(record),
 		Severity: "info", IPAddress: ipAddress, UserAgent: userAgent,
 		Metadata: map[string]string{
 			"owner_type":               record.OwnerType,
+			"status":                   record.Status,
 			"purchase_commission_bps":  strconv.Itoa(record.DefaultPurchaseCommissionBPS),
 			"paid_plan_commission_bps": strconv.Itoa(record.DefaultFirstPaidPlanCommissionBPS),
+			"maturity_days":            strconv.Itoa(record.HoldDays),
+			// Item 12: configuration changes are auditable in both directions.
+			// A create has no prior state, so these stay empty there.
+			"previous_status":                   record.PreviousStatus,
+			"previous_purchase_commission_bps":  previousBPSString(record.PreviousStatus, record.PreviousDefaultPurchaseCommissionBPS),
+			"previous_paid_plan_commission_bps": previousBPSString(record.PreviousStatus, record.PreviousDefaultFirstPaidPlanCommissionBPS),
+			"previous_maturity_days":            previousBPSString(record.PreviousStatus, record.PreviousHoldDays),
 		},
 	})
+}
+
+// affiliateProgrammePolicySummary states the commission terms now in force so
+// the audit row reads without opening the metadata.
+func affiliateProgrammePolicySummary(record ports.AdminAffiliateProgrammeRecord) string {
+	summary := "Recurring commission " +
+		strconv.FormatFloat(float64(record.DefaultFirstPaidPlanCommissionBPS)/100, 'f', 2, 64) +
+		"%, maturity " + strconv.Itoa(record.HoldDays) + " days."
+	if record.PreviousStatus == "" {
+		return summary
+	}
+	return summary + " Previously " +
+		strconv.FormatFloat(float64(record.PreviousDefaultFirstPaidPlanCommissionBPS)/100, 'f', 2, 64) +
+		"%, maturity " + strconv.Itoa(record.PreviousHoldDays) + " days."
+}
+
+// previousBPSString renders a prior numeric setting, or an empty string when
+// there was no prior state (a newly created programme).
+func previousBPSString(previousStatus string, value int) string {
+	if previousStatus == "" {
+		return ""
+	}
+	return strconv.Itoa(value)
 }

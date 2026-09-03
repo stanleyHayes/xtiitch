@@ -134,6 +134,25 @@ func (repo AdminAuthRepository) UpdateAdminAffiliateProgramme(
 		return ports.AdminAffiliateProgrammeRecord{}, err
 	}
 
+	// Item 12: a commission-rate or maturity-period change is a configuration
+	// change the audit trail must describe in both directions, so snapshot the
+	// terms in force under the same lock that the update takes.
+	var previousStatus string
+	var previousPurchaseBPS, previousPaidPlanBPS, previousHoldDays int
+	if err := tx.QueryRow(ctx, `
+		select status, default_purchase_commission_bps,
+			default_first_paid_plan_commission_bps, hold_days
+		from affiliate_programmes
+		where affiliate_programme_id = $1::uuid
+		for update
+	`, input.AffiliateProgrammeID.String()).Scan(&previousStatus, &previousPurchaseBPS,
+		&previousPaidPlanBPS, &previousHoldDays); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.AdminAffiliateProgrammeRecord{}, ErrNotFound
+		}
+		return ports.AdminAffiliateProgrammeRecord{}, err
+	}
+
 	record, err := scanAdminAffiliateProgramme(tx.QueryRow(ctx, `
 		with updated as (
 			update affiliate_programmes
@@ -159,6 +178,10 @@ func (repo AdminAuthRepository) UpdateAdminAffiliateProgramme(
 		}
 		return ports.AdminAffiliateProgrammeRecord{}, err
 	}
+	record.PreviousStatus = previousStatus
+	record.PreviousDefaultPurchaseCommissionBPS = previousPurchaseBPS
+	record.PreviousDefaultFirstPaidPlanCommissionBPS = previousPaidPlanBPS
+	record.PreviousHoldDays = previousHoldDays
 	if record.OwnerType == "platform" && record.IsDefault {
 		for _, milestone := range input.Milestones {
 			tag, updateErr := tx.Exec(ctx, `

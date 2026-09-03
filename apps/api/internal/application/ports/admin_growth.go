@@ -216,8 +216,12 @@ type AdminAffiliateRecord struct {
 	Notes                      string
 	TargetScope                string
 	TargetRefID                *common.ID
-	CreatedAt                  time.Time
-	UpdatedAt                  time.Time
+	// PreviousStatus is the account status the Affiliate held immediately
+	// before this mutation. Mutation paths populate it for the audit trail;
+	// list and read paths leave it empty.
+	PreviousStatus string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 type AdminAffiliateProgrammeRecord struct {
 	AffiliateProgrammeID              common.ID
@@ -239,6 +243,12 @@ type AdminAffiliateProgrammeRecord struct {
 	CreatedAt                         time.Time
 	UpdatedAt                         time.Time
 	Milestones                        []AdminPartnerMilestoneRecord
+	// Previous* capture the configuration in force before this mutation so a
+	// commission-rate or maturity-period change is auditable both ways.
+	PreviousStatus                            string
+	PreviousDefaultPurchaseCommissionBPS      int
+	PreviousDefaultFirstPaidPlanCommissionBPS int
+	PreviousHoldDays                          int
 }
 type AdminPartnerMilestoneRecord struct {
 	MilestoneID       common.ID
@@ -397,6 +407,9 @@ type AdminAffiliateMilestoneAchievementRecord struct {
 	FulfilmentNote    string
 	AchievedAt        time.Time
 	FulfilledAt       *time.Time
+	// Previous* capture the fulfilment state before this mutation.
+	PreviousRewardStatus   string
+	PreviousFulfilmentNote string
 }
 type UpdateAdminAffiliateMilestoneAchievementInput struct {
 	AchievementID  common.ID
@@ -440,8 +453,10 @@ type AdminAffiliateConversionRecord struct {
 	PreHoldStatus    string
 	HoldPlacedAt     *time.Time
 	HoldReleasedAt   *time.Time
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	// PreviousStatus is the commission status before this mutation.
+	PreviousStatus string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 type UpdateAdminAffiliateConversionStatusInput struct {
 	ConversionID   common.ID

@@ -1981,3 +1981,13 @@ Status: `[x] implemented and locally verified`
 - `[x]` The Affiliate portal still counts a held commission in its Pending and lifetime totals, so an administrative hold never makes an Affiliate's money silently disappear.
 - `[x]` Admin commission history gains a Held filter, a Held chip, and the hold reason plus the status it will release to.
 - `[x]` Verification: migration 157 fresh chain and down/up round trip, real-PostgreSQL hold/release/payout test, full Go suite, Admin type-check, targeted ESLint, and production build.
+
+### Admin brief item 12 — previous state in sensitive audit records — 2026-09-03
+
+- `[x]` Affiliate suspension, reactivation and termination now record the account status held immediately before the action alongside the new one, snapshotted under the same row lock as the update so both describe one transition.
+- `[x]` Commission status changes, including the new hold and release, record their previous status; hold and release are named as distinct audit actions rather than folded into approve/settle/reverse.
+- `[x]` Reward fulfilment records the previous reward status and fulfilment note.
+- `[x]` Affiliate programme configuration changes record the previous status, purchase and recurring commission rates, and maturity period, so a rate or maturity edit is auditable in both directions.
+- `[x]` Audit summaries state the transition in words, so the Admin audit list answers "what changed" without opening the metadata.
+- `[x]` Attribution correction already carried `previous_affiliate_id` and is unchanged.
+- `[x]` Verification: service tests proving previous/new state on suspension, termination, commission hold and reward fulfilment; a test proving a hold or release without a reason is refused; full Go suite against a real PostgreSQL; `go vet`; `go build`; and `git diff --check`.

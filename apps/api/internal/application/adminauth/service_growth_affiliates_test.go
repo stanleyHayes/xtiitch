@@ -493,12 +493,14 @@ func (repo *fakeAdminBusinesses) UpdateAdminAffiliate(
 	input ports.UpdateAdminAffiliateInput,
 ) (ports.AdminAffiliateRecord, error) {
 	repo.updatedAffiliate = input
-	return fakeAdminAffiliateRecord(
+	record := fakeAdminAffiliateRecord(
 		input.AffiliateID,
 		input.Code,
 		input.DisplayName,
 		input.Status,
-	), nil
+	)
+	record.PreviousStatus = "active"
+	return record, nil
 }
 
 func (repo *fakeAdminBusinesses) ArchiveAdminAffiliate(
@@ -506,12 +508,14 @@ func (repo *fakeAdminBusinesses) ArchiveAdminAffiliate(
 	input ports.ArchiveAdminAffiliateInput,
 ) (ports.AdminAffiliateRecord, error) {
 	repo.archivedAffiliate = input
-	return fakeAdminAffiliateRecord(
+	record := fakeAdminAffiliateRecord(
 		input.AffiliateID,
 		"SEWINGPRO",
 		"Sewing Pro Partners",
 		"archived",
-	), nil
+	)
+	record.PreviousStatus = "paused"
+	return record, nil
 }
 
 func fakeAdminAffiliateRecord(
@@ -590,5 +594,101 @@ func fakeAdminAffiliateAttributionRecord(
 				UpdatedAt:       now,
 			},
 		},
+	}
+}
+
+// Item 12: sensitive Affiliate actions must name the state they moved away
+// from, not only the state they landed on. Without a previous state an audit
+// row cannot answer "what changed" — only "what it is now".
+func TestSensitiveAffiliateActionsAuditPreviousAndNewState(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeAdminBusinesses{}
+	service, audits := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		time.Now(),
+		[]common.ID{"audit-1", "audit-2", "audit-3", "audit-4"},
+	)
+	ctx := context.Background()
+
+	if _, err := service.UpdateAffiliate(ctx, UpdateAffiliateCommand{
+		ActorUserID: "operator-1", ActorRole: admindomain.RoleOperator,
+		AffiliateID: "affiliate-1", EntityType: "agency", Code: "SEWING-PRO",
+		DisplayName: "Sewing Pro Partners", CommissionModel: "flat", CommissionRate: 5000,
+		CookieWindowDays: 30, PayoutMode: "manual",
+		Status: "paused", Reason: "Suspected self-referral.",
+	}); err != nil {
+		t.Fatalf("suspend affiliate: %v", err)
+	}
+	if got := audits.created[0].Metadata["previous_status"]; got != "active" {
+		t.Fatalf("expected suspension to record the previous status, got %q", got)
+	}
+	if got := audits.created[0].Metadata["status"]; got != "paused" {
+		t.Fatalf("expected suspension to record the new status, got %q", got)
+	}
+
+	if _, err := service.ArchiveAffiliate(ctx, ArchiveAffiliateCommand{
+		ActorUserID: "operator-1", ActorRole: admindomain.RoleOperator,
+		AffiliateID: "affiliate-1", Reason: "Terminated for cause.",
+	}); err != nil {
+		t.Fatalf("terminate affiliate: %v", err)
+	}
+	if got := audits.created[1].Metadata["previous_status"]; got != "paused" {
+		t.Fatalf("expected termination to record the previous status, got %q", got)
+	}
+
+	if _, err := service.UpdateAffiliateConversionStatus(ctx, UpdateAffiliateConversionStatusCommand{
+		ActorUserID: "operator-1", ActorRole: admindomain.RoleOperator,
+		ConversionID: "conversion-1", Status: "held", Reason: "Under review.",
+	}); err != nil {
+		t.Fatalf("hold commission: %v", err)
+	}
+	held := audits.created[2]
+	if held.Action != "Placed affiliate commission on hold" {
+		t.Fatalf("expected a distinct hold action, got %q", held.Action)
+	}
+	if held.Metadata["previous_status"] != "pending" {
+		t.Fatalf("expected the hold to record the previous status, got %q", held.Metadata["previous_status"])
+	}
+
+	if _, err := service.UpdateAffiliateMilestoneAchievement(ctx, UpdateAffiliateMilestoneAchievementCommand{
+		ActorUserID: "operator-1", ActorRole: admindomain.RoleOperator,
+		AchievementID: "achievement-1", RewardStatus: "fulfilled",
+		FulfilmentNote: "Airtime sent.", Reason: "Reward delivered.",
+	}); err != nil {
+		t.Fatalf("fulfil milestone reward: %v", err)
+	}
+	fulfilment := audits.created[3]
+	if fulfilment.Metadata["previous_reward_status"] != "unfulfilled" ||
+		fulfilment.Metadata["reward_status"] != "fulfilled" {
+		t.Fatalf("expected the fulfilment transition to be auditable, got %+v", fulfilment.Metadata)
+	}
+}
+
+// A hold or a release without a stated reason must be refused: item 12 makes
+// the reason part of the audit record, so a blank one is not a valid action.
+func TestAffiliateCommissionHoldRequiresReason(t *testing.T) {
+	t.Parallel()
+
+	service, _ := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		&fakeAdminBusinesses{},
+		time.Now(),
+		[]common.ID{"audit-1"},
+	)
+
+	for _, status := range []string{"held", "released"} {
+		if _, err := service.UpdateAffiliateConversionStatus(
+			context.Background(),
+			UpdateAffiliateConversionStatusCommand{
+				ActorUserID: "operator-1", ActorRole: admindomain.RoleOperator,
+				ConversionID: "conversion-1", Status: status, Reason: "   ",
+			},
+		); !errors.Is(err, authdomain.ErrInvalidInput) {
+			t.Fatalf("expected %q without a reason to be rejected, got %v", status, err)
+		}
 	}
 }

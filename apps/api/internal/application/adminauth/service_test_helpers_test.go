@@ -403,6 +403,7 @@ func (repo *fakeAdminBusinesses) UpdateAdminAffiliateConversionStatus(
 		"Sewing Pro Partners",
 	).RecentConversions[0]
 	record.ConversionID = input.ConversionID
+	record.PreviousStatus = "pending"
 	record.Status = input.Status
 	return record, nil
 }
@@ -413,6 +414,7 @@ func (repo *fakeAdminBusinesses) UpdateAdminAffiliateMilestoneAchievement(_ cont
 		AchievementID: input.AchievementID, AffiliateID: "affiliate-1", Threshold: 10,
 		Title: "First ten", RewardDescription: "Campaign feature", RewardStatus: input.RewardStatus,
 		FulfilmentNote: input.FulfilmentNote, AchievedAt: time.Now(),
+		PreviousRewardStatus: "unfulfilled", PreviousFulfilmentNote: "",
 	}, nil
 }
 

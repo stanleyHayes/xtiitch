@@ -264,6 +264,18 @@ func (repo AdminAuthRepository) UpdateAdminAffiliateMilestoneAchievement(ctx con
 	if err := setTenantBypass(ctx, tx); err != nil {
 		return ports.AdminAffiliateMilestoneAchievementRecord{}, err
 	}
+	var previousRewardStatus, previousFulfilmentNote string
+	if err := tx.QueryRow(ctx, `
+		select reward_status, fulfilment_note
+		from partner_milestone_achievements
+		where partner_milestone_achievement_id=$1::uuid
+		for update
+	`, input.AchievementID.String()).Scan(&previousRewardStatus, &previousFulfilmentNote); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.AdminAffiliateMilestoneAchievementRecord{}, ErrNotFound
+		}
+		return ports.AdminAffiliateMilestoneAchievementRecord{}, err
+	}
 	row := tx.QueryRow(ctx, `
 		update partner_milestone_achievements achievement
 		set reward_status=$2, fulfilment_note=$3,
@@ -281,6 +293,8 @@ func (repo AdminAuthRepository) UpdateAdminAffiliateMilestoneAchievement(ctx con
 		&record.RewardDescription, &record.RewardStatus, &record.FulfilmentNote, &record.AchievedAt, &record.FulfilledAt); err != nil {
 		return ports.AdminAffiliateMilestoneAchievementRecord{}, err
 	}
+	record.PreviousRewardStatus = previousRewardStatus
+	record.PreviousFulfilmentNote = previousFulfilmentNote
 	if err := tx.Commit(ctx); err != nil {
 		return ports.AdminAffiliateMilestoneAchievementRecord{}, err
 	}
@@ -339,6 +353,7 @@ func (repo AdminAuthRepository) UpdateAdminAffiliateConversionStatus(
 		if err != nil {
 			return ports.AdminAffiliateConversionRecord{}, err
 		}
+		record.PreviousStatus = current.Status
 		if err := tx.Commit(ctx); err != nil {
 			return ports.AdminAffiliateConversionRecord{}, err
 		}
@@ -411,6 +426,7 @@ func (repo AdminAuthRepository) UpdateAdminAffiliateConversionStatus(
 	if err != nil {
 		return ports.AdminAffiliateConversionRecord{}, err
 	}
+	record.PreviousStatus = current.Status
 
 	if err := tx.Commit(ctx); err != nil {
 		return ports.AdminAffiliateConversionRecord{}, err
@@ -663,6 +679,11 @@ func (repo AdminAuthRepository) UpdateAdminAffiliate(
 		return ports.AdminAffiliateRecord{}, err
 	}
 
+	previousStatus, err := lockAdminAffiliateStatus(ctx, tx, input.AffiliateID.String())
+	if err != nil {
+		return ports.AdminAffiliateRecord{}, err
+	}
+
 	record, err := scanAdminAffiliateRecord(tx.QueryRow(ctx, `
 		with updated as (
 			update affiliates
@@ -719,6 +740,7 @@ func (repo AdminAuthRepository) UpdateAdminAffiliate(
 		}
 		return ports.AdminAffiliateRecord{}, err
 	}
+	record.PreviousStatus = previousStatus
 
 	if err := tx.Commit(ctx); err != nil {
 		return ports.AdminAffiliateRecord{}, err
@@ -741,6 +763,11 @@ func (repo AdminAuthRepository) ArchiveAdminAffiliate(
 		return ports.AdminAffiliateRecord{}, err
 	}
 
+	previousStatus, err := lockAdminAffiliateStatus(ctx, tx, input.AffiliateID.String())
+	if err != nil {
+		return ports.AdminAffiliateRecord{}, err
+	}
+
 	record, err := scanAdminAffiliateRecord(tx.QueryRow(ctx, `
 		with updated as (
 			update affiliates
@@ -758,6 +785,7 @@ func (repo AdminAuthRepository) ArchiveAdminAffiliate(
 		}
 		return ports.AdminAffiliateRecord{}, err
 	}
+	record.PreviousStatus = previousStatus
 
 	if err := tx.Commit(ctx); err != nil {
 		return ports.AdminAffiliateRecord{}, err
