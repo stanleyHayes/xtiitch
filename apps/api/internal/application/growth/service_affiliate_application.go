@@ -112,7 +112,7 @@ func (s Service) sendAffiliateWelcomeEmail(
 		Subject: "Activate your Xtiitch Partner account",
 		Body: "Hi " + record.DisplayName + ",\n\nYour Partner code " +
 			record.RequestedCode + " is ready. Set your password and open your dashboard within 48 hours:\n" +
-			"https://partners.xtiitch.com/activate?token=" + url.QueryEscape(activationToken),
+			"https://affiliate.xtiitch.com/activate?token=" + url.QueryEscape(activationToken),
 		ReplyTo: notification.ReplyToOperational,
 	})
 }

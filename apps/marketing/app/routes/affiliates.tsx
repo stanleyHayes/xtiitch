@@ -18,10 +18,10 @@ import { requireMarketingFlag } from "../lib/launch-gate";
 
 export function meta(): MetaDescriptor[] {
   return pageMeta({
-		title: "Become a Xtiitch Partner",
+    title: "Become a Xtiitch Partner",
     description:
-			"Create your Partner link and earn 20% recurring commission from eligible Xtiitch subscription payments.",
-		path: "/partners",
+      "Create your Partner link and earn 20% recurring commission from eligible Xtiitch subscription payments.",
+    path: "/partners",
   });
 }
 
@@ -32,7 +32,7 @@ export async function loader() {
       ? process.env.XTIITCH_AFFILIATE_URL
       : undefined) ??
     (process.env.NODE_ENV === "production"
-			? "https://partners.xtiitch.com"
+      ? "https://affiliate.xtiitch.com"
       : "http://localhost:3404");
   const portalUrl = base.replace(/\/+$/, "");
   return {

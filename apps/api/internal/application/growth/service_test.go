@@ -3,6 +3,7 @@ package growthapp
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -119,6 +120,10 @@ func TestSubmitAffiliateApplicationNormalizesInput(t *testing.T) {
 		emails.sent[0].To != "ama@example.com" ||
 		emails.sent[0].Subject != "Activate your Xtiitch Partner account" {
 		t.Fatalf("unexpected application email: %+v", emails.sent)
+	}
+	if !strings.Contains(emails.sent[0].Body, "https://affiliate.xtiitch.com/activate?token=") ||
+		strings.Contains(emails.sent[0].Body, "partners.xtiitch.com") {
+		t.Fatalf("unexpected activation URL in application email: %q", emails.sent[0].Body)
 	}
 }
 
