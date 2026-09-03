@@ -11,39 +11,57 @@ import (
 )
 
 type affiliateProgrammeRequest struct {
-	OwnerType                         string `json:"owner_type"`
-	BusinessID                        string `json:"business_id"`
-	Name                              string `json:"name"`
-	Description                       string `json:"description"`
-	Status                            string `json:"status"`
-	DefaultPurchaseCommissionBPS      int    `json:"default_purchase_commission_bps"`
-	DefaultFirstPaidPlanCommissionBPS int    `json:"default_first_paid_plan_commission_bps"`
-	CookieWindowDays                  int    `json:"cookie_window_days"`
-	HoldDays                          int    `json:"hold_days"`
-	PayoutMode                        string `json:"payout_mode"`
-	MinimumPayoutMinor                int64  `json:"minimum_payout_minor"`
-	AllowedTargetScope                string `json:"allowed_target_scope"`
+	OwnerType                         string                    `json:"owner_type"`
+	BusinessID                        string                    `json:"business_id"`
+	Name                              string                    `json:"name"`
+	Description                       string                    `json:"description"`
+	Status                            string                    `json:"status"`
+	DefaultPurchaseCommissionBPS      int                       `json:"default_purchase_commission_bps"`
+	DefaultFirstPaidPlanCommissionBPS int                       `json:"default_first_paid_plan_commission_bps"`
+	CookieWindowDays                  int                       `json:"cookie_window_days"`
+	HoldDays                          int                       `json:"hold_days"`
+	PayoutMode                        string                    `json:"payout_mode"`
+	MinimumPayoutMinor                int64                     `json:"minimum_payout_minor"`
+	AllowedTargetScope                string                    `json:"allowed_target_scope"`
+	Milestones                        []partnerMilestoneRequest `json:"milestones"`
+}
+
+type partnerMilestoneRequest struct {
+	MilestoneID       string `json:"milestone_id"`
+	Threshold         int    `json:"threshold"`
+	Title             string `json:"title"`
+	RewardDescription string `json:"reward_description"`
+	Status            string `json:"status"`
 }
 
 type affiliateProgrammeResponse struct {
-	AffiliateProgrammeID              string `json:"affiliate_programme_id"`
-	OwnerType                         string `json:"owner_type"`
-	BusinessID                        string `json:"business_id,omitempty"`
-	BusinessName                      string `json:"business_name,omitempty"`
-	IsDefault                         bool   `json:"is_default"`
-	Name                              string `json:"name"`
-	Description                       string `json:"description"`
-	Status                            string `json:"status"`
-	DefaultPurchaseCommissionBPS      int    `json:"default_purchase_commission_bps"`
-	DefaultFirstPaidPlanCommissionBPS int    `json:"default_first_paid_plan_commission_bps"`
-	CookieWindowDays                  int    `json:"cookie_window_days"`
-	HoldDays                          int    `json:"hold_days"`
-	PayoutMode                        string `json:"payout_mode"`
-	MinimumPayoutMinor                int64  `json:"minimum_payout_minor"`
-	AllowedTargetScope                string `json:"allowed_target_scope"`
-	AffiliateCount                    int64  `json:"affiliate_count"`
-	CreatedAt                         string `json:"created_at"`
-	UpdatedAt                         string `json:"updated_at"`
+	AffiliateProgrammeID              string                     `json:"affiliate_programme_id"`
+	OwnerType                         string                     `json:"owner_type"`
+	BusinessID                        string                     `json:"business_id,omitempty"`
+	BusinessName                      string                     `json:"business_name,omitempty"`
+	IsDefault                         bool                       `json:"is_default"`
+	Name                              string                     `json:"name"`
+	Description                       string                     `json:"description"`
+	Status                            string                     `json:"status"`
+	DefaultPurchaseCommissionBPS      int                        `json:"default_purchase_commission_bps"`
+	DefaultFirstPaidPlanCommissionBPS int                        `json:"default_first_paid_plan_commission_bps"`
+	CookieWindowDays                  int                        `json:"cookie_window_days"`
+	HoldDays                          int                        `json:"hold_days"`
+	PayoutMode                        string                     `json:"payout_mode"`
+	MinimumPayoutMinor                int64                      `json:"minimum_payout_minor"`
+	AllowedTargetScope                string                     `json:"allowed_target_scope"`
+	AffiliateCount                    int64                      `json:"affiliate_count"`
+	CreatedAt                         string                     `json:"created_at"`
+	UpdatedAt                         string                     `json:"updated_at"`
+	Milestones                        []partnerMilestoneResponse `json:"milestones"`
+}
+
+type partnerMilestoneResponse struct {
+	MilestoneID       string `json:"milestone_id"`
+	Threshold         int    `json:"threshold"`
+	Title             string `json:"title"`
+	RewardDescription string `json:"reward_description"`
+	Status            string `json:"status"`
 }
 
 func (handler Handler) affiliateProgrammes(w http.ResponseWriter, r *http.Request) {
@@ -92,6 +110,17 @@ func (handler Handler) createAffiliateProgramme(w http.ResponseWriter, r *http.R
 	writeJSON(w, http.StatusCreated, newAffiliateProgrammeResponse(record))
 }
 
+func newPartnerMilestoneInputs(records []partnerMilestoneRequest) []ports.AdminPartnerMilestoneRecord {
+	out := make([]ports.AdminPartnerMilestoneRecord, 0, len(records))
+	for _, record := range records {
+		out = append(out, ports.AdminPartnerMilestoneRecord{
+			MilestoneID: common.ID(record.MilestoneID), Threshold: record.Threshold,
+			Title: record.Title, RewardDescription: record.RewardDescription, Status: record.Status,
+		})
+	}
+	return out
+}
+
 func (handler Handler) updateAffiliateProgramme(w http.ResponseWriter, r *http.Request) {
 	principal, request, ok := handler.decodeAffiliateProgrammeRequest(w, r)
 	if !ok {
@@ -106,6 +135,7 @@ func (handler Handler) updateAffiliateProgramme(w http.ResponseWriter, r *http.R
 		CookieWindowDays:                  request.CookieWindowDays, HoldDays: request.HoldDays,
 		PayoutMode: request.PayoutMode, MinimumPayoutMinor: request.MinimumPayoutMinor,
 		AllowedTargetScope: request.AllowedTargetScope,
+		Milestones:         newPartnerMilestoneInputs(request.Milestones),
 		UserAgent:          r.UserAgent(), IPAddress: requestIP(r),
 	})
 	if err != nil {
@@ -147,6 +177,13 @@ func newAffiliateProgrammeResponse(record ports.AdminAffiliateProgrammeRecord) a
 	}
 	if record.BusinessID != nil {
 		response.BusinessID = record.BusinessID.String()
+	}
+	response.Milestones = make([]partnerMilestoneResponse, 0, len(record.Milestones))
+	for _, milestone := range record.Milestones {
+		response.Milestones = append(response.Milestones, partnerMilestoneResponse{
+			MilestoneID: milestone.MilestoneID.String(), Threshold: milestone.Threshold,
+			Title: milestone.Title, RewardDescription: milestone.RewardDescription, Status: milestone.Status,
+		})
 	}
 	return response
 }

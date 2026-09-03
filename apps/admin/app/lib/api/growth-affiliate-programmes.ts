@@ -16,10 +16,24 @@ export type AdminAffiliateProgramme = {
   holdDays: number;
   payoutMode: AdminAffiliatePayoutMode;
   minimumPayoutMinor: number;
-  allowedTargetScope: "platform" | "store" | "collection" | "design" | "product";
+  allowedTargetScope:
+    | "platform"
+    | "store"
+    | "collection"
+    | "design"
+    | "product";
   affiliateCount: number;
   createdAt: string;
   updatedAt: string;
+  milestones: AdminPartnerMilestone[];
+};
+
+export type AdminPartnerMilestone = {
+  milestoneId: string;
+  threshold: number;
+  title: string;
+  rewardDescription: string;
+  status: "active" | "paused" | "archived";
 };
 
 export type AdminAffiliateProgrammeInput = Pick<
@@ -37,6 +51,7 @@ export type AdminAffiliateProgrammeInput = Pick<
 > & {
   ownerType?: AdminAffiliateProgramme["ownerType"];
   businessId?: string;
+  milestones?: AdminPartnerMilestone[];
 };
 
 type ProgrammePayload = {
@@ -58,6 +73,13 @@ type ProgrammePayload = {
   affiliate_count: number;
   created_at: string;
   updated_at: string;
+  milestones: {
+    milestone_id: string;
+    threshold: number;
+    title: string;
+    reward_description: string;
+    status: AdminPartnerMilestone["status"];
+  }[];
 };
 
 function mapProgramme(payload: ProgrammePayload): AdminAffiliateProgramme {
@@ -81,6 +103,13 @@ function mapProgramme(payload: ProgrammePayload): AdminAffiliateProgramme {
     affiliateCount: payload.affiliate_count,
     createdAt: payload.created_at,
     updatedAt: payload.updated_at,
+    milestones: (payload.milestones ?? []).map((milestone) => ({
+      milestoneId: milestone.milestone_id,
+      threshold: milestone.threshold,
+      title: milestone.title,
+      rewardDescription: milestone.reward_description,
+      status: milestone.status,
+    })),
   };
 }
 
@@ -99,6 +128,13 @@ function programmeBody(input: AdminAffiliateProgrammeInput) {
     payout_mode: input.payoutMode,
     minimum_payout_minor: input.minimumPayoutMinor,
     allowed_target_scope: input.allowedTargetScope,
+    milestones: (input.milestones ?? []).map((milestone) => ({
+      milestone_id: milestone.milestoneId,
+      threshold: milestone.threshold,
+      title: milestone.title,
+      reward_description: milestone.rewardDescription,
+      status: milestone.status,
+    })),
   });
 }
 

@@ -41,6 +41,16 @@ func (repo AdminAuthRepository) ListAdminAffiliateProgrammes(
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	rows.Close()
+	milestones, err := listAdminPartnerMilestones(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	for index := range records {
+		if records[index].OwnerType == "platform" && records[index].IsDefault {
+			records[index].Milestones = milestones
+		}
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
@@ -91,6 +101,26 @@ func (repo AdminAuthRepository) CreateAdminAffiliateProgramme(
 	return record, nil
 }
 
+func listAdminPartnerMilestones(ctx context.Context, tx pgx.Tx) ([]ports.AdminPartnerMilestoneRecord, error) {
+	rows, err := tx.Query(ctx, `
+		select partner_milestone_id::text, threshold, title, reward_description, status
+		from partner_milestones order by threshold
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	records := []ports.AdminPartnerMilestoneRecord{}
+	for rows.Next() {
+		var record ports.AdminPartnerMilestoneRecord
+		if err := rows.Scan(&record.MilestoneID, &record.Threshold, &record.Title, &record.RewardDescription, &record.Status); err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	return records, rows.Err()
+}
+
 func (repo AdminAuthRepository) UpdateAdminAffiliateProgramme(
 	ctx context.Context,
 	input ports.UpdateAdminAffiliateProgrammeInput,
@@ -128,6 +158,27 @@ func (repo AdminAuthRepository) UpdateAdminAffiliateProgramme(
 			return ports.AdminAffiliateProgrammeRecord{}, ErrNotFound
 		}
 		return ports.AdminAffiliateProgrammeRecord{}, err
+	}
+	if record.OwnerType == "platform" && record.IsDefault {
+		for _, milestone := range input.Milestones {
+			tag, updateErr := tx.Exec(ctx, `
+				update partner_milestones
+				set threshold=$2, title=$3, reward_description=$4,
+					status=$5, updated_at=now()
+				where partner_milestone_id=$1::uuid
+			`, milestone.MilestoneID.String(), milestone.Threshold, milestone.Title,
+				milestone.RewardDescription, milestone.Status)
+			if updateErr != nil {
+				return ports.AdminAffiliateProgrammeRecord{}, updateErr
+			}
+			if tag.RowsAffected() != 1 {
+				return ports.AdminAffiliateProgrammeRecord{}, ErrNotFound
+			}
+		}
+		record.Milestones, err = listAdminPartnerMilestones(ctx, tx)
+		if err != nil {
+			return ports.AdminAffiliateProgrammeRecord{}, err
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return ports.AdminAffiliateProgrammeRecord{}, err

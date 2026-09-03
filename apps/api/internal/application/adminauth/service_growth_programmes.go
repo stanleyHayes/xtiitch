@@ -50,6 +50,7 @@ type UpdateAffiliateProgrammeCommand struct {
 	AllowedTargetScope                string
 	UserAgent                         string
 	IPAddress                         string
+	Milestones                        []ports.AdminPartnerMilestoneRecord
 }
 
 func (s Service) ListAffiliateProgrammes(
@@ -156,6 +157,19 @@ func normalizeUpdateAffiliateProgramme(
 	) {
 		return ports.UpdateAdminAffiliateProgrammeInput{}, authdomain.ErrInvalidInput
 	}
+	seenThresholds := map[int]bool{}
+	for index := range cmd.Milestones {
+		milestone := &cmd.Milestones[index]
+		milestone.Title = normalizeProgrammeName(milestone.Title)
+		milestone.RewardDescription = normalizeOperatorNote(milestone.RewardDescription)
+		milestone.Status = strings.TrimSpace(milestone.Status)
+		if milestone.MilestoneID.IsZero() || milestone.Threshold <= 0 || milestone.Title == "" ||
+			milestone.RewardDescription == "" || seenThresholds[milestone.Threshold] ||
+			!map[string]bool{"active": true, "paused": true, "archived": true}[milestone.Status] {
+			return ports.UpdateAdminAffiliateProgrammeInput{}, authdomain.ErrInvalidInput
+		}
+		seenThresholds[milestone.Threshold] = true
+	}
 	return ports.UpdateAdminAffiliateProgrammeInput{
 		AffiliateProgrammeID: cmd.AffiliateProgrammeID,
 		Name:                 normalizeProgrammeName(cmd.Name), Description: normalizeOperatorNote(cmd.Description),
@@ -165,6 +179,7 @@ func normalizeUpdateAffiliateProgramme(
 		CookieWindowDays:                  cmd.CookieWindowDays, HoldDays: cmd.HoldDays,
 		PayoutMode: strings.TrimSpace(cmd.PayoutMode), MinimumPayoutMinor: cmd.MinimumPayoutMinor,
 		AllowedTargetScope: strings.TrimSpace(cmd.AllowedTargetScope), ActorAdminUser: cmd.ActorUserID,
+		Milestones: cmd.Milestones,
 	}, nil
 }
 

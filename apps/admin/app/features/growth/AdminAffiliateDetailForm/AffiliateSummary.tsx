@@ -2,18 +2,22 @@ import Box from "@mui/material/Box";
 import { formatGHS } from "../../shared/formatting";
 import { shortTime } from "../../shared/dates";
 import { DetailLine } from "../../shared/DetailLine";
-import {
-  affiliateCommissionLabel,
-  affiliatePayoutLabel,
-} from "../utils";
-import type { AdminAffiliate, AdminAffiliateAttribution } from "../../../lib/api";
+import { affiliateCommissionLabel, affiliatePayoutLabel } from "../utils";
+import type {
+  AdminAffiliate,
+  AdminAffiliateAttribution,
+  AdminPartnerMilestone,
+} from "../../../lib/api";
 
-export function AffiliateSummary({ // eslint-disable-line complexity -- large presentational component; refactor in follow-up
+// eslint-disable-next-line complexity -- large presentational component; refactor in follow-up
+export function AffiliateSummary({
   affiliate,
   performance,
+  milestones,
 }: {
   affiliate: AdminAffiliate;
   performance?: AdminAffiliateAttribution;
+  milestones: AdminPartnerMilestone[];
 }) {
   const approvedConversionCount = performance?.approvedConversionCount ?? 0;
   const recentApprovedCommissionMinor =
@@ -22,6 +26,13 @@ export function AffiliateSummary({ // eslint-disable-line complexity -- large pr
       .reduce((total, conversion) => total + conversion.commissionMinor, 0) ??
     0;
   const lastPayout = performance?.recentPayouts[0];
+  const paidReferrals = performance?.conversionCount ?? 0;
+  const reachedMilestone = [...milestones]
+    .filter(
+      (milestone) =>
+        milestone.status === "active" && milestone.threshold <= paidReferrals,
+    )
+    .sort((left, right) => right.threshold - left.threshold)[0];
 
   return (
     <Box
@@ -43,9 +54,21 @@ export function AffiliateSummary({ // eslint-disable-line complexity -- large pr
         label="Payout mode"
         value={affiliatePayoutLabel(affiliate.payoutMode)}
       />
+      <DetailLine label="Email" value={affiliate.email || "Not recorded"} />
+      <DetailLine label="WhatsApp" value={affiliate.phone || "Not recorded"} />
+      <DetailLine label="Region" value="Not recorded" />
+      <DetailLine label="Joined" value={shortTime(affiliate.createdAt)} />
       <DetailLine
-        label="Contact"
-        value={affiliate.email || affiliate.phone || "No contact"}
+        label="Status"
+        value={affiliate.status.replaceAll("_", " ")}
+      />
+      <DetailLine
+        label="Milestone status"
+        value={
+          reachedMilestone
+            ? `${reachedMilestone.title} · ${reachedMilestone.rewardDescription}`
+            : `${paidReferrals} paid referrals · no milestone reached`
+        }
       />
       <DetailLine
         label="Tracked clicks"

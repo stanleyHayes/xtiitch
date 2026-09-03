@@ -13,7 +13,8 @@ import {
 } from "../options";
 import type { AdminAffiliate } from "../../../lib/api";
 
-export function AffiliateEditForm({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+// eslint-disable-next-line max-lines-per-function -- large presentational component; refactor in follow-up
+export function AffiliateEditForm({
   affiliate,
 }: {
   affiliate: AdminAffiliate;
@@ -23,11 +24,7 @@ export function AffiliateEditForm({ // eslint-disable-line max-lines-per-functio
   return (
     <Form method="post">
       <input type="hidden" name="intent" value="admin-affiliate:update" />
-      <input
-        type="hidden"
-        name="affiliate_id"
-        value={affiliate.affiliateId}
-      />
+      <input type="hidden" name="affiliate_id" value={affiliate.affiliateId} />
       <Stack spacing={1.25}>
         <Box
           sx={{
@@ -206,6 +203,16 @@ export function AffiliateEditForm({ // eslint-disable-line max-lines-per-functio
             defaultValue={affiliate.notes}
             disabled={archived}
           />
+          <TextField
+            label="Change reason"
+            name="reason"
+            multiline
+            minRows={2}
+            size="small"
+            required
+            disabled={archived}
+            helperText="Required for the audit record, including pause or reactivation."
+          />
         </Box>
         <Button
           type="submit"
@@ -213,7 +220,7 @@ export function AffiliateEditForm({ // eslint-disable-line max-lines-per-functio
           disabled={archived}
           sx={{ alignSelf: "flex-start" }}
         >
-          Save partner
+          Save Affiliate
         </Button>
       </Stack>
     </Form>

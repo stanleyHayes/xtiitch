@@ -225,6 +225,7 @@ func (handler Handler) updateAffiliate(w http.ResponseWriter, r *http.Request) {
 		PayoutReference:            request.PayoutReference,
 		Status:                     request.Status,
 		Notes:                      request.Notes,
+		Reason:                     request.Reason,
 		UserAgent:                  r.UserAgent(),
 		IPAddress:                  requestIP(r),
 	})

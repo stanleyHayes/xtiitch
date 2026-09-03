@@ -122,6 +122,7 @@ type UpdateAffiliateCommand struct {
 	PayoutReference            string
 	Status                     string
 	Notes                      string
+	Reason                     string
 	UserAgent                  string
 	IPAddress                  string
 }
@@ -333,7 +334,7 @@ func (s Service) UpdateAffiliate(
 	ctx context.Context,
 	cmd UpdateAffiliateCommand,
 ) (ports.AdminAffiliateRecord, error) {
-	if cmd.ActorUserID.IsZero() || cmd.AffiliateID.IsZero() {
+	if cmd.ActorUserID.IsZero() || cmd.AffiliateID.IsZero() || strings.TrimSpace(cmd.Reason) == "" {
 		return ports.AdminAffiliateRecord{}, authdomain.ErrInvalidInput
 	}
 	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManageGrowth); err != nil {
@@ -360,9 +361,9 @@ func (s Service) UpdateAffiliate(
 		TargetType:  "affiliate",
 		TargetID:    record.AffiliateID.String(),
 		TargetLabel: record.DisplayName,
-		Summary:     affiliateAuditSummary(record),
+		Summary:     affiliateAuditSummary(record) + " Reason: " + normalizeOperatorNote(cmd.Reason),
 		Severity:    affiliateAuditSeverity(record.Status),
-		Metadata:    affiliateAuditMetadata(record),
+		Metadata:    affiliateUpdateAuditMetadata(record, cmd.Reason),
 		IPAddress:   cmd.IPAddress,
 		UserAgent:   cmd.UserAgent,
 	}); err != nil {
@@ -656,6 +657,12 @@ func affiliateAuditMetadata(record ports.AdminAffiliateRecord) map[string]string
 		"payout_mode":        record.PayoutMode,
 		"status":             record.Status,
 	}
+}
+
+func affiliateUpdateAuditMetadata(record ports.AdminAffiliateRecord, reason string) map[string]string {
+	metadata := affiliateAuditMetadata(record)
+	metadata["reason"] = normalizeOperatorNote(reason)
+	return metadata
 }
 
 func affiliateAuditSeverity(status string) admindomain.AuditSeverity {

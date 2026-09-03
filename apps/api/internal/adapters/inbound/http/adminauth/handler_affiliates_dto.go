@@ -45,6 +45,7 @@ type affiliateUpsertRequest struct {
 	PayoutReference            string `json:"payout_reference"`
 	Status                     string `json:"status"`
 	Notes                      string `json:"notes"`
+	Reason                     string `json:"reason"`
 }
 
 type affiliateArchiveRequest struct {

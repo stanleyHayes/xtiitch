@@ -14,6 +14,8 @@ import DialogTitle from "@mui/material/DialogTitle";
 import IconButton from "@mui/material/IconButton";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import MenuItem from "@mui/material/MenuItem";
+import TextField from "../../../components/form-text-field";
 import CloseRounded from "@mui/icons-material/CloseRounded";
 import { AdminActionFeedback } from "../../shared/types";
 import { formatGHS } from "../../shared/formatting";
@@ -27,7 +29,8 @@ import { AffiliateApplicationsPanel } from "./AffiliateApplicationsPanel";
 import { AffiliateProgrammesPanel } from "./AffiliateProgrammesPanel";
 import { GrowthReportPanel } from "./GrowthReportPanel";
 
-export function AffiliatesSection({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+// eslint-disable-next-line max-lines-per-function -- large presentational component; refactor in follow-up
+export function AffiliatesSection({
   affiliates,
   affiliatesError,
   programmes,
@@ -53,6 +56,8 @@ export function AffiliatesSection({ // eslint-disable-line max-lines-per-functio
   actionData?: AdminActionFeedback;
 }) {
   const [detailID, setDetailID] = useState<string | null>(null);
+  const [affiliateSearch, setAffiliateSearch] = useState("");
+  const [affiliateStatus, setAffiliateStatus] = useState("all");
 
   // §1.2/§11.4: the affiliate dialog closes on any successful affiliates
   // action (create, conversion, payout, edit, archive); errors stay open.
@@ -111,12 +116,28 @@ export function AffiliatesSection({ // eslint-disable-line max-lines-per-functio
       ),
     0,
   );
+  const filteredAffiliates = affiliates.filter((affiliate) => {
+    const query = affiliateSearch.trim().toLowerCase();
+    const matchesQuery =
+      !query ||
+      [
+        affiliate.displayName,
+        affiliate.contactName,
+        affiliate.email,
+        affiliate.phone,
+        affiliate.code,
+      ].some((value) => value.toLowerCase().includes(query));
+    return (
+      matchesQuery &&
+      (affiliateStatus === "all" || affiliate.status === affiliateStatus)
+    );
+  });
   const {
     page: affiliatePage,
     pageCount: affiliatePageCount,
     pagedItems: pagedAffiliates,
     setPage: setAffiliatePage,
-  } = usePagedItems(affiliates, 4, affiliates.length);
+  } = usePagedItems(filteredAffiliates, 4, filteredAffiliates.length);
   const selectedAffiliate =
     affiliates.find((affiliate) => affiliate.affiliateId === detailID) ?? null;
 
@@ -144,7 +165,10 @@ export function AffiliatesSection({ // eslint-disable-line max-lines-per-functio
         applications={applications}
         error={applicationsError}
       />
-      <AffiliateProgrammesPanel programmes={programmes} error={programmesError} />
+      <AffiliateProgrammesPanel
+        programmes={programmes}
+        error={programmesError}
+      />
       <GrowthReportPanel report={growthReport} error={growthReportError} />
 
       <Box
@@ -155,7 +179,7 @@ export function AffiliatesSection({ // eslint-disable-line max-lines-per-functio
         }}
       >
         <MetricCard
-          label="Active partners"
+          label="Active Affiliates"
           value={String(activeAffiliates.length)}
           helper="Eligible for attribution"
           trend={`${affiliates.length} total`}
@@ -169,7 +193,7 @@ export function AffiliatesSection({ // eslint-disable-line max-lines-per-functio
         <MetricCard
           label="Archived"
           value={String(archivedAffiliates.length)}
-          helper="Disabled partner links"
+          helper="Disabled Affiliate links"
           trend="Audit retained"
         />
         <MetricCard
@@ -208,8 +232,35 @@ export function AffiliatesSection({ // eslint-disable-line max-lines-per-functio
         />
       </Box>
 
+      <Box
+        sx={{
+          display: "grid",
+          gap: 1.5,
+          gridTemplateColumns: { xs: "1fr", md: "2fr 1fr" },
+        }}
+      >
+        <TextField
+          label="Search Affiliates"
+          value={affiliateSearch}
+          onChange={(event) => setAffiliateSearch(event.target.value)}
+          placeholder="Name, code, email, or WhatsApp"
+        />
+        <TextField
+          select
+          label="Status"
+          value={affiliateStatus}
+          onChange={(event) => setAffiliateStatus(event.target.value)}
+        >
+          <MenuItem value="all">All statuses</MenuItem>
+          <MenuItem value="pending_review">Pending review</MenuItem>
+          <MenuItem value="active">Active</MenuItem>
+          <MenuItem value="paused">Paused</MenuItem>
+          <MenuItem value="archived">Archived</MenuItem>
+        </TextField>
+      </Box>
+
       <AffiliateTable
-        affiliates={affiliates}
+        affiliates={filteredAffiliates}
         pagedAffiliates={pagedAffiliates}
         affiliateAttribution={affiliateAttribution}
         page={affiliatePage}
@@ -249,6 +300,13 @@ export function AffiliatesSection({ // eslint-disable-line max-lines-per-functio
             <AdminAffiliateDetailForm
               affiliate={selectedAffiliate}
               affiliates={affiliates}
+              milestones={
+                programmes.find(
+                  (programme) =>
+                    programme.affiliateProgrammeId ===
+                    selectedAffiliate.affiliateProgrammeId,
+                )?.milestones ?? []
+              }
               performance={affiliateAttribution.find(
                 (item) => item.affiliateId === selectedAffiliate.affiliateId,
               )}

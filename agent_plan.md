@@ -1762,6 +1762,17 @@ Status: `[x] implemented and locally verified`
 - `[x]` Motion is brief and disabled under `prefers-reduced-motion`; local-storage restrictions cannot block the portal or recognition content.
 - `[x]` Verification: real-PostgreSQL milestone/reward projection coverage, full Go suite, Affiliate type-check, affected-file ESLint, production build, and `git diff --check`.
 
+### Item 11 Company Admin controls verification and gap closure — 2026-09-03
+
+- `[x]` Company Admin can configure the default recurring commission rate, maturity/hold period, payout mode, minimum payout, and the persisted milestone thresholds, recognition titles, rewards, and lifecycle status from one Affiliate programme policy surface.
+- `[x]` The default programme save synchronizes the worker-facing Affiliate settings and active Affiliate rate projection; business/product Affiliate programmes remain parked with zero purchase commission.
+- `[x]` Affiliate registration remains controlled by the existing Company Admin platform setting, and commission/payout settlement holds continue to govern maturity, manual payout, automatic payout, and retries.
+- `[x]` Company Admin can search Affiliates by name, code, email, or WhatsApp and filter by lifecycle status.
+- `[x]` Affiliate review now presents email, mandatory WhatsApp, join date, status, referral/earnings performance, and the highest configured milestone reached in one detail view. Region is explicitly shown as not recorded until a dedicated geographic profile field is introduced.
+- `[x]` Pause/reactivate and other Affiliate record edits require an operator reason, which is normalized into the timestamped administrator audit event; archive/termination remains reasoned and history-preserving rather than destructive.
+- `[x]` Controlled future-attribution correction, commission reversal/adjustment, payout reconciliation, programme lifecycle controls, and audit retention were reverified as the remaining operational controls required by item 11.
+- `[x]` Verification: full Go suite, Admin type-check, unit tests, production build, focused milestone repository compilation, and `git diff --check`. A fresh real-PostgreSQL milestone/settings test is included; the local Docker engine stalled while applying the full migration chain and is recorded separately from the green deterministic suite.
+
 ### Updated-spec delta (Xtiitch-Updates-Refined v2, 2026-07-10 22:29) — apply these
 
 Diff vs the version above:

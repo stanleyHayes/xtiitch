@@ -15,7 +15,8 @@ import {
 } from "../actionErrors";
 import type { AdminActionFeedback } from "../types";
 
-export async function handleAffiliatesAction({ // eslint-disable-line complexity, max-lines-per-function -- intent dispatcher with many conditional branches; refactor in follow-up
+// eslint-disable-next-line complexity, max-lines-per-function -- intent dispatcher with many conditional branches; refactor in follow-up
+export async function handleAffiliatesAction({
   request,
   intent,
   form,
@@ -99,6 +100,7 @@ export async function handleAffiliatesAction({ // eslint-disable-line complexity
         payoutReference: String(form.get("payout_reference") ?? ""),
         status: readAffiliateEditableStatus(form.get("status")),
         notes: String(form.get("notes") ?? ""),
+        reason: String(form.get("reason") ?? ""),
       };
 
       if (intent === "admin-affiliate:create") {
@@ -252,6 +254,13 @@ async function handleAffiliateProgrammeUpdate(
         allowedTargetScope: String(
           form.get("allowed_target_scope") ?? "platform",
         ) as "platform" | "store" | "collection" | "design" | "product",
+        milestones: JSON.parse(String(form.get("milestones") ?? "[]")) as {
+          milestoneId: string;
+          threshold: number;
+          title: string;
+          rewardDescription: string;
+          status: "active" | "paused" | "archived";
+        }[],
       },
     );
     return {
@@ -274,9 +283,7 @@ async function handleAffiliateApplicationDecision(
 ): Promise<AdminActionFeedback> {
   const { accessToken } = await requireAdminContext(request);
   const decision =
-    String(form.get("decision") ?? "") === "approved"
-      ? "approved"
-      : "rejected";
+    String(form.get("decision") ?? "") === "approved" ? "approved" : "rejected";
   try {
     await adminApi.decideAffiliateApplication(
       accessToken,

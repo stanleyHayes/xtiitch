@@ -400,6 +400,7 @@ export const affiliatesApi = {
       payoutReference: string;
       status: Exclude<AdminAffiliateStatus, "archived">;
       notes: string;
+      reason: string;
     },
   ) =>
     requestJSON<AdminAffiliatePayload>(
@@ -424,6 +425,7 @@ export const affiliatesApi = {
           payout_reference: input.payoutReference,
           status: input.status,
           notes: input.notes,
+          reason: input.reason,
         }),
       },
     ).then(mapAffiliate),

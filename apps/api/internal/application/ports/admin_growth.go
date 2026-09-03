@@ -237,6 +237,14 @@ type AdminAffiliateProgrammeRecord struct {
 	AffiliateCount                    int64
 	CreatedAt                         time.Time
 	UpdatedAt                         time.Time
+	Milestones                        []AdminPartnerMilestoneRecord
+}
+type AdminPartnerMilestoneRecord struct {
+	MilestoneID       common.ID
+	Threshold         int
+	Title             string
+	RewardDescription string
+	Status            string
 }
 type CreateAdminAffiliateProgrammeInput struct {
 	AffiliateProgrammeID              common.ID
@@ -267,6 +275,7 @@ type UpdateAdminAffiliateProgrammeInput struct {
 	MinimumPayoutMinor                int64
 	AllowedTargetScope                string
 	ActorAdminUser                    common.ID
+	Milestones                        []AdminPartnerMilestoneRecord
 }
 type AdminAffiliateApplicationRecord struct {
 	ApplicationID     common.ID

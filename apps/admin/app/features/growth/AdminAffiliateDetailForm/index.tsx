@@ -1,5 +1,9 @@
 import Stack from "@mui/material/Stack";
-import type { AdminAffiliate, AdminAffiliateAttribution } from "../../../lib/api";
+import type {
+  AdminAffiliate,
+  AdminAffiliateAttribution,
+  AdminPartnerMilestone,
+} from "../../../lib/api";
 import { AffiliateSummary } from "./AffiliateSummary";
 import { AffiliateConversionsPanel } from "./AffiliateConversionsPanel";
 import { AffiliatePayoutsPanel } from "./AffiliatePayoutsPanel";
@@ -10,14 +14,20 @@ export function AdminAffiliateDetailForm({
   affiliate,
   performance,
   affiliates,
+  milestones,
 }: {
   affiliate: AdminAffiliate;
   performance?: AdminAffiliateAttribution;
   affiliates: AdminAffiliate[];
+  milestones: AdminPartnerMilestone[];
 }) {
   return (
     <Stack spacing={2}>
-      <AffiliateSummary affiliate={affiliate} performance={performance} />
+      <AffiliateSummary
+        affiliate={affiliate}
+        performance={performance}
+        milestones={milestones}
+      />
       <AffiliateConversionsPanel
         affiliate={affiliate}
         performance={performance}

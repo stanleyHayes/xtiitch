@@ -79,6 +79,7 @@ func TestAffiliatesRequireGrowthPermissionAndAudit(t *testing.T) {
 		CookieWindowDays: 30,
 		PayoutMode:       "manual",
 		Status:           "paused",
+		Reason:           "Paused during compliance review",
 		UserAgent:        "test-agent",
 		IPAddress:        "127.0.0.1",
 	})
