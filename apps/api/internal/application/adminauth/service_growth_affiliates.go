@@ -69,6 +69,55 @@ type UpdateAffiliateConversionStatusCommand struct {
 	IPAddress    string
 }
 
+type UpdateAffiliateMilestoneAchievementCommand struct {
+	ActorUserID    common.ID
+	ActorRole      admindomain.Role
+	AchievementID  common.ID
+	RewardStatus   string
+	FulfilmentNote string
+	Reason         string
+	UserAgent      string
+	IPAddress      string
+}
+
+func (s Service) UpdateAffiliateMilestoneAchievement(ctx context.Context, cmd UpdateAffiliateMilestoneAchievementCommand) (ports.AdminAffiliateMilestoneAchievementRecord, error) {
+	if cmd.ActorUserID.IsZero() || cmd.AchievementID.IsZero() || strings.TrimSpace(cmd.Reason) == "" {
+		return ports.AdminAffiliateMilestoneAchievementRecord{}, authdomain.ErrInvalidInput
+	}
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManageGrowth); err != nil {
+		return ports.AdminAffiliateMilestoneAchievementRecord{}, err
+	}
+	if s.businesses == nil {
+		return ports.AdminAffiliateMilestoneAchievementRecord{}, authdomain.ErrForbidden
+	}
+	status := strings.TrimSpace(cmd.RewardStatus)
+	if status != "unfulfilled" && status != "processing" && status != "fulfilled" && status != "declined" {
+		return ports.AdminAffiliateMilestoneAchievementRecord{}, authdomain.ErrInvalidInput
+	}
+	note := normalizeOperatorNote(cmd.FulfilmentNote)
+	if (status == "fulfilled" || status == "declined") && note == "" {
+		return ports.AdminAffiliateMilestoneAchievementRecord{}, authdomain.ErrInvalidInput
+	}
+	record, err := s.businesses.UpdateAdminAffiliateMilestoneAchievement(ctx, ports.UpdateAdminAffiliateMilestoneAchievementInput{
+		AchievementID: cmd.AchievementID, RewardStatus: status, FulfilmentNote: note, ActorAdminUser: cmd.ActorUserID,
+	})
+	if err != nil {
+		return ports.AdminAffiliateMilestoneAchievementRecord{}, err
+	}
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID, ActorRole: cmd.ActorRole,
+		Action: "Updated affiliate milestone reward", TargetType: "affiliate_milestone_achievement",
+		TargetID: record.AchievementID.String(), TargetLabel: record.Title,
+		Summary:   "Marked affiliate milestone reward " + status + ". Reason: " + normalizeOperatorNote(cmd.Reason),
+		Severity:  admindomain.AuditSeverityInfo,
+		Metadata:  map[string]string{"affiliate_id": record.AffiliateID.String(), "reward_status": record.RewardStatus, "fulfilment_note": record.FulfilmentNote, "reason": normalizeOperatorNote(cmd.Reason)},
+		IPAddress: cmd.IPAddress, UserAgent: cmd.UserAgent,
+	}); err != nil {
+		return ports.AdminAffiliateMilestoneAchievementRecord{}, err
+	}
+	return record, nil
+}
+
 type CreateAffiliatePayoutCommand struct {
 	ActorUserID     common.ID
 	ActorRole       admindomain.Role

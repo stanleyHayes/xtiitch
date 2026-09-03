@@ -27,6 +27,8 @@ func TestApplyFirstPaidPlanProviderEventAuditsPartialAndPostPayoutRefunds(t *tes
 	defer cleanupSubscriptionInvoiceFixtures(t, pool)
 	defer func() {
 		inBypass(t, pool, func(tx pgx.Tx) {
+			mustExec(t, tx, `delete from affiliate_portal_audit_events where affiliate_id=$1`, itAdjustmentAffiliate)
+			mustExec(t, tx, `delete from affiliate_conversions where affiliate_id=$1`, itAdjustmentAffiliate)
 			mustExec(t, tx, `delete from affiliates where affiliate_id=$1`, itAdjustmentAffiliate)
 		})
 	}()

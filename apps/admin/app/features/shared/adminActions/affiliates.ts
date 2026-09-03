@@ -158,6 +158,36 @@ export async function handleAffiliatesAction({
     }
   }
 
+  if (intent === "admin-affiliate-milestone:update") {
+    const { accessToken } = await requireAdminContext(request);
+    try {
+      await adminApi.updateAffiliateMilestoneAchievement(
+        accessToken,
+        String(form.get("achievement_id") ?? ""),
+        {
+          rewardStatus: String(form.get("reward_status") ?? "unfulfilled") as
+            | "unfulfilled"
+            | "processing"
+            | "fulfilled"
+            | "declined",
+          fulfilmentNote: String(form.get("fulfilment_note") ?? ""),
+          reason: String(form.get("reason") ?? ""),
+        },
+      );
+      return {
+        section: "affiliates",
+        severity: "success",
+        message: "Milestone reward status updated.",
+      };
+    } catch (error) {
+      return {
+        section: "affiliates",
+        severity: "error",
+        message: adminAffiliateActionError(error),
+      };
+    }
+  }
+
   if (intent === "admin-affiliate-attribution:correct") {
     return handleAffiliateAttributionCorrection(request, form);
   }

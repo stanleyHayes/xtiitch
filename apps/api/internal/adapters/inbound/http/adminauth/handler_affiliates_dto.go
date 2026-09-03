@@ -92,20 +92,38 @@ type affiliateResponse struct {
 }
 
 type affiliateAttributionResponse struct {
-	AffiliateID             string                        `json:"affiliate_id"`
-	Code                    string                        `json:"code"`
-	DisplayName             string                        `json:"display_name"`
-	ClickCount              int64                         `json:"click_count"`
-	ConversionCount         int64                         `json:"conversion_count"`
-	PendingConversionCount  int64                         `json:"pending_conversion_count"`
-	ApprovedConversionCount int64                         `json:"approved_conversion_count"`
-	SettledConversionCount  int64                         `json:"settled_conversion_count"`
-	ReversedConversionCount int64                         `json:"reversed_conversion_count"`
-	GrossMinor              int64                         `json:"gross_minor"`
-	CommissionMinor         int64                         `json:"commission_minor"`
-	RecentConversions       []affiliateConversionResponse `json:"recent_conversions"`
-	RecentPayouts           []affiliatePayoutResponse     `json:"recent_payouts"`
-	LastActivityAt          string                        `json:"last_activity_at,omitempty"`
+	AffiliateID             string                                  `json:"affiliate_id"`
+	Code                    string                                  `json:"code"`
+	DisplayName             string                                  `json:"display_name"`
+	ClickCount              int64                                   `json:"click_count"`
+	ConversionCount         int64                                   `json:"conversion_count"`
+	PendingConversionCount  int64                                   `json:"pending_conversion_count"`
+	ApprovedConversionCount int64                                   `json:"approved_conversion_count"`
+	SettledConversionCount  int64                                   `json:"settled_conversion_count"`
+	ReversedConversionCount int64                                   `json:"reversed_conversion_count"`
+	GrossMinor              int64                                   `json:"gross_minor"`
+	CommissionMinor         int64                                   `json:"commission_minor"`
+	RecentConversions       []affiliateConversionResponse           `json:"recent_conversions"`
+	RecentPayouts           []affiliatePayoutResponse               `json:"recent_payouts"`
+	MilestoneAchievements   []affiliateMilestoneAchievementResponse `json:"milestone_achievements"`
+	LastActivityAt          string                                  `json:"last_activity_at,omitempty"`
+}
+
+type affiliateMilestoneAchievementRequest struct {
+	RewardStatus   string `json:"reward_status"`
+	FulfilmentNote string `json:"fulfilment_note"`
+	Reason         string `json:"reason"`
+}
+type affiliateMilestoneAchievementResponse struct {
+	AchievementID     string `json:"achievement_id"`
+	AffiliateID       string `json:"affiliate_id"`
+	Threshold         int    `json:"threshold"`
+	Title             string `json:"title"`
+	RewardDescription string `json:"reward_description"`
+	RewardStatus      string `json:"reward_status"`
+	FulfilmentNote    string `json:"fulfilment_note"`
+	AchievedAt        string `json:"achieved_at"`
+	FulfilledAt       string `json:"fulfilled_at,omitempty"`
 }
 
 type affiliateConversionResponse struct {

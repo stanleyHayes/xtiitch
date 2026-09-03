@@ -1797,6 +1797,19 @@ Status: `[x] implemented and locally verified`
 - `[x]` Added a database catalogue contract test covering all eight history-retention guards.
 - `[x]` Verification: fresh PostgreSQL migration chain, migration 154 down/up, real-PostgreSQL retention contract test, full Go tests, `go vet ./...`, `go build ./...`, and `git diff --check`.
 
+### Item 14 acceptance scenarios — 2026-09-03
+
+- `[x]` Immediate Affiliate access after signup is implemented without manual credential approval; required signup and verification steps produce the Affiliate account and referral capability.
+- `[x]` Referred businesses move through `Not Activated`, `Active`, and `Inactive` from paid-plan state while retaining their original Affiliate attribution; activation and later reactivation create recurring 20% pending commissions, and unpaid periods create none.
+- `[x]` The Affiliate referral list remains privacy-minimal at the response boundary and exposes handle plus status only.
+- `[x]` Affiliate-to-Affiliate email invitations create no commission, reward, or downstream earning relationship.
+- `[x]` Milestone progress and achievement unlocks were already implemented; the remaining reward-action gap is now closed with an admin workflow for `unfulfilled`, `processing`, `fulfilled`, and `declined` states.
+- `[x]` Final reward outcomes require a fulfilment note, every update requires an audit reason, fulfilled rewards receive a durable fulfilment timestamp, and the result remains visible on the Affiliate dashboard.
+- `[x]` Company Admin Affiliate details now show unlocked milestone rewards and provide status, fulfilment-note, and audit-reason controls behind `manage_growth`.
+- `[x]` Merchant-product Affiliate functionality remains parked/deactivated in the Affiliate and business-owner experiences.
+- `[x]` Added application-service audit/validation coverage and real-PostgreSQL tests proving admin fulfilment persistence plus admin attribution projection; repaired shared fixture teardown to respect the item-13 historical `RESTRICT` constraints.
+- `[x]` Verification: fresh PostgreSQL 18 migration chain through migration 154; focused milestone tests; full database-backed `go test ./...`; `go vet ./...`; `go build ./...`; admin typecheck, targeted ESLint, 12 tests, production build; and `git diff --check`.
+
 ### Updated-spec delta (Xtiitch-Updates-Refined v2, 2026-07-10 22:29) — apply these
 
 Diff vs the version above:

@@ -309,6 +309,12 @@ func cleanupAdminAffiliateConversionFixture(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	inBypass(t, pool, func(tx pgx.Tx) {
 		mustExec(t, tx, `delete from affiliate_payout_batches where affiliate_id = $1`, itAdminAffAffiliate)
+		mustExec(t, tx, `delete from affiliate_portal_audit_events where affiliate_id = $1`, itAdminAffAffiliate)
+		mustExec(t, tx, `delete from partner_milestone_achievements where affiliate_id = $1`, itAdminAffAffiliate)
+		mustExec(t, tx, `delete from partner_invitations where inviter_affiliate_id = $1`, itAdminAffAffiliate)
+		mustExec(t, tx, `delete from affiliate_conversions where affiliate_id = $1`, itAdminAffAffiliate)
+		mustExec(t, tx, `delete from affiliate_attribution_reservations where affiliate_id = $1`, itAdminAffAffiliate)
+		mustExec(t, tx, `delete from affiliate_clicks where affiliate_id = $1`, itAdminAffAffiliate)
 		mustExec(t, tx, `delete from admin_audit_events where actor_admin_user_id = $1`, itAdminAffAdmin)
 		mustExec(t, tx, `delete from businesses where business_id = $1`, itAdminAffBiz)
 		mustExec(t, tx, `delete from affiliates where affiliate_id = $1`, itAdminAffAffiliate)

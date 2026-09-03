@@ -368,7 +368,25 @@ type AdminAffiliateAttributionRecord struct {
 	CommissionMinor         int64
 	RecentConversions       []AdminAffiliateConversionRecord
 	RecentPayouts           []AdminAffiliatePayoutRecord
+	MilestoneAchievements   []AdminAffiliateMilestoneAchievementRecord
 	LastActivityAt          *time.Time
+}
+type AdminAffiliateMilestoneAchievementRecord struct {
+	AchievementID     common.ID
+	AffiliateID       common.ID
+	Threshold         int
+	Title             string
+	RewardDescription string
+	RewardStatus      string
+	FulfilmentNote    string
+	AchievedAt        time.Time
+	FulfilledAt       *time.Time
+}
+type UpdateAdminAffiliateMilestoneAchievementInput struct {
+	AchievementID  common.ID
+	RewardStatus   string
+	FulfilmentNote string
+	ActorAdminUser common.ID
 }
 type CorrectAdminAffiliateAttributionInput struct {
 	BusinessID     common.ID

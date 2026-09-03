@@ -296,6 +296,7 @@ type fakeAdminBusinesses struct {
 	growthReportFrom            time.Time
 	growthReportTo              time.Time
 	updatedAffiliateConversion  ports.UpdateAdminAffiliateConversionStatusInput
+	updatedMilestoneAchievement ports.UpdateAdminAffiliateMilestoneAchievementInput
 	createdAffiliatePayout      ports.CreateAdminAffiliatePayoutInput
 	referralProgrammes          []ports.AdminReferralProgrammeRecord
 	createdReferralProgramme    ports.CreateAdminReferralProgrammeInput
@@ -404,6 +405,15 @@ func (repo *fakeAdminBusinesses) UpdateAdminAffiliateConversionStatus(
 	record.ConversionID = input.ConversionID
 	record.Status = input.Status
 	return record, nil
+}
+
+func (repo *fakeAdminBusinesses) UpdateAdminAffiliateMilestoneAchievement(_ context.Context, input ports.UpdateAdminAffiliateMilestoneAchievementInput) (ports.AdminAffiliateMilestoneAchievementRecord, error) {
+	repo.updatedMilestoneAchievement = input
+	return ports.AdminAffiliateMilestoneAchievementRecord{
+		AchievementID: input.AchievementID, AffiliateID: "affiliate-1", Threshold: 10,
+		Title: "First ten", RewardDescription: "Campaign feature", RewardStatus: input.RewardStatus,
+		FulfilmentNote: input.FulfilmentNote, AchievedAt: time.Now(),
+	}, nil
 }
 
 type fakeAdminSessions struct {

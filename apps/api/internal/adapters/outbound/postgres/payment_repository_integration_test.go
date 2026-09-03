@@ -289,6 +289,11 @@ func cleanupConfirmFixtures(t *testing.T, pool *pgxpool.Pool) {
 	inBypass(t, pool, func(tx pgx.Tx) {
 		mustExec(t, tx, `delete from payment_provider_events where provider_reference = any($1)`,
 			[]string{itRefFail, itRefOK, itRefCross})
+		mustExec(t, tx, `delete from affiliate_portal_audit_events where affiliate_id = $1`, itPayAffiliate)
+		mustExec(t, tx, `delete from partner_milestone_achievements where affiliate_id = $1`, itPayAffiliate)
+		mustExec(t, tx, `delete from affiliate_conversions where affiliate_id = $1`, itPayAffiliate)
+		mustExec(t, tx, `delete from affiliate_attribution_reservations where affiliate_id = $1`, itPayAffiliate)
+		mustExec(t, tx, `delete from affiliate_clicks where affiliate_id = $1`, itPayAffiliate)
 		mustExec(t, tx, `delete from affiliates where affiliate_id = $1`, itPayAffiliate)
 		// Businesses cascade to their payments, orders, stage_events, designs, stages.
 		mustExec(t, tx, `delete from businesses where business_id = any($1)`, []string{itBizA, itBizB})

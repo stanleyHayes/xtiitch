@@ -57,7 +57,20 @@ export type AdminAffiliateAttribution = {
   commissionMinor: number;
   recentConversions: AdminAffiliateConversion[];
   recentPayouts: AdminAffiliatePayout[];
+  milestoneAchievements: AdminAffiliateMilestoneAchievement[];
   lastActivityAt?: string;
+};
+
+export type AdminAffiliateMilestoneAchievement = {
+  achievementId: string;
+  affiliateId: string;
+  threshold: number;
+  title: string;
+  rewardDescription: string;
+  rewardStatus: "unfulfilled" | "processing" | "fulfilled" | "declined";
+  fulfilmentNote: string;
+  achievedAt: string;
+  fulfilledAt?: string;
 };
 
 export type AdminAffiliateConversion = {
@@ -135,7 +148,20 @@ type AdminAffiliateAttributionPayload = {
   commission_minor: number;
   recent_conversions: AdminAffiliateConversionPayload[];
   recent_payouts: AdminAffiliatePayoutPayload[];
+  milestone_achievements: AdminAffiliateMilestoneAchievementPayload[];
   last_activity_at?: string;
+};
+
+type AdminAffiliateMilestoneAchievementPayload = {
+  achievement_id: string;
+  affiliate_id: string;
+  threshold: number;
+  title: string;
+  reward_description: string;
+  reward_status: AdminAffiliateMilestoneAchievement["rewardStatus"];
+  fulfilment_note: string;
+  achieved_at: string;
+  fulfilled_at?: string;
 };
 
 type AdminAffiliateConversionPayload = {
@@ -218,7 +244,26 @@ function mapAffiliateAttribution(
     commissionMinor: payload.commission_minor,
     recentConversions: payload.recent_conversions.map(mapAffiliateConversion),
     recentPayouts: (payload.recent_payouts ?? []).map(mapAffiliatePayout),
+    milestoneAchievements: (payload.milestone_achievements ?? []).map(
+      mapAffiliateMilestoneAchievement,
+    ),
     lastActivityAt: payload.last_activity_at,
+  };
+}
+
+function mapAffiliateMilestoneAchievement(
+  payload: AdminAffiliateMilestoneAchievementPayload,
+): AdminAffiliateMilestoneAchievement {
+  return {
+    achievementId: payload.achievement_id,
+    affiliateId: payload.affiliate_id,
+    threshold: payload.threshold,
+    title: payload.title,
+    rewardDescription: payload.reward_description,
+    rewardStatus: payload.reward_status,
+    fulfilmentNote: payload.fulfilment_note,
+    achievedAt: payload.achieved_at,
+    fulfilledAt: payload.fulfilled_at,
   };
 }
 
@@ -302,6 +347,27 @@ export const affiliatesApi = {
         }),
       },
     ).then(mapAffiliateConversion),
+  updateAffiliateMilestoneAchievement: (
+    accessToken: string,
+    achievementId: string,
+    input: {
+      rewardStatus: AdminAffiliateMilestoneAchievement["rewardStatus"];
+      fulfilmentNote: string;
+      reason: string;
+    },
+  ) =>
+    requestJSON<AdminAffiliateMilestoneAchievementPayload>(
+      `/admin/affiliate-milestone-achievements/${encodeURIComponent(achievementId)}`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          reward_status: input.rewardStatus,
+          fulfilment_note: input.fulfilmentNote,
+          reason: input.reason,
+        }),
+      },
+    ).then(mapAffiliateMilestoneAchievement),
   correctAffiliateAttribution: (
     accessToken: string,
     businessId: string,

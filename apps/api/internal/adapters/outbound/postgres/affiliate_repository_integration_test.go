@@ -257,6 +257,7 @@ func TestReserveAffiliateAttributionPersistsLastClickReservation(t *testing.T) {
 	inBypass(t, pool, func(tx pgx.Tx) {
 		mustExec(t, tx, `delete from affiliate_attribution_reservations where reservation_id = $1`,
 			itAffReserveReservation)
+		mustExec(t, tx, `delete from affiliate_clicks where affiliate_id = $1`, itAffReserveAffiliate)
 		mustExec(t, tx, `update affiliates set purchase_commission_bps = 0 where affiliate_id = $1`,
 			itAffReserveAffiliate)
 	})
@@ -548,6 +549,8 @@ func cleanupAffiliateReservationFixture(t *testing.T, pool *pgxpool.Pool) {
 func cleanupAffiliateClickFixture(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	inBypass(t, pool, func(tx pgx.Tx) {
+		mustExec(t, tx, `delete from affiliate_clicks where affiliate_id = any($1)`,
+			[]string{itAffClickActive, itAffClickPaused})
 		mustExec(t, tx, `delete from affiliates where affiliate_id = any($1)`,
 			[]string{itAffClickActive, itAffClickPaused})
 	})

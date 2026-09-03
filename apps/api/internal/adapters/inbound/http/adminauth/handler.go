@@ -165,6 +165,10 @@ type Service interface {
 		ctx context.Context,
 		command adminauthapp.UpdateAffiliateConversionStatusCommand,
 	) (ports.AdminAffiliateConversionRecord, error)
+	UpdateAffiliateMilestoneAchievement(
+		ctx context.Context,
+		command adminauthapp.UpdateAffiliateMilestoneAchievementCommand,
+	) (ports.AdminAffiliateMilestoneAchievementRecord, error)
 	CreateAffiliatePayout(ctx context.Context, command adminauthapp.CreateAffiliatePayoutCommand) (ports.AdminAffiliatePayoutRecord, error)
 	CreateAffiliate(ctx context.Context, command adminauthapp.CreateAffiliateCommand) (ports.AdminAffiliateRecord, error)
 	UpdateAffiliate(ctx context.Context, command adminauthapp.UpdateAffiliateCommand) (ports.AdminAffiliateRecord, error)
@@ -287,6 +291,7 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Get("/admin/affiliate-attribution", handler.affiliateAttribution)
 		protected.Patch("/admin/businesses/{id}/affiliate-attribution", handler.correctAffiliateAttribution)
 		protected.Patch("/admin/affiliate-conversions/{id}/status", handler.updateAffiliateConversionStatus)
+		protected.Patch("/admin/affiliate-milestone-achievements/{id}", handler.updateAffiliateMilestoneAchievement)
 		protected.Post("/admin/affiliates/{id}/payouts", handler.createAffiliatePayout)
 		protected.Post("/admin/affiliates", handler.createAffiliate)
 		protected.Patch("/admin/affiliates/{id}", handler.updateAffiliate)

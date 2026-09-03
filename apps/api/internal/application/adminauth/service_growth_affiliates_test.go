@@ -141,6 +141,35 @@ func TestAffiliatesRequireGrowthPermissionAndAudit(t *testing.T) {
 	}
 }
 
+func TestUpdateAffiliateMilestoneAchievementRequiresReasonAndAudits(t *testing.T) {
+	t.Parallel()
+	businesses := &fakeAdminBusinesses{}
+	service, audits := newTestServiceWithBusinesses(
+		&fakeAdminUsers{}, &fakeAdminSessions{}, businesses, time.Now(), []common.ID{"audit-milestone"},
+	)
+	record, err := service.UpdateAffiliateMilestoneAchievement(context.Background(), UpdateAffiliateMilestoneAchievementCommand{
+		ActorUserID: "operator-1", ActorRole: admindomain.RoleOperator,
+		AchievementID: "achievement-1", RewardStatus: "fulfilled",
+		FulfilmentNote: "Featured in the September campaign", Reason: "Campaign placement delivered",
+	})
+	if err != nil {
+		t.Fatalf("update milestone achievement: %v", err)
+	}
+	if record.RewardStatus != "fulfilled" || businesses.updatedMilestoneAchievement.FulfilmentNote != "Featured in the September campaign" {
+		t.Fatalf("unexpected milestone update: input=%+v record=%+v", businesses.updatedMilestoneAchievement, record)
+	}
+	if len(audits.created) != 1 || audits.created[0].TargetType != "affiliate_milestone_achievement" || audits.created[0].Metadata["reason"] != "Campaign placement delivered" {
+		t.Fatalf("unexpected audit event: %+v", audits.created)
+	}
+	_, err = service.UpdateAffiliateMilestoneAchievement(context.Background(), UpdateAffiliateMilestoneAchievementCommand{
+		ActorUserID: "operator-1", ActorRole: admindomain.RoleOperator,
+		AchievementID: "achievement-1", RewardStatus: "declined", Reason: "Not eligible",
+	})
+	if !errors.Is(err, authdomain.ErrInvalidInput) {
+		t.Fatalf("expected note requirement, got %v", err)
+	}
+}
+
 func TestAffiliateAttributionRequiresGrowthPermission(t *testing.T) {
 	t.Parallel()
 

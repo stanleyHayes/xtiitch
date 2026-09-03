@@ -151,9 +151,14 @@ func (repo AdminAuthRepository) ListAdminAffiliateAttribution(ctx context.Contex
 	if err != nil {
 		return nil, err
 	}
+	achievements, err := listAdminAffiliateMilestoneAchievements(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
 	for index := range records {
 		records[index].RecentConversions = conversions[records[index].AffiliateID]
 		records[index].RecentPayouts = payouts[records[index].AffiliateID]
+		records[index].MilestoneAchievements = achievements[records[index].AffiliateID]
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -161,6 +166,64 @@ func (repo AdminAuthRepository) ListAdminAffiliateAttribution(ctx context.Contex
 	}
 
 	return records, nil
+}
+
+func listAdminAffiliateMilestoneAchievements(ctx context.Context, tx pgx.Tx) (map[common.ID][]ports.AdminAffiliateMilestoneAchievementRecord, error) {
+	rows, err := tx.Query(ctx, `
+		select achievement.partner_milestone_achievement_id::text,
+			achievement.affiliate_id::text, milestone.threshold, milestone.title,
+			milestone.reward_description, achievement.reward_status,
+			achievement.fulfilment_note, achievement.achieved_at, achievement.fulfilled_at
+		from partner_milestone_achievements achievement
+		join partner_milestones milestone on milestone.partner_milestone_id=achievement.partner_milestone_id
+		order by achievement.achieved_at desc
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	records := map[common.ID][]ports.AdminAffiliateMilestoneAchievementRecord{}
+	for rows.Next() {
+		var record ports.AdminAffiliateMilestoneAchievementRecord
+		if err := rows.Scan(&record.AchievementID, &record.AffiliateID, &record.Threshold, &record.Title,
+			&record.RewardDescription, &record.RewardStatus, &record.FulfilmentNote, &record.AchievedAt, &record.FulfilledAt); err != nil {
+			return nil, err
+		}
+		records[record.AffiliateID] = append(records[record.AffiliateID], record)
+	}
+	return records, rows.Err()
+}
+
+func (repo AdminAuthRepository) UpdateAdminAffiliateMilestoneAchievement(ctx context.Context, input ports.UpdateAdminAffiliateMilestoneAchievementInput) (ports.AdminAffiliateMilestoneAchievementRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.AdminAffiliateMilestoneAchievementRecord{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return ports.AdminAffiliateMilestoneAchievementRecord{}, err
+	}
+	row := tx.QueryRow(ctx, `
+		update partner_milestone_achievements achievement
+		set reward_status=$2, fulfilment_note=$3,
+			fulfilled_at=case when $2='fulfilled' then coalesce(fulfilled_at, now()) else null end
+		from partner_milestones milestone
+		where achievement.partner_milestone_achievement_id=$1::uuid
+		  and milestone.partner_milestone_id=achievement.partner_milestone_id
+		returning achievement.partner_milestone_achievement_id::text,
+			achievement.affiliate_id::text, milestone.threshold, milestone.title,
+			milestone.reward_description, achievement.reward_status,
+			achievement.fulfilment_note, achievement.achieved_at, achievement.fulfilled_at
+	`, input.AchievementID.String(), input.RewardStatus, input.FulfilmentNote)
+	var record ports.AdminAffiliateMilestoneAchievementRecord
+	if err := row.Scan(&record.AchievementID, &record.AffiliateID, &record.Threshold, &record.Title,
+		&record.RewardDescription, &record.RewardStatus, &record.FulfilmentNote, &record.AchievedAt, &record.FulfilledAt); err != nil {
+		return ports.AdminAffiliateMilestoneAchievementRecord{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return ports.AdminAffiliateMilestoneAchievementRecord{}, err
+	}
+	return record, nil
 }
 
 func (repo AdminAuthRepository) UpdateAdminAffiliateConversionStatus(

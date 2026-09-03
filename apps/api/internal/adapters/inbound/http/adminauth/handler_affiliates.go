@@ -319,6 +319,7 @@ func newAffiliateAttributionResponse(record ports.AdminAffiliateAttributionRecor
 		CommissionMinor:         record.CommissionMinor,
 		RecentConversions:       make([]affiliateConversionResponse, 0, len(record.RecentConversions)),
 		RecentPayouts:           make([]affiliatePayoutResponse, 0, len(record.RecentPayouts)),
+		MilestoneAchievements:   make([]affiliateMilestoneAchievementResponse, 0, len(record.MilestoneAchievements)),
 	}
 	if record.LastActivityAt != nil {
 		response.LastActivityAt = record.LastActivityAt.Format(time.RFC3339)
@@ -328,6 +329,47 @@ func newAffiliateAttributionResponse(record ports.AdminAffiliateAttributionRecor
 	}
 	for _, payout := range record.RecentPayouts {
 		response.RecentPayouts = append(response.RecentPayouts, newAffiliatePayoutResponse(payout))
+	}
+	for _, achievement := range record.MilestoneAchievements {
+		response.MilestoneAchievements = append(response.MilestoneAchievements, newAffiliateMilestoneAchievementResponse(achievement))
+	}
+	return response
+}
+
+func (handler Handler) updateAffiliateMilestoneAchievement(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+	var request affiliateMilestoneAchievementRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	record, err := handler.service.UpdateAffiliateMilestoneAchievement(r.Context(), adminauthapp.UpdateAffiliateMilestoneAchievementCommand{
+		ActorUserID: principal.AdminUserID, ActorRole: principal.Role,
+		AchievementID: common.ID(chi.URLParam(r, "id")), RewardStatus: request.RewardStatus,
+		FulfilmentNote: request.FulfilmentNote, Reason: request.Reason,
+		UserAgent: r.UserAgent(), IPAddress: requestIP(r),
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+	writeJSON(w, http.StatusOK, newAffiliateMilestoneAchievementResponse(record))
+}
+
+func newAffiliateMilestoneAchievementResponse(record ports.AdminAffiliateMilestoneAchievementRecord) affiliateMilestoneAchievementResponse {
+	response := affiliateMilestoneAchievementResponse{
+		AchievementID: record.AchievementID.String(), AffiliateID: record.AffiliateID.String(),
+		Threshold: record.Threshold, Title: record.Title, RewardDescription: record.RewardDescription,
+		RewardStatus: record.RewardStatus, FulfilmentNote: record.FulfilmentNote,
+		AchievedAt: record.AchievedAt.Format(time.RFC3339),
+	}
+	if record.FulfilledAt != nil {
+		response.FulfilledAt = record.FulfilledAt.Format(time.RFC3339)
 	}
 	return response
 }

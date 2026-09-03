@@ -103,6 +103,10 @@ type AdminBusinessRepository interface {
 		ctx context.Context,
 		input UpdateAdminAffiliateConversionStatusInput,
 	) (AdminAffiliateConversionRecord, error)
+	UpdateAdminAffiliateMilestoneAchievement(
+		ctx context.Context,
+		input UpdateAdminAffiliateMilestoneAchievementInput,
+	) (AdminAffiliateMilestoneAchievementRecord, error)
 	CreateAdminAffiliatePayout(ctx context.Context, input CreateAdminAffiliatePayoutInput) (AdminAffiliatePayoutRecord, error)
 	CreateAdminAffiliate(ctx context.Context, input CreateAdminAffiliateInput) (AdminAffiliateRecord, error)
 	UpdateAdminAffiliate(ctx context.Context, input UpdateAdminAffiliateInput) (AdminAffiliateRecord, error)
