@@ -41,6 +41,7 @@ func TestSubmitAffiliateApplicationCreatesApprovedPortalAccount(t *testing.T) {
 			ActivationTokenExpiresAt: time.Now().Add(48 * time.Hour),
 			ApplicantType:            "person", DisplayName: "Integration Affiliate",
 			ContactName: "Integration Affiliate", Email: "selfserve-integration@example.com",
+			Phone:         "+233243503670",
 			RequestedCode: code, PromotionChannels: []string{"instagram"}, ConsentAt: time.Now(),
 		},
 	)
@@ -53,19 +54,54 @@ func TestSubmitAffiliateApplicationCreatesApprovedPortalAccount(t *testing.T) {
 
 	inBypass(t, pool, func(tx pgx.Tx) {
 		var applicationStatus, affiliateStatus, accountStatus string
+		var applicationWhatsApp, affiliateWhatsApp string
 		if err := tx.QueryRow(context.Background(), `
-			select application.status, affiliate.status, account.status
+			select application.status, affiliate.status, account.status,
+				application.phone, affiliate.phone
 			from affiliate_applications application
 			join affiliates affiliate on affiliate.affiliate_id = application.affiliate_id
 			join affiliate_accounts account on account.affiliate_id = affiliate.affiliate_id
 			where application.affiliate_application_id = $1
-		`, applicationID).Scan(&applicationStatus, &affiliateStatus, &accountStatus); err != nil {
+		`, applicationID).Scan(&applicationStatus, &affiliateStatus, &accountStatus,
+			&applicationWhatsApp, &affiliateWhatsApp); err != nil {
 			t.Fatalf("read self-service affiliate: %v", err)
 		}
 		if applicationStatus != "approved" || affiliateStatus != "active" || accountStatus != "invited" {
 			t.Fatalf("unexpected lifecycle: application=%s affiliate=%s account=%s", applicationStatus, affiliateStatus, accountStatus)
 		}
+		if applicationWhatsApp != "+233243503670" || affiliateWhatsApp != applicationWhatsApp {
+			t.Fatalf("expected canonical WhatsApp on application and Affiliate, application=%q affiliate=%q", applicationWhatsApp, affiliateWhatsApp)
+		}
 	})
+}
+
+func TestSubmitAffiliateApplicationRejectsMissingWhatsAppAtPersistenceBoundary(t *testing.T) {
+	pool := openIntegrationPool(t)
+	defer pool.Close()
+
+	const applicationID = "aaaaaaaa-5555-4555-8555-555555555561"
+	const affiliateID = "aaaaaaaa-5555-4555-8555-555555555562"
+	const accountID = "aaaaaaaa-5555-4555-8555-555555555563"
+	const tokenID = "aaaaaaaa-5555-4555-8555-555555555564"
+	defer inBypass(t, pool, func(tx pgx.Tx) {
+		mustExec(t, tx, `delete from affiliate_accounts where affiliate_account_id=$1`, accountID)
+		mustExec(t, tx, `update affiliate_applications set status='withdrawn',affiliate_id=null where affiliate_application_id=$1`, applicationID)
+		mustExec(t, tx, `delete from affiliates where affiliate_id=$1`, affiliateID)
+		mustExec(t, tx, `delete from affiliate_applications where affiliate_application_id=$1`, applicationID)
+	})
+
+	_, err := NewAffiliateRepository(pool).SubmitAffiliateApplication(context.Background(), ports.SubmitAffiliateApplicationInput{
+		ApplicationID: applicationID, AffiliateID: affiliateID,
+		AffiliateAccountID: accountID, ActivationTokenID: tokenID,
+		ActivationTokenHash:      strings.Repeat("b", 64),
+		ActivationTokenExpiresAt: time.Now().Add(48 * time.Hour),
+		ApplicantType:            "person", DisplayName: "No WhatsApp Affiliate",
+		ContactName: "Missing Number", Email: "missing-whatsapp-integration@example.com",
+		RequestedCode: "ITNOWHATSAPP", PromotionChannels: []string{"instagram"}, ConsentAt: time.Now(),
+	})
+	if err == nil {
+		t.Fatal("expected the persistence boundary to reject a missing WhatsApp number")
+	}
 }
 
 const (

@@ -1715,6 +1715,15 @@ Status: `[x] implemented and locally verified`
 - `[x]` Company Admin can add a reversal adjustment to a settled commission; adjustment rows and their reasons remain visible in the financial ledger and audit trail.
 - `[x]` Verification: migration 152 fresh-chain and down/up validation, real-PostgreSQL refund/adjustment/net-payout tests, full Go suite, Admin and Affiliate checks/builds, and `git diff --check`.
 
+### Item 6 verification and gap closure — 2026-09-03
+
+- `[x]` Affiliate signup requires a WhatsApp number in the responsive signup form and validates it again at final submission.
+- `[x]` The public API normalizes Ghana local numbers to canonical `+233...` form, accepts valid international E.164-style numbers, and rejects missing or malformed values.
+- `[x]` Migration 153 enforces canonical WhatsApp persistence for every new Affiliate application while preserving legacy records for controlled remediation.
+- `[x]` Enrollment remains open and self-service: no credential or manual approval is required; submission activates the Affiliate, creates the invited portal account, and sends the password-activation link.
+- `[x]` Existing suspension, application lifecycle, and account-status fields preserve a future verification path without adding friction to current signup.
+- `[x]` Verification: focused service/HTTP/repository tests, migration 153 fresh-chain and down/up validation, full Go suite, Affiliate check/build, and `git diff --check`.
+
 ### Updated-spec delta (Xtiitch-Updates-Refined v2, 2026-07-10 22:29) — apply these
 
 Diff vs the version above:
