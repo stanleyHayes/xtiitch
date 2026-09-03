@@ -1786,6 +1786,17 @@ Status: `[x] implemented and locally verified`
 - `[x]` No new code gap was found in item 12 because it is a consolidation/traceability map of items 1-11; this section records the cross-system evidence without duplicating those implementations.
 - `[x]` Verification: focused Affiliate/growth/admin/API tests; full Go test, vet, and build; Affiliate type-check and production build; Admin check/tests/build; Dashboard check, 75 tests, and production build; `git diff --check`.
 
+### Item 13 existing-data and migration safety — 2026-09-03
+
+- `[x]` Existing Affiliate identifiers, business attribution, clicks, conversions, payouts, and earned/paid purchase commissions are preserved; the recurring migration performs no historical-row deletion or backfill that would duplicate earnings.
+- `[x]` Legacy `paid_plan_signup` commission rows are renamed in place to `subscription_payment` and retain explicit `legacy_conversion_type` provenance metadata.
+- `[x]` New recurring commission begins only at the persisted `recurring_effective_at` boundary and remains idempotent by provider payment reference, so pre-effective invoices and already-recorded payments cannot generate duplicates.
+- `[x]` Existing valid business attribution remains attached to its original Affiliate because `affiliate_signups` is retained unchanged through the migration and is the source used for later renewal commission.
+- `[x]` Merchant-product Affiliate programmes and records remain stored but are forced to paused/zero-commission state by database guards; their reusable schema and historical records are not destroyed.
+- `[x]` Migration 154 closes the remaining storage-layer deletion gap by changing eight Affiliate financial, referral, risk, and audit foreign keys from cascading deletion to `RESTRICT`; account lifecycle continues through archive/deactivation.
+- `[x]` Added a database catalogue contract test covering all eight history-retention guards.
+- `[x]` Verification: fresh PostgreSQL migration chain, migration 154 down/up, real-PostgreSQL retention contract test, full Go tests, `go vet ./...`, `go build ./...`, and `git diff --check`.
+
 ### Updated-spec delta (Xtiitch-Updates-Refined v2, 2026-07-10 22:29) — apply these
 
 Diff vs the version above:
