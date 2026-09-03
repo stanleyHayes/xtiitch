@@ -1733,6 +1733,15 @@ Status: `[x] implemented and locally verified`
 - `[x]` Re-sending a pending invitation now emails the persisted reusable invitation code instead of an unstored replacement token.
 - `[x]` Verification: focused invitation service tests, real-PostgreSQL creation/acceptance and financial-isolation tests, full Go suite, Affiliate check/build, and `git diff --check`.
 
+### Item 8 verification and privacy-contract closure — 2026-09-03
+
+- `[x]` Each Affiliate referral record is selected and serialized with exactly two fields: the registered business `handle` and derived `status`.
+- `[x]` Status is derived server-side as `active`, `inactive`, or `not_activated` from paid-subscription and historical eligible-conversion state.
+- `[x]` Owner names, phone and WhatsApp numbers, email, address, subscription amounts, payments, sales, orders, revenue, customers, measurements, analytics, and banking data never enter the Affiliate referral API record.
+- `[x]` Aggregate Active, Inactive, Not Activated, and Total counts remain available without weakening record-level privacy.
+- `[x]` Added an API-record serialization contract test that fails if the privacy-minimal response grows beyond `handle` and `status`.
+- `[x]` Verification: focused privacy serialization contract test, referral-query data-flow audit, full Go suite, Affiliate check/build, and `git diff --check`.
+
 ### Updated-spec delta (Xtiitch-Updates-Refined v2, 2026-07-10 22:29) — apply these
 
 Diff vs the version above:
