@@ -35,6 +35,7 @@ type affiliateUpsertRequest struct {
 	ContactName                string `json:"contact_name"`
 	Email                      string `json:"email"`
 	Phone                      string `json:"phone"`
+	Region                     string `json:"region"`
 	WebsiteURL                 string `json:"website_url"`
 	CommissionModel            string `json:"commission_model"`
 	CommissionRate             int64  `json:"commission_rate"`
@@ -75,6 +76,7 @@ type affiliateResponse struct {
 	ContactName                string `json:"contact_name"`
 	Email                      string `json:"email"`
 	Phone                      string `json:"phone"`
+	Region                     string `json:"region"`
 	WebsiteURL                 string `json:"website_url"`
 	CommissionModel            string `json:"commission_model"`
 	CommissionRate             int64  `json:"commission_rate"`
@@ -101,12 +103,24 @@ type affiliateAttributionResponse struct {
 	ApprovedConversionCount int64                                   `json:"approved_conversion_count"`
 	SettledConversionCount  int64                                   `json:"settled_conversion_count"`
 	ReversedConversionCount int64                                   `json:"reversed_conversion_count"`
+	ActiveReferralCount     int64                                   `json:"active_referral_count"`
+	InactiveReferralCount   int64                                   `json:"inactive_referral_count"`
+	NotActivatedCount       int64                                   `json:"not_activated_count"`
 	GrossMinor              int64                                   `json:"gross_minor"`
 	CommissionMinor         int64                                   `json:"commission_minor"`
 	RecentConversions       []affiliateConversionResponse           `json:"recent_conversions"`
 	RecentPayouts           []affiliatePayoutResponse               `json:"recent_payouts"`
+	Invitations             []affiliateInvitationResponse           `json:"invitations"`
 	MilestoneAchievements   []affiliateMilestoneAchievementResponse `json:"milestone_achievements"`
 	LastActivityAt          string                                  `json:"last_activity_at,omitempty"`
+}
+type affiliateInvitationResponse struct {
+	InvitationID        string `json:"invitation_id"`
+	InviteeEmail        string `json:"invitee_email"`
+	AcceptedAffiliateID string `json:"accepted_affiliate_id,omitempty"`
+	AcceptedDisplayName string `json:"accepted_display_name,omitempty"`
+	CreatedAt           string `json:"created_at"`
+	AcceptedAt          string `json:"accepted_at,omitempty"`
 }
 
 type affiliateMilestoneAchievementRequest struct {
@@ -131,10 +145,12 @@ type affiliateConversionResponse struct {
 	AffiliateID      string `json:"affiliate_id"`
 	BusinessID       string `json:"business_id"`
 	BusinessName     string `json:"business_name"`
+	BusinessHandle   string `json:"business_handle"`
 	ConversionType   string `json:"conversion_type"`
 	OrderID          string `json:"order_id,omitempty"`
 	SubscriptionID   string `json:"subscription_id,omitempty"`
 	PaymentReference string `json:"payment_reference,omitempty"`
+	PayoutBatchID    string `json:"payout_batch_id,omitempty"`
 	GrossMinor       int64  `json:"gross_minor"`
 	CommissionMinor  int64  `json:"commission_minor"`
 	Status           string `json:"status"`

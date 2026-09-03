@@ -79,6 +79,7 @@ export async function handleAffiliatesAction({
         contactName: String(form.get("contact_name") ?? ""),
         email: String(form.get("email") ?? ""),
         phone: String(form.get("phone") ?? ""),
+        region: String(form.get("region") ?? ""),
         websiteUrl: String(form.get("website_url") ?? ""),
         commissionModel: readAffiliateCommissionModel(
           form.get("commission_model"),

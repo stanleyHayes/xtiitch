@@ -26,7 +26,7 @@ export function AffiliateSummary({
       .reduce((total, conversion) => total + conversion.commissionMinor, 0) ??
     0;
   const lastPayout = performance?.recentPayouts[0];
-  const paidReferrals = performance?.conversionCount ?? 0;
+  const paidReferrals = performance?.activeReferralCount ?? 0;
   const reachedMilestone = [...milestones]
     .filter(
       (milestone) =>
@@ -56,7 +56,7 @@ export function AffiliateSummary({
       />
       <DetailLine label="Email" value={affiliate.email || "Not recorded"} />
       <DetailLine label="WhatsApp" value={affiliate.phone || "Not recorded"} />
-      <DetailLine label="Region" value="Not recorded" />
+      <DetailLine label="Region" value={affiliate.region || "Not recorded"} />
       <DetailLine label="Joined" value={shortTime(affiliate.createdAt)} />
       <DetailLine
         label="Status"
@@ -80,6 +80,10 @@ export function AffiliateSummary({
           performance?.pendingConversionCount ?? 0
         } pending`}
       />
+      <DetailLine label="Active referrals" value={String(performance?.activeReferralCount ?? 0)} />
+      <DetailLine label="Inactive referrals" value={String(performance?.inactiveReferralCount ?? 0)} />
+      <DetailLine label="Not Activated referrals" value={String(performance?.notActivatedCount ?? 0)} />
+      <DetailLine label="Affiliate invitations" value={`${performance?.invitations.length ?? 0} sent · ${performance?.invitations.filter((item) => item.acceptedAt).length ?? 0} joined`} />
       <DetailLine
         label="Gross attributed"
         value={formatGHS(performance?.grossMinor ?? 0)}

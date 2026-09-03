@@ -45,6 +45,7 @@ func TestAffiliatesRequireGrowthPermissionAndAudit(t *testing.T) {
 		ContactName:      "  Ama   Partner ",
 		Email:            "AMA@EXAMPLE.COM",
 		Phone:            " +233 20 000 0000 ",
+		Region:           " Greater   Accra ",
 		WebsiteURL:       "https://partners.example.com/ref",
 		CommissionModel:  "percentage",
 		CommissionRate:   1250,
@@ -63,6 +64,7 @@ func TestAffiliatesRequireGrowthPermissionAndAudit(t *testing.T) {
 		businesses.createdAffiliate.Code != "SEWING-PRO" ||
 		businesses.createdAffiliate.Email != "ama@example.com" ||
 		businesses.createdAffiliate.DisplayName != "Sewing Pro Partners" ||
+		businesses.createdAffiliate.Region != "Greater Accra" ||
 		businesses.createdAffiliate.CookieWindowDays != 45 {
 		t.Fatalf("expected normalized affiliate create, got input=%+v record=%+v", businesses.createdAffiliate, created)
 	}

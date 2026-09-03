@@ -1836,6 +1836,19 @@ Status: `[x] implemented and locally verified`
 - `[x]` Link-based signup remains open and non-financial by design; it creates no downstream commission relationship.
 - `[x]` Verification: Affiliate type-check, production build, targeted ESLint, and `git diff --check`.
 
+### Admin-dashboard-only Affiliate programme audit and closure — 2026-09-03
+
+- `[x]` Applied the standing naming exception to the supplied Admin brief: reachable product language remains **Affiliate**, not Partner.
+- `[x]` Requirements 1-3 were reverified: dedicated searchable/filterable Affiliate management, lifecycle actions with preserved history, open/pause registration policy, immediate self-service activation, and configurable recurring commission plus maturity settings already existed.
+- `[x]` Requirement 1's Region gap is closed by migration 156 and an Admin-maintained Affiliate profile field carried through create, update, API response, detail view, and audit-normalized service input. Existing records safely default to “Not recorded.”
+- `[x]` Requirement 4's complete-history gap is closed: the Admin attribution read model no longer truncates commission history to five rows or payout history to three rows. Commission history is filterable by status, business name/handle/payment reference, and start date; payout-batch IDs connect settled commissions to their underlying payout record.
+- `[x]` Requirements 5-7 were reverified: persistent business attribution and reasoned correction, configurable milestone/reward definitions, and reward fulfilment states remain implemented and audited separately from achievement.
+- `[x]` Requirement 8 now receives canonical active, inactive, and Not Activated referral counts in the Admin read model and displays aggregate referred-business, suspended-Affiliate, and non-financial invitation metrics alongside the existing commission and payout totals.
+- `[x]` Requirement 9's monitoring gap is closed: each Affiliate detail now shows invitee email, invitation date, accepted Affiliate identity, join date, and pending/joined state. These records remain single-level and are not used by commission or milestone calculations.
+- `[x]` Requirements 10-12 were reverified: payout administration and commission linkage, globally parked merchant-product Affiliate routes/data guards, and reasoned administrator audit events remain implemented without deleting financial or referral history.
+- `[x]` Regression coverage proves the Admin read model returns more than the former five-row commission cap and includes invitation monitoring data.
+- `[x]` Verification: fresh PostgreSQL migration chain through 156; migration 156 down/up; real-PostgreSQL focused and full repository suites; Go service/HTTP tests, vet, and build; Admin type-check, 12 tests, targeted ESLint, production build; and `git diff --check`.
+
 ### Updated-spec delta (Xtiitch-Updates-Refined v2, 2026-07-10 22:29) — apply these
 
 Diff vs the version above:

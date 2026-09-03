@@ -170,6 +170,7 @@ func (handler Handler) createAffiliate(w http.ResponseWriter, r *http.Request) {
 		ContactName:                request.ContactName,
 		Email:                      request.Email,
 		Phone:                      request.Phone,
+		Region:                     request.Region,
 		WebsiteURL:                 request.WebsiteURL,
 		CommissionModel:            request.CommissionModel,
 		CommissionRate:             request.CommissionRate,
@@ -215,6 +216,7 @@ func (handler Handler) updateAffiliate(w http.ResponseWriter, r *http.Request) {
 		ContactName:                request.ContactName,
 		Email:                      request.Email,
 		Phone:                      request.Phone,
+		Region:                     request.Region,
 		WebsiteURL:                 request.WebsiteURL,
 		CommissionModel:            request.CommissionModel,
 		CommissionRate:             request.CommissionRate,
@@ -281,6 +283,7 @@ func newAffiliateResponse(record ports.AdminAffiliateRecord) affiliateResponse {
 		ContactName:                record.ContactName,
 		Email:                      record.Email,
 		Phone:                      record.Phone,
+		Region:                     record.Region,
 		WebsiteURL:                 record.WebsiteURL,
 		CommissionModel:            record.CommissionModel,
 		CommissionRate:             record.CommissionRate,
@@ -315,10 +318,14 @@ func newAffiliateAttributionResponse(record ports.AdminAffiliateAttributionRecor
 		ApprovedConversionCount: record.ApprovedConversionCount,
 		SettledConversionCount:  record.SettledConversionCount,
 		ReversedConversionCount: record.ReversedConversionCount,
+		ActiveReferralCount:     record.ActiveReferralCount,
+		InactiveReferralCount:   record.InactiveReferralCount,
+		NotActivatedCount:       record.NotActivatedCount,
 		GrossMinor:              record.GrossMinor,
 		CommissionMinor:         record.CommissionMinor,
 		RecentConversions:       make([]affiliateConversionResponse, 0, len(record.RecentConversions)),
 		RecentPayouts:           make([]affiliatePayoutResponse, 0, len(record.RecentPayouts)),
+		Invitations:             make([]affiliateInvitationResponse, 0, len(record.Invitations)),
 		MilestoneAchievements:   make([]affiliateMilestoneAchievementResponse, 0, len(record.MilestoneAchievements)),
 	}
 	if record.LastActivityAt != nil {
@@ -329,6 +336,17 @@ func newAffiliateAttributionResponse(record ports.AdminAffiliateAttributionRecor
 	}
 	for _, payout := range record.RecentPayouts {
 		response.RecentPayouts = append(response.RecentPayouts, newAffiliatePayoutResponse(payout))
+	}
+	for _, invitation := range record.Invitations {
+		item := affiliateInvitationResponse{
+			InvitationID: invitation.InvitationID.String(), InviteeEmail: invitation.InviteeEmail,
+			AcceptedAffiliateID: invitation.AcceptedAffiliateID.String(), AcceptedDisplayName: invitation.AcceptedDisplayName,
+			CreatedAt: invitation.CreatedAt.Format(time.RFC3339),
+		}
+		if invitation.AcceptedAt != nil {
+			item.AcceptedAt = invitation.AcceptedAt.Format(time.RFC3339)
+		}
+		response.Invitations = append(response.Invitations, item)
 	}
 	for _, achievement := range record.MilestoneAchievements {
 		response.MilestoneAchievements = append(response.MilestoneAchievements, newAffiliateMilestoneAchievementResponse(achievement))
@@ -380,10 +398,12 @@ func newAffiliateConversionResponse(record ports.AdminAffiliateConversionRecord)
 		AffiliateID:      record.AffiliateID.String(),
 		BusinessID:       record.BusinessID.String(),
 		BusinessName:     record.BusinessName,
+		BusinessHandle:   record.BusinessHandle,
 		ConversionType:   record.ConversionType,
 		OrderID:          record.OrderID.String(),
 		SubscriptionID:   record.SubscriptionID.String(),
 		PaymentReference: record.PaymentReference,
+		PayoutBatchID:    record.PayoutBatchID.String(),
 		GrossMinor:       record.GrossMinor,
 		CommissionMinor:  record.CommissionMinor,
 		Status:           record.Status,

@@ -152,6 +152,45 @@ func TestCreateAdminAffiliatePayoutSettlesApprovedConversions(t *testing.T) {
 	}
 }
 
+func TestAdminAffiliateReadModelIncludesCompleteHistoryAndInvitations(t *testing.T) {
+	pool := openIntegrationPool(t)
+	defer pool.Close()
+	seedAdminAffiliateConversionFixture(t, pool)
+	defer cleanupAdminAffiliateConversionFixture(t, pool)
+
+	inBypass(t, pool, func(tx pgx.Tx) {
+		mustExec(t, tx, `insert into affiliate_conversions(
+			affiliate_id,affiliate_programme_id,programme_owner_type,funding_source,business_id,
+			conversion_type,gross_minor,commission_minor,commission_model,commission_rate,
+			attribution_model,status,approved_at,source_conversion_id,adjustment_event_signature)
+		select affiliate_id,affiliate_programme_id,programme_owner_type,funding_source,business_id,
+			'adjustment',-1,-1,commission_model,commission_rate,attribution_model,'approved',now(),affiliate_conversion_id,
+			'admin-history-' || series::text
+		from affiliate_conversions cross join generate_series(1,6) series
+		where affiliate_conversion_id=$1`, itAdminAffConversion)
+		mustExec(t, tx, `insert into partner_invitations(partner_invitation_id,inviter_affiliate_id,invite_code,invitee_email)
+			values('78787878-1111-4111-8111-111111111111',$1,'admin-history-invite','invitee@example.com')`, itAdminAffAffiliate)
+	})
+
+	records, err := NewAdminAuthRepository(pool).ListAdminAffiliateAttribution(context.Background())
+	if err != nil {
+		t.Fatalf("list Affiliate operations history: %v", err)
+	}
+	for _, record := range records {
+		if record.AffiliateID != common.ID(itAdminAffAffiliate) {
+			continue
+		}
+		if len(record.RecentConversions) != 7 {
+			t.Fatalf("expected complete seven-row commission history, got %d", len(record.RecentConversions))
+		}
+		if len(record.Invitations) != 1 || record.Invitations[0].InviteeEmail != "invitee@example.com" {
+			t.Fatalf("expected invitation monitoring row, got %+v", record.Invitations)
+		}
+		return
+	}
+	t.Fatal("expected Affiliate read model")
+}
+
 func TestAffiliateSettlementHoldBlocksManualAndAutomaticPayoutsUntilReleased(t *testing.T) {
 	pool := openIntegrationPool(t)
 	defer pool.Close()

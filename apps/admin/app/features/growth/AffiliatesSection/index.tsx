@@ -85,6 +85,12 @@ export function AffiliatesSection({
     (total, item) => total + item.conversionCount,
     0,
   );
+  const referralTotals = affiliateAttribution.reduce((total, item) => ({
+    active: total.active + item.activeReferralCount,
+    inactive: total.inactive + item.inactiveReferralCount,
+    notActivated: total.notActivated + item.notActivatedCount,
+  }), { active: 0, inactive: 0, notActivated: 0 });
+  const invitationTotal = affiliateAttribution.reduce((total, item) => total + item.invitations.length, 0);
   const pendingCommissionMinor = affiliateAttribution.reduce(
     (total, item) =>
       total +
@@ -195,6 +201,24 @@ export function AffiliatesSection({
           value={String(archivedAffiliates.length)}
           helper="Disabled Affiliate links"
           trend="Audit retained"
+        />
+        <MetricCard
+          label="Suspended"
+          value={String(affiliates.filter((affiliate) => affiliate.status === "paused").length)}
+          helper="Paused by an operator"
+          trend="History retained"
+        />
+        <MetricCard
+          label="Referred businesses"
+          value={String(referralTotals.active + referralTotals.inactive + referralTotals.notActivated)}
+          helper={`${referralTotals.active} active · ${referralTotals.inactive} inactive`}
+          trend={`${referralTotals.notActivated} not activated`}
+        />
+        <MetricCard
+          label="Affiliate invitations"
+          value={String(invitationTotal)}
+          helper="Non-financial invitations"
+          trend={`${affiliateAttribution.reduce((total, item) => total + item.invitations.filter((invite) => invite.acceptedAt).length, 0)} joined`}
         />
         <MetricCard
           label="Paystack ready"

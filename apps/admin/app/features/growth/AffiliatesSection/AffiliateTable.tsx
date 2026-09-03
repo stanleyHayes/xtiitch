@@ -169,6 +169,7 @@ export function AffiliateTable({
                     <TextField label="Contact name" name="contact_name" />
                     <TextField label="Email" name="email" type="email" />
                     <TextField label="Phone" name="phone" />
+                    <TextField label="Region" name="region" placeholder="e.g. Greater Accra" />
                     <TextField label="Website" name="website_url" type="url" />
                   </Box>
                   <FormGroupLabel>Commission &amp; payout</FormGroupLabel>

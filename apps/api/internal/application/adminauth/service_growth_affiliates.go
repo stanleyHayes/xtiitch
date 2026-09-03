@@ -137,6 +137,7 @@ type CreateAffiliateCommand struct {
 	ContactName                string
 	Email                      string
 	Phone                      string
+	Region                     string
 	WebsiteURL                 string
 	CommissionModel            string
 	CommissionRate             int64
@@ -161,6 +162,7 @@ type UpdateAffiliateCommand struct {
 	ContactName                string
 	Email                      string
 	Phone                      string
+	Region                     string
 	WebsiteURL                 string
 	CommissionModel            string
 	CommissionRate             int64
@@ -479,6 +481,7 @@ func normalizeCreateAffiliateInput(
 		ContactName:      cmd.ContactName,
 		Email:            cmd.Email,
 		Phone:            cmd.Phone,
+		Region:           cmd.Region,
 		WebsiteURL:       cmd.WebsiteURL,
 		CommissionModel:  cmd.CommissionModel,
 		CommissionRate:   cmd.CommissionRate,
@@ -508,6 +511,7 @@ func normalizeCreateAffiliateInput(
 		ContactName:                normalized.ContactName,
 		Email:                      normalized.Email,
 		Phone:                      normalized.Phone,
+		Region:                     normalized.Region,
 		WebsiteURL:                 normalized.WebsiteURL,
 		CommissionModel:            normalized.CommissionModel,
 		CommissionRate:             normalized.CommissionRate,
@@ -530,6 +534,7 @@ func normalizeUpdateAffiliateInput(cmd UpdateAffiliateCommand) (ports.UpdateAdmi
 		ContactName:      cmd.ContactName,
 		Email:            cmd.Email,
 		Phone:            cmd.Phone,
+		Region:           cmd.Region,
 		WebsiteURL:       cmd.WebsiteURL,
 		CommissionModel:  cmd.CommissionModel,
 		CommissionRate:   cmd.CommissionRate,
@@ -559,6 +564,7 @@ func normalizeUpdateAffiliateInput(cmd UpdateAffiliateCommand) (ports.UpdateAdmi
 		ContactName:                normalized.ContactName,
 		Email:                      normalized.Email,
 		Phone:                      normalized.Phone,
+		Region:                     normalized.Region,
 		WebsiteURL:                 normalized.WebsiteURL,
 		CommissionModel:            normalized.CommissionModel,
 		CommissionRate:             normalized.CommissionRate,
@@ -595,6 +601,7 @@ type affiliateFields struct {
 	ContactName      string
 	Email            string
 	Phone            string
+	Region           string
 	WebsiteURL       string
 	CommissionModel  string
 	CommissionRate   int64
@@ -664,6 +671,7 @@ func normalizeAffiliateFields(input affiliateFields) (affiliateFields, error) {
 		ContactName:      normalizePromotionTitle(input.ContactName),
 		Email:            email,
 		Phone:            strings.Join(strings.Fields(strings.TrimSpace(input.Phone)), " "),
+		Region:           normalizePromotionTitle(input.Region),
 		WebsiteURL:       websiteURL,
 		CommissionModel:  commissionModel,
 		CommissionRate:   input.CommissionRate,

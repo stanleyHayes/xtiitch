@@ -89,6 +89,14 @@ export function AffiliateEditForm({
             disabled={archived}
           />
           <TextField
+            label="Region"
+            name="region"
+            size="small"
+            defaultValue={affiliate.region}
+            disabled={archived}
+            placeholder="e.g. Greater Accra"
+          />
+          <TextField
             label="Website"
             name="website_url"
             type="url"

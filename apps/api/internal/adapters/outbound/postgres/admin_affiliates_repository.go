@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
@@ -85,6 +86,27 @@ func (repo AdminAuthRepository) ListAdminAffiliateAttribution(ctx context.Contex
 				max(updated_at) as last_conversion_at
 			from affiliate_conversions
 			group by affiliate_id
+		), referral_states as (
+			select signup.affiliate_id,
+				case
+					when subscription.status = 'active' and subscription.current_period_end > now() and plan.monthly_fee_minor > 0 then 'active'
+					when exists (
+						select 1 from affiliate_conversions conversion
+						where conversion.affiliate_id = signup.affiliate_id and conversion.business_id = signup.business_id
+							and conversion.conversion_type = 'subscription_payment' and conversion.commission_minor > 0
+					) then 'inactive'
+					else 'not_activated'
+				end as state
+			from affiliate_signups signup
+			left join business_subscriptions subscription on subscription.business_id = signup.business_id
+			left join plans plan on plan.plan_id = subscription.plan_id
+			where signup.subject_type = 'business' and signup.status = 'qualified'
+		), referral_stats as (
+			select affiliate_id,
+				count(*) filter (where state = 'active')::bigint as active_count,
+				count(*) filter (where state = 'inactive')::bigint as inactive_count,
+				count(*) filter (where state = 'not_activated')::bigint as not_activated_count
+			from referral_states group by affiliate_id
 		)
 		select
 			a.affiliate_id::text,
@@ -96,6 +118,9 @@ func (repo AdminAuthRepository) ListAdminAffiliateAttribution(ctx context.Contex
 			coalesce(conversion_stats.approved_count, 0)::bigint,
 			coalesce(conversion_stats.settled_count, 0)::bigint,
 			coalesce(conversion_stats.reversed_count, 0)::bigint,
+			coalesce(referral_stats.active_count, 0)::bigint,
+			coalesce(referral_stats.inactive_count, 0)::bigint,
+			coalesce(referral_stats.not_activated_count, 0)::bigint,
 			coalesce(conversion_stats.gross_minor, 0)::bigint,
 			coalesce(conversion_stats.commission_minor, 0)::bigint,
 			greatest(
@@ -106,6 +131,7 @@ func (repo AdminAuthRepository) ListAdminAffiliateAttribution(ctx context.Contex
 		from affiliates a
 		left join click_stats on click_stats.affiliate_id = a.affiliate_id
 		left join conversion_stats on conversion_stats.affiliate_id = a.affiliate_id
+		left join referral_stats on referral_stats.affiliate_id = a.affiliate_id
 		order by
 			coalesce(conversion_stats.conversion_count, 0) desc,
 			coalesce(click_stats.click_count, 0) desc,
@@ -130,6 +156,9 @@ func (repo AdminAuthRepository) ListAdminAffiliateAttribution(ctx context.Contex
 			&record.ApprovedConversionCount,
 			&record.SettledConversionCount,
 			&record.ReversedConversionCount,
+			&record.ActiveReferralCount,
+			&record.InactiveReferralCount,
+			&record.NotActivatedCount,
 			&record.GrossMinor,
 			&record.CommissionMinor,
 			&lastActivityAt,
@@ -151,6 +180,10 @@ func (repo AdminAuthRepository) ListAdminAffiliateAttribution(ctx context.Contex
 	if err != nil {
 		return nil, err
 	}
+	invitations, err := listAdminAffiliateInvitations(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
 	achievements, err := listAdminAffiliateMilestoneAchievements(ctx, tx)
 	if err != nil {
 		return nil, err
@@ -158,6 +191,7 @@ func (repo AdminAuthRepository) ListAdminAffiliateAttribution(ctx context.Contex
 	for index := range records {
 		records[index].RecentConversions = conversions[records[index].AffiliateID]
 		records[index].RecentPayouts = payouts[records[index].AffiliateID]
+		records[index].Invitations = invitations[records[index].AffiliateID]
 		records[index].MilestoneAchievements = achievements[records[index].AffiliateID]
 	}
 
@@ -166,6 +200,33 @@ func (repo AdminAuthRepository) ListAdminAffiliateAttribution(ctx context.Contex
 	}
 
 	return records, nil
+}
+
+func listAdminAffiliateInvitations(ctx context.Context, tx pgx.Tx) (map[common.ID][]ports.AdminAffiliateInvitationRecord, error) {
+	rows, err := tx.Query(ctx, `
+		select invitation.partner_invitation_id::text, invitation.inviter_affiliate_id::text,
+			invitation.invitee_email, coalesce(invitation.accepted_affiliate_id::text, ''),
+			coalesce(accepted.display_name, ''), invitation.created_at, invitation.accepted_at
+		from partner_invitations invitation
+		left join affiliates accepted on accepted.affiliate_id=invitation.accepted_affiliate_id
+		order by invitation.inviter_affiliate_id, invitation.created_at desc
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	records := map[common.ID][]ports.AdminAffiliateInvitationRecord{}
+	for rows.Next() {
+		var record ports.AdminAffiliateInvitationRecord
+		var acceptedAt pgtype.Timestamptz
+		if err := rows.Scan(&record.InvitationID, &record.InviterAffiliateID, &record.InviteeEmail,
+			&record.AcceptedAffiliateID, &record.AcceptedDisplayName, &record.CreatedAt, &acceptedAt); err != nil {
+			return nil, err
+		}
+		record.AcceptedAt = timestamptzPtr(acceptedAt)
+		records[record.InviterAffiliateID] = append(records[record.InviterAffiliateID], record)
+	}
+	return records, rows.Err()
 }
 
 func listAdminAffiliateMilestoneAchievements(ctx context.Context, tx pgx.Tx) (map[common.ID][]ports.AdminAffiliateMilestoneAchievementRecord, error) {
@@ -483,6 +544,7 @@ func (repo AdminAuthRepository) CreateAdminAffiliate(
 				contact_name,
 				email,
 				phone,
+				region,
 				website_url,
 				commission_model,
 				commission_rate,
@@ -514,8 +576,9 @@ func (repo AdminAuthRepository) CreateAdminAffiliate(
 				$15,
 				$16,
 				$17,
-				$18::uuid,
-				$18::uuid
+				$18,
+				$19::uuid,
+				$19::uuid
 			)
 			returning *
 		)
@@ -527,6 +590,7 @@ func (repo AdminAuthRepository) CreateAdminAffiliate(
 		input.ContactName,
 		input.Email,
 		input.Phone,
+		input.Region,
 		input.WebsiteURL,
 		input.CommissionModel,
 		input.CommissionRate,
@@ -576,17 +640,18 @@ func (repo AdminAuthRepository) UpdateAdminAffiliate(
 				contact_name = $5,
 				email = $6,
 				phone = $7,
-				website_url = $8,
-				commission_model = $9,
-				commission_rate = $10,
-				purchase_commission_bps = $11,
-				first_paid_plan_commission_bps = $12,
-				cookie_window_days = $13,
-				payout_mode = $14,
-				payout_reference = $15,
-				status = $16,
-				notes = $17,
-				updated_by_admin_user_id = $18::uuid,
+				region = $8,
+				website_url = $9,
+				commission_model = $10,
+				commission_rate = $11,
+				purchase_commission_bps = $12,
+				first_paid_plan_commission_bps = $13,
+				cookie_window_days = $14,
+				payout_mode = $15,
+				payout_reference = $16,
+				status = $17,
+				notes = $18,
+				updated_by_admin_user_id = $19::uuid,
 				updated_at = now()
 			where affiliate_id = $1::uuid
 				and status <> 'archived'
@@ -600,6 +665,7 @@ func (repo AdminAuthRepository) UpdateAdminAffiliate(
 		input.ContactName,
 		input.Email,
 		input.Phone,
+		input.Region,
 		input.WebsiteURL,
 		input.CommissionModel,
 		input.CommissionRate,

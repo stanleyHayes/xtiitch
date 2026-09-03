@@ -203,6 +203,7 @@ type AdminAffiliateRecord struct {
 	ContactName                string
 	Email                      string
 	Phone                      string
+	Region                     string
 	WebsiteURL                 string
 	CommissionModel            string
 	CommissionRate             int64
@@ -318,6 +319,7 @@ type CreateAdminAffiliateInput struct {
 	ContactName                string
 	Email                      string
 	Phone                      string
+	Region                     string
 	WebsiteURL                 string
 	CommissionModel            string
 	CommissionRate             int64
@@ -338,6 +340,7 @@ type UpdateAdminAffiliateInput struct {
 	ContactName                string
 	Email                      string
 	Phone                      string
+	Region                     string
 	WebsiteURL                 string
 	CommissionModel            string
 	CommissionRate             int64
@@ -364,12 +367,25 @@ type AdminAffiliateAttributionRecord struct {
 	ApprovedConversionCount int64
 	SettledConversionCount  int64
 	ReversedConversionCount int64
+	ActiveReferralCount     int64
+	InactiveReferralCount   int64
+	NotActivatedCount       int64
 	GrossMinor              int64
 	CommissionMinor         int64
 	RecentConversions       []AdminAffiliateConversionRecord
 	RecentPayouts           []AdminAffiliatePayoutRecord
+	Invitations             []AdminAffiliateInvitationRecord
 	MilestoneAchievements   []AdminAffiliateMilestoneAchievementRecord
 	LastActivityAt          *time.Time
+}
+type AdminAffiliateInvitationRecord struct {
+	InvitationID        common.ID
+	InviterAffiliateID  common.ID
+	InviteeEmail        string
+	AcceptedAffiliateID common.ID
+	AcceptedDisplayName string
+	CreatedAt           time.Time
+	AcceptedAt          *time.Time
 }
 type AdminAffiliateMilestoneAchievementRecord struct {
 	AchievementID     common.ID
@@ -409,10 +425,12 @@ type AdminAffiliateConversionRecord struct {
 	AffiliateID      common.ID
 	BusinessID       common.ID
 	BusinessName     string
+	BusinessHandle   string
 	ConversionType   string
 	OrderID          common.ID
 	SubscriptionID   common.ID
 	PaymentReference string
+	PayoutBatchID    common.ID
 	GrossMinor       int64
 	CommissionMinor  int64
 	Status           string

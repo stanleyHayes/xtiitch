@@ -28,6 +28,7 @@ func scanAdminAffiliateRecord(row pgx.Row) (ports.AdminAffiliateRecord, error) {
 		&record.ContactName,
 		&record.Email,
 		&record.Phone,
+		&record.Region,
 		&record.WebsiteURL,
 		&record.CommissionModel,
 		&record.CommissionRate,
@@ -61,24 +62,17 @@ func listAdminAffiliateConversions(
 	tx pgx.Tx,
 ) (map[common.ID][]ports.AdminAffiliateConversionRecord, error) {
 	rows, err := tx.Query(ctx, `
-		with ranked as (
-			select
-				affiliate_conversions.*,
-				row_number() over (
-					partition by affiliate_id
-					order by updated_at desc, created_at desc
-				) as rank
-			from affiliate_conversions
-		)
 		select
 			r.affiliate_conversion_id::text,
 			r.affiliate_id::text,
 			r.business_id::text,
 			coalesce(b.name, '') as business_name,
+			coalesce(b.handle, '') as business_handle,
 			r.conversion_type,
 			coalesce(r.order_id::text, ''),
 			coalesce(r.subscription_id::text, ''),
 			r.payment_reference,
+			coalesce(r.payout_batch_id::text, ''),
 			r.gross_minor,
 			r.commission_minor,
 			r.status,
@@ -86,9 +80,8 @@ func listAdminAffiliateConversions(
 			r.hold_until,
 			r.created_at,
 			r.updated_at
-		from ranked r
+		from affiliate_conversions r
 		left join businesses b on b.business_id = r.business_id
-		where r.rank <= 5
 		order by r.affiliate_id, r.updated_at desc, r.created_at desc
 	`)
 	if err != nil {
@@ -105,10 +98,12 @@ func listAdminAffiliateConversions(
 			&record.AffiliateID,
 			&record.BusinessID,
 			&record.BusinessName,
+			&record.BusinessHandle,
 			&record.ConversionType,
 			&record.OrderID,
 			&record.SubscriptionID,
 			&record.PaymentReference,
+			&record.PayoutBatchID,
 			&record.GrossMinor,
 			&record.CommissionMinor,
 			&record.Status,
@@ -134,15 +129,6 @@ func listAdminAffiliatePayouts(
 	tx pgx.Tx,
 ) (map[common.ID][]ports.AdminAffiliatePayoutRecord, error) {
 	rows, err := tx.Query(ctx, `
-		with ranked as (
-			select
-				affiliate_payout_batches.*,
-				row_number() over (
-					partition by affiliate_id
-					order by created_at desc, updated_at desc
-				) as rank
-			from affiliate_payout_batches
-		)
 		select
 			r.payout_batch_id::text,
 			r.affiliate_id::text,
@@ -156,9 +142,8 @@ func listAdminAffiliatePayouts(
 			r.notes,
 			r.created_at,
 			r.updated_at
-		from ranked r
+		from affiliate_payout_batches r
 		left join affiliates a on a.affiliate_id = r.affiliate_id
-		where r.rank <= 3
 		order by r.affiliate_id, r.created_at desc, r.updated_at desc
 	`)
 	if err != nil {
@@ -192,10 +177,12 @@ func queryAdminAffiliateConversion(
 			ac.affiliate_id::text,
 			ac.business_id::text,
 			coalesce(b.name, '') as business_name,
+			coalesce(b.handle, '') as business_handle,
 			ac.conversion_type,
 			coalesce(ac.order_id::text, ''),
 			coalesce(ac.subscription_id::text, ''),
 			ac.payment_reference,
+			coalesce(ac.payout_batch_id::text, ''),
 			ac.gross_minor,
 			ac.commission_minor,
 			ac.status,
@@ -217,10 +204,12 @@ func scanAdminAffiliateConversionRecord(row pgx.Row) (ports.AdminAffiliateConver
 		&record.AffiliateID,
 		&record.BusinessID,
 		&record.BusinessName,
+		&record.BusinessHandle,
 		&record.ConversionType,
 		&record.OrderID,
 		&record.SubscriptionID,
 		&record.PaymentReference,
+		&record.PayoutBatchID,
 		&record.GrossMinor,
 		&record.CommissionMinor,
 		&record.Status,
@@ -297,6 +286,7 @@ func adminAffiliateSelect(source string) string {
 			a.contact_name,
 			a.email,
 			a.phone,
+			a.region,
 			a.website_url,
 			a.commission_model,
 			a.commission_rate::bigint,

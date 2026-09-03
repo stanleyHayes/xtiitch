@@ -1,4 +1,5 @@
 import { Form } from "react-router";
+import { useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import MenuItem from "@mui/material/MenuItem";
@@ -10,7 +11,7 @@ import TextField from "../../../components/form-text-field";
 import { tokens } from "../../../theme";
 import { affiliateConversionActions } from "../../shared/actionErrors";
 import { formatGHS } from "../../shared/formatting";
-import { shortID } from "../../shared/dates";
+import { shortID, shortTime } from "../../shared/dates";
 import type {
   AdminAffiliate,
   AdminAffiliateAttribution,
@@ -26,13 +27,22 @@ export function AffiliateConversionsPanel({
   performance?: AdminAffiliateAttribution;
   affiliates: AdminAffiliate[];
 }) {
-  const archived = affiliate.status === "archived";
+	const [statusFilter, setStatusFilter] = useState("all");
+	const [query, setQuery] = useState("");
+	const [fromDate, setFromDate] = useState("");
+	const archived = affiliate.status === "archived";
   const approvedConversionCount = performance?.approvedConversionCount ?? 0;
   const recentApprovedCommissionMinor =
     performance?.recentConversions
       .filter((conversion) => conversion.status === "approved")
       .reduce((total, conversion) => total + conversion.commissionMinor, 0) ??
     0;
+  const conversions = (performance?.recentConversions ?? []).filter((conversion) => {
+    const search = query.trim().toLowerCase();
+    return (statusFilter === "all" || conversion.status === statusFilter) &&
+      (!search || [conversion.businessName, conversion.businessHandle, conversion.paymentReference].some((value) => value?.toLowerCase().includes(search))) &&
+      (!fromDate || conversion.createdAt.slice(0, 10) >= fromDate);
+  });
 
   return (
     <Stack spacing={1.5}>
@@ -50,10 +60,21 @@ export function AffiliateConversionsPanel({
             variant="body2"
             sx={{ color: "text.secondary", fontWeight: 900 }}
           >
-            Recent conversions
+            Commission history
           </Typography>
+          <Stack direction={{ xs: "column", md: "row" }} spacing={1} sx={{ mt: 1 }}>
+            <TextField size="small" label="Business, handle or payment" value={query} onChange={(event) => setQuery(event.target.value)} sx={{ flex: 1 }} />
+            <TextField select size="small" label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} sx={{ minWidth: 150 }}>
+              <MenuItem value="all">All statuses</MenuItem>
+              <MenuItem value="pending">Pending / held</MenuItem>
+              <MenuItem value="approved">Available</MenuItem>
+              <MenuItem value="settled">Paid</MenuItem>
+              <MenuItem value="reversed">Reversed / adjusted</MenuItem>
+            </TextField>
+            <TextField size="small" type="date" label="From date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
+          </Stack>
           <Stack spacing={0.75} sx={{ mt: 1 }}>
-            {performance.recentConversions.map((conversion) => { // eslint-disable-line max-lines-per-function -- conversion workflow renderer; refactor in follow-up
+            {conversions.map((conversion) => { // eslint-disable-line max-lines-per-function -- conversion workflow renderer; refactor in follow-up
               const actions = affiliateConversionActions(
                 conversion.status,
                 conversion.conversionType,
@@ -78,7 +99,7 @@ export function AffiliateConversionsPanel({
                   >
                     <Box sx={{ minWidth: 0 }}>
                       <Typography sx={{ fontWeight: 900 }}>
-                        {conversion.businessName || "Unknown business"}
+                        {conversion.businessName || "Unknown business"}{conversion.businessHandle ? ` · @${conversion.businessHandle}` : ""}
                       </Typography>
                       <Typography
                         variant="body2"
@@ -88,6 +109,7 @@ export function AffiliateConversionsPanel({
                           ? shortID(conversion.orderId)
                           : `Plan ${shortID(conversion.subscriptionId ?? "")}`}{" "}
                         · {conversion.attributionModel.replace("_", " ")}
+						{conversion.payoutBatchId ? ` · Payout ${shortID(conversion.payoutBatchId)}` : ""}
                       </Typography>
                     </Box>
                     <Stack
@@ -100,7 +122,11 @@ export function AffiliateConversionsPanel({
                     >
                       <Chip
                         size="small"
-                        label={conversion.status}
+                        label={conversion.status === "pending" && conversion.holdUntil
+                          ? `Held until ${shortTime(conversion.holdUntil)}`
+                          : conversion.status === "approved" ? "Available"
+                            : conversion.status === "settled" ? "Paid"
+                              : conversion.status}
                         variant="outlined"
                       />
                       <Typography sx={{ fontWeight: 900 }}>
@@ -207,6 +233,7 @@ export function AffiliateConversionsPanel({
                 </Stack>
               );
             })}
+            {!conversions.length ? <Typography variant="body2" color="text.secondary">No commissions match these filters.</Typography> : null}
           </Stack>
         </Box>
       ) : null}

@@ -27,6 +27,7 @@ export type AdminAffiliate = {
   contactName: string;
   email: string;
   phone: string;
+  region: string;
   websiteUrl: string;
   commissionModel: AdminAffiliateCommissionModel;
   commissionRate: number;
@@ -53,12 +54,24 @@ export type AdminAffiliateAttribution = {
   approvedConversionCount: number;
   settledConversionCount: number;
   reversedConversionCount: number;
+  activeReferralCount: number;
+  inactiveReferralCount: number;
+  notActivatedCount: number;
   grossMinor: number;
   commissionMinor: number;
   recentConversions: AdminAffiliateConversion[];
   recentPayouts: AdminAffiliatePayout[];
+  invitations: AdminAffiliateInvitation[];
   milestoneAchievements: AdminAffiliateMilestoneAchievement[];
   lastActivityAt?: string;
+};
+export type AdminAffiliateInvitation = {
+  invitationId: string;
+  inviteeEmail: string;
+  acceptedAffiliateId?: string;
+  acceptedDisplayName?: string;
+  createdAt: string;
+  acceptedAt?: string;
 };
 
 export type AdminAffiliateMilestoneAchievement = {
@@ -78,10 +91,12 @@ export type AdminAffiliateConversion = {
   affiliateId: string;
   businessId: string;
   businessName: string;
+  businessHandle: string;
   conversionType: "purchase" | "subscription_payment" | "adjustment";
   orderId?: string;
   subscriptionId?: string;
   paymentReference?: string;
+  payoutBatchId?: string;
   grossMinor: number;
   commissionMinor: number;
   status: "pending" | "approved" | "settled" | "reversed";
@@ -118,6 +133,7 @@ type AdminAffiliatePayload = {
   contact_name: string;
   email: string;
   phone: string;
+  region: string;
   website_url: string;
   commission_model: AdminAffiliateCommissionModel;
   commission_rate: number;
@@ -144,12 +160,24 @@ type AdminAffiliateAttributionPayload = {
   approved_conversion_count: number;
   settled_conversion_count: number;
   reversed_conversion_count: number;
+  active_referral_count: number;
+  inactive_referral_count: number;
+  not_activated_count: number;
   gross_minor: number;
   commission_minor: number;
   recent_conversions: AdminAffiliateConversionPayload[];
   recent_payouts: AdminAffiliatePayoutPayload[];
+  invitations: AdminAffiliateInvitationPayload[];
   milestone_achievements: AdminAffiliateMilestoneAchievementPayload[];
   last_activity_at?: string;
+};
+type AdminAffiliateInvitationPayload = {
+  invitation_id: string;
+  invitee_email: string;
+  accepted_affiliate_id?: string;
+  accepted_display_name?: string;
+  created_at: string;
+  accepted_at?: string;
 };
 
 type AdminAffiliateMilestoneAchievementPayload = {
@@ -169,10 +197,12 @@ type AdminAffiliateConversionPayload = {
   affiliate_id: string;
   business_id: string;
   business_name: string;
+  business_handle: string;
   conversion_type: AdminAffiliateConversion["conversionType"];
   order_id?: string;
   subscription_id?: string;
   payment_reference?: string;
+  payout_batch_id?: string;
   gross_minor: number;
   commission_minor: number;
   status: AdminAffiliateConversion["status"];
@@ -210,6 +240,7 @@ function mapAffiliate(payload: AdminAffiliatePayload): AdminAffiliate {
     contactName: payload.contact_name,
     email: payload.email,
     phone: payload.phone,
+    region: payload.region,
     websiteUrl: payload.website_url,
     commissionModel: payload.commission_model,
     commissionRate: payload.commission_rate,
@@ -240,10 +271,21 @@ function mapAffiliateAttribution(
     approvedConversionCount: payload.approved_conversion_count,
     settledConversionCount: payload.settled_conversion_count,
     reversedConversionCount: payload.reversed_conversion_count,
+    activeReferralCount: payload.active_referral_count,
+    inactiveReferralCount: payload.inactive_referral_count,
+    notActivatedCount: payload.not_activated_count,
     grossMinor: payload.gross_minor,
     commissionMinor: payload.commission_minor,
     recentConversions: payload.recent_conversions.map(mapAffiliateConversion),
     recentPayouts: (payload.recent_payouts ?? []).map(mapAffiliatePayout),
+    invitations: (payload.invitations ?? []).map((invitation) => ({
+      invitationId: invitation.invitation_id,
+      inviteeEmail: invitation.invitee_email,
+      acceptedAffiliateId: invitation.accepted_affiliate_id,
+      acceptedDisplayName: invitation.accepted_display_name,
+      createdAt: invitation.created_at,
+      acceptedAt: invitation.accepted_at,
+    })),
     milestoneAchievements: (payload.milestone_achievements ?? []).map(
       mapAffiliateMilestoneAchievement,
     ),
@@ -275,10 +317,12 @@ function mapAffiliateConversion(
     affiliateId: payload.affiliate_id,
     businessId: payload.business_id,
     businessName: payload.business_name,
+    businessHandle: payload.business_handle,
     conversionType: payload.conversion_type,
     orderId: payload.order_id,
     subscriptionId: payload.subscription_id,
     paymentReference: payload.payment_reference,
+    payoutBatchId: payload.payout_batch_id,
     grossMinor: payload.gross_minor,
     commissionMinor: payload.commission_minor,
     status: payload.status,
@@ -412,6 +456,7 @@ export const affiliatesApi = {
       contactName: string;
       email: string;
       phone: string;
+      region: string;
       websiteUrl: string;
       commissionModel: AdminAffiliateCommissionModel;
       commissionRate: number;
@@ -434,6 +479,7 @@ export const affiliatesApi = {
         contact_name: input.contactName,
         email: input.email,
         phone: input.phone,
+        region: input.region,
         website_url: input.websiteUrl,
         commission_model: input.commissionModel,
         commission_rate: input.commissionRate,
@@ -456,6 +502,7 @@ export const affiliatesApi = {
       contactName: string;
       email: string;
       phone: string;
+      region: string;
       websiteUrl: string;
       commissionModel: AdminAffiliateCommissionModel;
       commissionRate: number;
@@ -481,6 +528,7 @@ export const affiliatesApi = {
           contact_name: input.contactName,
           email: input.email,
           phone: input.phone,
+          region: input.region,
           website_url: input.websiteUrl,
           commission_model: input.commissionModel,
           commission_rate: input.commissionRate,
