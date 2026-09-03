@@ -243,12 +243,6 @@ const MENU_ITEMS: {
     icon: "pricetag-outline",
   },
   {
-    href: "/business/affiliates",
-    title: "Affiliates",
-    hint: "Creator partnerships",
-    icon: "megaphone-outline",
-  },
-  {
     href: "/business/waitlist",
     title: "Waitlist",
     hint: "Design demand",

@@ -1810,6 +1810,15 @@ Status: `[x] implemented and locally verified`
 - `[x]` Added application-service audit/validation coverage and real-PostgreSQL tests proving admin fulfilment persistence plus admin attribution projection; repaired shared fixture teardown to respect the item-13 historical `RESTRICT` constraints.
 - `[x]` Verification: fresh PostgreSQL 18 migration chain through migration 154; focused milestone tests; full database-backed `go test ./...`; `go vet ./...`; `go build ./...`; admin typecheck, targeted ESLint, 12 tests, production build; and `git diff --check`.
 
+### Item 15 future product-Affiliate phase explicitly parked — 2026-09-03
+
+- `[x]` The future model where Affiliates promote business products remains outside the current Affiliate Programme; current commission generation is limited to eligible platform subscription payments.
+- `[x]` Removed all legacy business-owner product-Affiliate HTTP route registrations, so direct programme, Affiliate, pause, and attribution requests now return 404 while their reusable handlers, services, repositories, schema, and historical records remain intact for a deliberate future redesign.
+- `[x]` Removed the product-Affiliate card and screen registration from the mobile business dashboard and moved the reusable management component outside Expo's file-based route tree, closing both navigation and deep-link exposure without discarding the future implementation. The web business dashboard already had no reachable Affiliate navigation or route.
+- `[x]` Existing database triggers remain the storage-level fail-safe: any business-owned Affiliate programme or Affiliate inserted through an internal path is persisted as paused with every purchase and paid-plan commission rate forced to zero.
+- `[x]` Added an HTTP route-registration contract for all parked business-owner endpoints and a real-PostgreSQL contract proving reusable records remain persisted but cannot become active or commission-bearing.
+- `[x]` Verification: focused route and parked-state database tests; full database-backed `go test ./...`; `go vet ./...`; `go build ./...`; complete mobile typecheck and five-test suite; and `git diff --check`.
+
 ### Updated-spec delta (Xtiitch-Updates-Refined v2, 2026-07-10 22:29) — apply these
 
 Diff vs the version above:

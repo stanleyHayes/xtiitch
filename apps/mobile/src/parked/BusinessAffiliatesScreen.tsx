@@ -1,3 +1,5 @@
+// Parked future product-Affiliate surface. Kept outside Expo's app/ route tree
+// so it cannot open until the commercial model is deliberately redesigned.
 import { useCallback, useMemo, useState } from "react";
 import {
   Alert,
@@ -14,10 +16,10 @@ import {
   type AffiliateAttribution,
   type BusinessAffiliate,
   type BusinessAffiliateProgramme,
-} from "../../src/businessAffiliatesApi";
-import { formatGHS } from "../../src/api";
-import { useTheme } from "../../src/theme-mode";
-import { styles } from "./affiliates.styles";
+} from "../businessAffiliatesApi";
+import { formatGHS } from "../api";
+import { useTheme } from "../theme-mode";
+import { styles } from "./business-affiliates.styles";
 
 // The coordinator keeps the three related datasets and edit forms synchronized;
 // visual styling is isolated in affiliates.styles.ts.

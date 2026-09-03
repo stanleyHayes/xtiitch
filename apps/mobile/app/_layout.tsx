@@ -157,10 +157,6 @@ function ThemedStack() {
         <Stack.Screen name="business/account" options={{ title: "Account" }} />
         <Stack.Screen name="business/billing" options={{ title: "Plans" }} />
         <Stack.Screen name="business/help" options={{ title: "Help" }} />
-        <Stack.Screen
-          name="business/affiliates"
-          options={{ title: "Creator partnerships" }}
-        />
         <Stack.Screen name="business/order/[id]" options={{ title: "Order" }} />
         <Stack.Screen
           name="business/new-order"
