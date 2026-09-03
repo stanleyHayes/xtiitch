@@ -247,8 +247,9 @@ func (repo AdminAuthRepository) CreateAdminAffiliatePayout(
 			set status = 'approved', approved_at = coalesce(approved_at, now()),
 				updated_at = now(),
 				metadata = metadata || jsonb_build_object('matured_automatically_at', now())
-			where affiliate_id = $2::uuid and status = 'pending'
-			  and hold_until <= now()
+				where affiliate_id = $2::uuid and status = 'pending'
+				  and hold_until <= now()
+				  and not exists (select 1 from admin_settlement_review_holds hold where hold.business_id=affiliate_conversions.business_id and hold.is_active)
 			returning affiliate_conversion_id
 		), affiliate as (
 			select
@@ -266,8 +267,9 @@ func (repo AdminAuthRepository) CreateAdminAffiliatePayout(
 				gross_minor,
 				commission_minor
 			from affiliate_conversions
-			where affiliate_id = $2::uuid
-				and status = 'approved'
+				where affiliate_id = $2::uuid
+					and status = 'approved'
+					and not exists (select 1 from admin_settlement_review_holds hold where hold.business_id=affiliate_conversions.business_id and hold.is_active)
 			order by approved_at nulls last, updated_at, affiliate_conversion_id
 			for update
 		),

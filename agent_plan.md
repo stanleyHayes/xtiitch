@@ -1697,6 +1697,14 @@ Status: `[x] implemented and locally verified`
 - `[x]` Existing commission records retain their original Affiliate when future attribution is corrected.
 - `[x]` Verification: migration 151 fresh-chain validation, real-Postgres attribution correction test, full Go suite, admin type-check/ESLint/production build, and `git diff --check`.
 
+### Item 4 verification and gap closure — 2026-09-03
+
+- `[x]` New commissions begin Pending with `hold_until` derived from the Company Admin configurable maturity period (default 14 days); the recurring rate remains admin configurable (default 20%).
+- `[x]` Pending commissions become Available only after maturity and remain Pending while their business has an active administrative settlement hold.
+- `[x]` Automatic and manual Affiliate payouts exclude held businesses, including retries of previously failed automatic batches; releasing the hold makes matured commission eligible again.
+- `[x]` Reversed commission remains excluded from maturity and payout selection, and payout processing stays separate from maturity calculation.
+- `[x]` Verification: focused payout/admin/affiliate repository tests, full Go suite, admin and Affiliate checks/builds, and `git diff --check`.
+
 ### Updated-spec delta (Xtiitch-Updates-Refined v2, 2026-07-10 22:29) — apply these
 
 Diff vs the version above:

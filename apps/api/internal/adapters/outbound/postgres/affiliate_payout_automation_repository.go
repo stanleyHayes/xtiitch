@@ -25,9 +25,12 @@ func (repo AdminAuthRepository) ClaimDueAffiliatePayout(ctx context.Context, bat
 		with retryable as (
 		  select b.payout_batch_id from affiliate_payout_batches b
 		  join affiliates a on a.affiliate_id=b.affiliate_id
-		  where a.status='active' and b.status='failed'
+			  where a.status='active' and b.status='failed'
+			    and not exists (select 1 from affiliate_conversions c
+			      join admin_settlement_review_holds h on h.business_id=c.business_id and h.is_active
+			      where c.payout_batch_id=b.payout_batch_id)
 		    and b.failure_reason not like 'provider_event:%'
-		    and b.attempted_at <= $1 - interval '15 minutes'
+			and b.attempted_at <= $1::timestamptz - interval '15 minutes'
 		  order by b.attempted_at for update of b skip locked limit 1
 		)
 		update affiliate_payout_batches b set status='processing', attempted_at=$1, updated_at=$1
@@ -51,7 +54,8 @@ func (repo AdminAuthRepository) ClaimDueAffiliatePayout(ctx context.Context, bat
 		from affiliates a join affiliate_payout_profiles p on p.affiliate_id=a.affiliate_id
 		where a.status='active' and p.provider_recipient_ref <> ''
 		  and exists (select 1 from affiliate_conversions c where c.affiliate_id=a.affiliate_id
-		    and c.payout_batch_id is null and (c.status='approved' or (c.status='pending' and c.hold_until <= $1)))
+			    and c.payout_batch_id is null and (c.status='approved' or (c.status='pending' and c.hold_until <= $1::timestamptz))
+			    and not exists (select 1 from admin_settlement_review_holds h where h.business_id=c.business_id and h.is_active))
 		order by a.created_at for update of a skip locked limit 1
 	`, now).Scan(&affiliateID, &recipient)
 	if isNoRows(err) {
@@ -62,12 +66,14 @@ func (repo AdminAuthRepository) ClaimDueAffiliatePayout(ctx context.Context, bat
 	}
 
 	_, err = tx.Exec(ctx, `update affiliate_conversions set status='approved',approved_at=coalesce(approved_at,$2),updated_at=$2
-		where affiliate_id=$1 and status='pending' and payout_batch_id is null and hold_until <= $2`, affiliateID, now)
+		where affiliate_id=$1 and status='pending' and payout_batch_id is null and hold_until <= $2
+		  and not exists (select 1 from admin_settlement_review_holds h where h.business_id=affiliate_conversions.business_id and h.is_active)`, affiliateID, now)
 	if err != nil {
 		return ports.AffiliatePayoutDispatch{}, false, err
 	}
 	rows, err := tx.Query(ctx, `select affiliate_conversion_id::text,gross_minor,commission_minor from affiliate_conversions
 		where affiliate_id=$1 and status='approved' and payout_batch_id is null
+		  and not exists (select 1 from admin_settlement_review_holds h where h.business_id=affiliate_conversions.business_id and h.is_active)
 		order by approved_at nulls last,updated_at,affiliate_conversion_id for update`, affiliateID)
 	if err != nil {
 		return ports.AffiliatePayoutDispatch{}, false, err

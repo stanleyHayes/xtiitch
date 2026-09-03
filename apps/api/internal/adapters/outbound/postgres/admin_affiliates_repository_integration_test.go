@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -11,6 +12,8 @@ import (
 	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
+
+const itAdminAffAutomaticPayout = "ffffffff-9999-4999-8999-999999999983"
 
 func TestUpdateAdminAffiliateConversionStatusPersistsTransition(t *testing.T) {
 	pool := openIntegrationPool(t)
@@ -146,6 +149,47 @@ func TestCreateAdminAffiliatePayoutSettlesApprovedConversions(t *testing.T) {
 	}
 }
 
+func TestAffiliateSettlementHoldBlocksManualAndAutomaticPayoutsUntilReleased(t *testing.T) {
+	pool := openIntegrationPool(t)
+	defer pool.Close()
+	seedAdminAffiliateConversionFixture(t, pool)
+	defer cleanupAdminAffiliateConversionFixture(t, pool)
+
+	now := time.Now().UTC()
+	inBypass(t, pool, func(tx pgx.Tx) {
+		mustExec(t, tx, `update affiliate_conversions set hold_until=$2 where affiliate_conversion_id=$1`, itAdminAffConversion, now.Add(-time.Hour))
+		mustExec(t, tx, `insert into affiliate_payout_profiles(affiliate_id,payout_method,account_name,provider_name,account_identifier_encrypted,account_identifier_last4,status,provider_recipient_ref)
+			values($1,'mobile_money','IT Affiliate','MTN','encrypted','0000','verified','RCP_IT_AFF_HOLD')`, itAdminAffAffiliate)
+		mustExec(t, tx, `insert into admin_settlement_review_holds(business_id,reason,placed_by_admin_user_id)
+			values($1,'Affiliate commission under review',$2)`, itAdminAffBiz, itAdminAffAdmin)
+	})
+
+	repo := NewAdminAuthRepository(pool)
+	_, err := repo.CreateAdminAffiliatePayout(context.Background(), ports.CreateAdminAffiliatePayoutInput{
+		PayoutBatchID: itAdminAffPayout, AffiliateID: itAdminAffAffiliate,
+		PayoutReference: "TRF_IT_AFF_HOLD", Notes: "Must remain held.", ActorAdminUser: itAdminAffAdmin,
+	})
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected active settlement hold to block manual payout, got %v", err)
+	}
+	if _, claimed, err := repo.ClaimDueAffiliatePayout(context.Background(), common.ID(itAdminAffAutomaticPayout), now); err != nil {
+		t.Fatalf("claim held automatic payout: %v", err)
+	} else if claimed {
+		t.Fatal("expected active settlement hold to block automatic payout")
+	}
+
+	inBypass(t, pool, func(tx pgx.Tx) {
+		mustExec(t, tx, `update admin_settlement_review_holds set is_active=false,released_by_admin_user_id=$2,released_at=$3,updated_at=$3 where business_id=$1`, itAdminAffBiz, itAdminAffAdmin, now)
+	})
+	dispatch, claimed, err := repo.ClaimDueAffiliatePayout(context.Background(), common.ID(itAdminAffAutomaticPayout), now)
+	if err != nil {
+		t.Fatalf("claim released automatic payout: %v", err)
+	}
+	if !claimed || dispatch.AmountMinor != 2500 || dispatch.AffiliateID != common.ID(itAdminAffAffiliate) {
+		t.Fatalf("expected released commission to become claimable, got claimed=%v dispatch=%+v", claimed, dispatch)
+	}
+}
+
 func seedAdminAffiliateConversionFixture(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	cleanupAdminAffiliateConversionFixture(t, pool)
@@ -219,6 +263,7 @@ func seedAdminAffiliateConversionFixture(t *testing.T, pool *pgxpool.Pool) {
 func cleanupAdminAffiliateConversionFixture(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	inBypass(t, pool, func(tx pgx.Tx) {
+		mustExec(t, tx, `delete from affiliate_payout_batches where affiliate_id = $1`, itAdminAffAffiliate)
 		mustExec(t, tx, `delete from admin_audit_events where actor_admin_user_id = $1`, itAdminAffAdmin)
 		mustExec(t, tx, `delete from businesses where business_id = $1`, itAdminAffBiz)
 		mustExec(t, tx, `delete from affiliates where affiliate_id = $1`, itAdminAffAffiliate)
