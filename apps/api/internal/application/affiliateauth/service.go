@@ -17,10 +17,12 @@ import (
 )
 
 var (
-	ErrInvalidCredentials = errors.New("invalid affiliate credentials")
-	ErrInvalidInput       = errors.New("invalid affiliate auth input")
-	ErrInvalidActivation  = errors.New("invalid or expired affiliate activation token")
-	ErrInvalidRecovery    = errors.New("invalid or expired affiliate recovery token")
+	ErrInvalidCredentials      = errors.New("invalid affiliate credentials")
+	ErrInvalidInput            = errors.New("invalid affiliate auth input")
+	ErrInvalidActivation       = errors.New("invalid or expired affiliate activation token")
+	ErrInvalidRecovery         = errors.New("invalid or expired affiliate recovery token")
+	ErrInviteeAlreadyAffiliate = errors.New("invitee already has an affiliate account")
+	ErrAffiliateUnavailable    = errors.New("affiliate account is unavailable")
 )
 
 const (

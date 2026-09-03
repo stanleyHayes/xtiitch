@@ -220,8 +220,8 @@ export function buildReportMetrics({ // eslint-disable-line complexity, max-line
       value: `${pendingAffiliates.length} pending`,
       helper:
         pendingAffiliates.length > 0
-          ? `${activeAffiliates.length} active partners · ${paystackAffiliates.length} Paystack-ready payout rails.`
-          : `${activeAffiliates.length} active partners with no pending review.`,
+          ? `${activeAffiliates.length} active Affiliates · ${paystackAffiliates.length} Paystack-ready payout rails.`
+          : `${activeAffiliates.length} active Affiliates with no pending review.`,
       status: pendingAffiliates.length > 0 ? "watch" : "ready",
       target: "affiliates",
       targetLabel: "Open affiliates",

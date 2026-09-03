@@ -82,7 +82,7 @@ function ApplicantFields({ errors }: { errors?: FormErrors }) {
         >
           <MenuItem value="person">Individual creator</MenuItem>
           <MenuItem value="business">Business</MenuItem>
-          <MenuItem value="agency">Agency or media partner</MenuItem>
+          <MenuItem value="agency">Agency or media business</MenuItem>
         </TextField>
         <TextField
           name="display_name"

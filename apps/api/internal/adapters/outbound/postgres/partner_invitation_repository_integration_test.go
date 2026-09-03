@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -17,6 +18,9 @@ func TestCreatePartnerInvitationReusesPendingInviteWithoutFinancialRelationship(
 	defer cleanupAdminAffiliateConversionFixture(t, pool)
 	defer inBypass(t, pool, func(tx pgx.Tx) {
 		mustExec(t, tx, `delete from partner_invitations where inviter_affiliate_id=$1`, itAdminAffAffiliate)
+	})
+	inBypass(t, pool, func(tx pgx.Tx) {
+		mustExec(t, tx, `update affiliates set status='paused' where affiliate_id=$1`, itAdminAffAffiliate)
 	})
 
 	repo := NewAffiliateAuthRepository(pool)
@@ -47,6 +51,28 @@ func TestCreatePartnerInvitationReusesPendingInviteWithoutFinancialRelationship(
 			t.Fatalf("partner invitations must not carry financial/downline fields, found %d", columns)
 		}
 	})
+}
+
+func TestCreatePartnerInvitationReportsExistingAffiliateEmail(t *testing.T) {
+	pool := openIntegrationPool(t)
+	defer pool.Close()
+	seedAdminAffiliateConversionFixture(t, pool)
+	defer cleanupAdminAffiliateConversionFixture(t, pool)
+	defer inBypass(t, pool, func(tx pgx.Tx) {
+		mustExec(t, tx, `delete from affiliate_accounts where email='joined@example.com'`)
+	})
+	inBypass(t, pool, func(tx pgx.Tx) {
+		mustExec(t, tx, `insert into affiliate_accounts(affiliate_account_id,affiliate_id,email,status)
+			values('96969696-1111-4111-8111-111111111111',$1,'joined@example.com','invited')`, itAdminAffAffiliate)
+	})
+
+	_, err := NewAffiliateAuthRepository(pool).CreatePartnerInvitation(context.Background(), ports.CreatePartnerInvitationInput{
+		InvitationID: "96969696-2222-4222-8222-222222222222", InviterAffiliateID: common.ID(itAdminAffAffiliate),
+		InviteCode: "existing-affiliate", InviteeEmail: "joined@example.com",
+	})
+	if !errors.Is(err, ports.ErrAffiliateEmailTaken) {
+		t.Fatalf("expected existing Affiliate email error, got %v", err)
+	}
 }
 
 func TestInvitedAffiliateSignupMarksInvitationAccepted(t *testing.T) {

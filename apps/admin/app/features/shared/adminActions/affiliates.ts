@@ -68,7 +68,7 @@ export async function handleAffiliatesAction({
         return {
           section: "affiliates",
           severity: "success",
-          message: "Affiliate partner archived.",
+          message: "Affiliate archived.",
         };
       }
 
@@ -108,7 +108,7 @@ export async function handleAffiliatesAction({
         return {
           section: "affiliates",
           severity: "success",
-          message: "Affiliate partner created.",
+          message: "Affiliate created.",
         };
       }
 
@@ -120,7 +120,7 @@ export async function handleAffiliatesAction({
       return {
         section: "affiliates",
         severity: "success",
-        message: "Affiliate partner updated.",
+        message: "Affiliate updated.",
       };
     } catch (error) {
       return {

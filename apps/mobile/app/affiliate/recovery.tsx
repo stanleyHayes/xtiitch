@@ -79,7 +79,7 @@ export default function AffiliateRecoveryScreen() {
               onChangeText={setEmail}
               autoCapitalize="none"
               keyboardType="email-address"
-              placeholder="partner@example.com"
+              placeholder="affiliate@example.com"
               placeholderTextColor={palette.mutedText}
               style={s.input}
             />

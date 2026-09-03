@@ -15,7 +15,7 @@ const growthLoop = [
   },
   {
     title: "Share the link",
-    body: "Customers or partners land on a storefront, design page, or labelled sponsored placement.",
+    body: "Customers or Affiliates land on a storefront, design page, or labelled sponsored placement.",
     Icon: StorefrontRoundedIcon,
   },
   {
@@ -25,7 +25,7 @@ const growthLoop = [
   },
   {
     title: "Finalize after payment",
-    body: "Rewards, redemptions, and partner commissions become real only after the provider confirms payment.",
+    body: "Rewards, redemptions, and Affiliate commissions become real only after the provider confirms payment.",
     Icon: PaidRoundedIcon,
   },
 ];

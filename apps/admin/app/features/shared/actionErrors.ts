@@ -218,7 +218,7 @@ export function adminAffiliateActionError(error: unknown): string {
       case "invalid_input":
         return "Check the affiliate fields or conversion status transition.";
       case "not_found":
-        return "That affiliate partner or conversion could not be found.";
+        return "That Affiliate or conversion could not be found.";
       default:
         return "The affiliate programme change could not be saved.";
     }

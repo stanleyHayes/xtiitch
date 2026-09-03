@@ -714,6 +714,10 @@ func authError(err error) (int, string) {
 	switch {
 	case errors.Is(err, affiliateauthapp.ErrInvalidInput):
 		return http.StatusBadRequest, "invalid_request"
+	case errors.Is(err, affiliateauthapp.ErrInviteeAlreadyAffiliate):
+		return http.StatusConflict, "affiliate_already_registered"
+	case errors.Is(err, affiliateauthapp.ErrAffiliateUnavailable):
+		return http.StatusForbidden, "affiliate_unavailable"
 	case errors.Is(err, affiliateauthapp.ErrInvalidActivation):
 		return http.StatusUnauthorized, "invalid_activation_token"
 	case errors.Is(err, affiliateauthapp.ErrInvalidRecovery):

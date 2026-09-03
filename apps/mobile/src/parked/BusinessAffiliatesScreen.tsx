@@ -165,7 +165,7 @@ export default function BusinessAffiliatesScreen() {
           style={s.watermark}
         />
         <Text style={s.eyebrow}>GROW WITH CREATORS</Text>
-        <Text style={s.title}>Affiliate partnerships</Text>
+        <Text style={s.title}>Affiliate programme</Text>
         <Text style={s.subtitle}>
           Create commission programmes, issue trackable codes, and follow
           attributed sales.
@@ -304,7 +304,7 @@ export default function BusinessAffiliatesScreen() {
           </View>
         </>
       ) : null}
-      <Text style={s.section}>Partners & performance</Text>
+      <Text style={s.section}>Affiliates & performance</Text>
       <View style={s.list}>
         {affiliates.map((item) => {
           const data = metric(item);

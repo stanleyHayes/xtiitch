@@ -80,7 +80,8 @@ export function AffiliateTable({
             <Box>
               <Typography variant="h6">Register affiliate</Typography>
               <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                Add a partner code and the commercial terms operators approve.
+                Add an Affiliate code and the commercial terms operators
+                approve.
               </Typography>
             </Box>
             <Button
@@ -107,14 +108,15 @@ export function AffiliateTable({
                     component="span"
                     sx={{ display: "block", fontWeight: 950 }}
                   >
-                    Register affiliate partner
+                    Register Affiliate
                   </Typography>
                   <Typography
                     component="span"
                     variant="body2"
                     sx={{ display: "block", color: "text.secondary" }}
                   >
-                    Add partner identity, commission terms, and payout details.
+                    Add Affiliate identity, commission terms, and payout
+                    details.
                   </Typography>
                 </Box>
                 <IconButton
@@ -277,7 +279,7 @@ export function AffiliateTable({
                       Cancel
                     </Button>
                     <Button type="submit" variant="contained">
-                      Create partner
+                      Create Affiliate
                     </Button>
                   </Stack>
                 </Stack>
@@ -290,15 +292,15 @@ export function AffiliateTable({
       {!affiliatesError && affiliates.length === 0 ? (
         <AdminEmptyState
           icon={<HandshakeRounded />}
-          eyebrow="Partner network"
-          title="No affiliate partners yet"
-          helper="Register the first partner to issue a trackable code, define commission terms, and keep payouts and attributed revenue in one place."
+          eyebrow="Affiliate network"
+          title="No Affiliates yet"
+          helper="Register the first Affiliate to issue a trackable code, define commission terms, and keep payouts and attributed revenue in one place."
           action={
             <Button
               variant="contained"
               onClick={() => setAffiliateDialogOpen(true)}
             >
-              Register first partner
+              Register first Affiliate
             </Button>
           }
         />
@@ -327,7 +329,7 @@ export function AffiliateTable({
           </Box>
           <PaginationFooter
             count={pageCount}
-            label="affiliate partners"
+            label="Affiliates"
             page={page}
             pageSize={4}
             total={affiliates.length}

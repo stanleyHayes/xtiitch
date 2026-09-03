@@ -80,12 +80,12 @@ export default function Features() {
           >
             <Eyebrow>Growth layer</Eyebrow>
             <Typography variant="h3" component="h2" sx={{ mt: 0.5 }}>
-              Campaigns, partners and sponsored discovery sit on top.
+              Campaigns, Affiliates and sponsored discovery sit on top.
             </Typography>
             <Typography sx={{ mt: 1.5, color: "text.secondary" }}>
               Once a store is running, Xtiitch can help the business promote
-              specific designs, reward referrals, track partner links and appear
-              in labelled sponsored slots.
+              specific designs, reward referrals, track Affiliate links and
+              appear in labelled sponsored slots.
             </Typography>
             <Button
               component={RouterLink}

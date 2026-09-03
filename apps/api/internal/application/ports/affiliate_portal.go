@@ -142,7 +142,7 @@ type PartnerMilestoneAchievementRecord struct {
 }
 
 // PartnerReferralRecord is deliberately privacy-minimal. Do not add contact,
-// billing or owner fields: the Partner Program contract exposes handle + state.
+// billing or owner fields: the Affiliate Programme contract exposes handle + state.
 type PartnerReferralRecord struct {
 	Handle string `json:"handle"`
 	Status string `json:"status"`

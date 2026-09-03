@@ -363,7 +363,7 @@ func (s Service) CreateAffiliate(
 	if err := s.recordAudit(ctx, auditInput{
 		ActorUserID: cmd.ActorUserID,
 		ActorRole:   cmd.ActorRole,
-		Action:      "Created affiliate programme partner",
+		Action:      "Created Affiliate",
 		TargetType:  "affiliate",
 		TargetID:    record.AffiliateID.String(),
 		TargetLabel: record.DisplayName,
@@ -406,7 +406,7 @@ func (s Service) UpdateAffiliate(
 	if err := s.recordAudit(ctx, auditInput{
 		ActorUserID: cmd.ActorUserID,
 		ActorRole:   cmd.ActorRole,
-		Action:      "Updated affiliate programme partner",
+		Action:      "Updated Affiliate",
 		TargetType:  "affiliate",
 		TargetID:    record.AffiliateID.String(),
 		TargetLabel: record.DisplayName,
@@ -445,7 +445,7 @@ func (s Service) ArchiveAffiliate(
 	}
 	reason := normalizeOperatorNote(cmd.Reason)
 	if reason == "" {
-		reason = "Affiliate programme partner archived."
+		reason = "Affiliate archived."
 	}
 
 	metadata := affiliateAuditMetadata(record)
@@ -453,7 +453,7 @@ func (s Service) ArchiveAffiliate(
 	if err := s.recordAudit(ctx, auditInput{
 		ActorUserID: cmd.ActorUserID,
 		ActorRole:   cmd.ActorRole,
-		Action:      "Archived affiliate programme partner",
+		Action:      "Archived Affiliate",
 		TargetType:  "affiliate",
 		TargetID:    record.AffiliateID.String(),
 		TargetLabel: record.DisplayName,

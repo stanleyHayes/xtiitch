@@ -8,8 +8,8 @@ import (
 )
 
 // AffiliatePayoutProvider provisions a Paystack beneficiary for commissions
-// that have completed the Partner programme's maturity window. This is a
-// transfer recipient, not a transaction subaccount: Partner earnings are paid
+// that have completed the Affiliate Programme's maturity window. This is a
+// transfer recipient, not a transaction subaccount: Affiliate earnings are paid
 // later and must never be split out before refund/fraud holds mature.
 type AffiliatePayoutProvider interface {
 	CreateAffiliateTransferRecipient(

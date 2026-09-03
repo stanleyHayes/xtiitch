@@ -21,8 +21,11 @@ func (s Service) InvitePartner(ctx context.Context, affiliateID common.ID, invit
 	}
 	code := s.ids.NewID().String()
 	record, err := s.invitations.CreatePartnerInvitation(ctx, ports.CreatePartnerInvitationInput{InvitationID: s.ids.NewID(), InviterAffiliateID: affiliateID, InviteCode: code, InviteeEmail: email})
+	if errors.Is(err, ports.ErrAffiliateEmailTaken) {
+		return ports.PartnerInvitationRecord{}, ErrInviteeAlreadyAffiliate
+	}
 	if errors.Is(err, ports.ErrNotFound) {
-		return ports.PartnerInvitationRecord{}, ErrInvalidInput
+		return ports.PartnerInvitationRecord{}, ErrAffiliateUnavailable
 	}
 	if err != nil {
 		return ports.PartnerInvitationRecord{}, err

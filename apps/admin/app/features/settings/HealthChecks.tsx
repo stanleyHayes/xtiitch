@@ -189,8 +189,8 @@ export function useHealthChecks({ // eslint-disable-line complexity, max-lines-p
       value: `${pendingAffiliates.length} pending`,
       helper:
         pendingAffiliates.length > 0
-          ? `${pendingAffiliates.length} partners need operator review before attribution.`
-          : `${activeAffiliates.length} active partners · ${manualPayoutAffiliates.length} manual payout rails.`,
+          ? `${pendingAffiliates.length} Affiliates need operator review before attribution.`
+          : `${activeAffiliates.length} active Affiliates · ${manualPayoutAffiliates.length} manual payout rails.`,
       status:
         pendingAffiliates.length > 0 || manualPayoutAffiliates.length > 0
           ? "watch"

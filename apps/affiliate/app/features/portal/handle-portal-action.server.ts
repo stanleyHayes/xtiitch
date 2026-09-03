@@ -36,7 +36,9 @@ function mutationForIntent(
 			path: "/affiliate/invitations",
 			method: "POST",
 			success: `Invitation sent to ${String(form.get("invitee_email") ?? "").trim()}.`,
-			body: { email: form.get("invitee_email") }
+			body: {
+				email: String(form.get("invitee_email") ?? "").trim()
+			}
 		};
 	}
   if (intent === "payout") {
@@ -89,6 +91,12 @@ function mutationForIntent(
 // Those are for logs, not for people: the old handler piped the raw body
 // straight into the page.
 function messageForError(status: number, code: string): string {
+	if (status === 409 && code.includes("affiliate_already_registered")) {
+		return "That email already belongs to an Affiliate account. They can sign in directly.";
+	}
+	if (status === 403 && code.includes("affiliate_unavailable")) {
+		return "Your Affiliate account cannot send invitations right now. Contact Xtiitch support.";
+	}
   if (status === 409 && code.includes("slug")) {
     return "That link name is already in use. Try a different one.";
   }

@@ -60,7 +60,7 @@ export function Footer() {
         // Hiding this in the header only would leave the footer advertising a
         // page that redirects home — the programme has more than one entry
         // point, so the gate has to cover each of them.
-				if (item.href === "/partners") {
+        if (item.href === "/affiliates") {
           return flags.affiliate_signup;
         }
         return true;

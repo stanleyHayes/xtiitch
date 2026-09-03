@@ -239,7 +239,7 @@ export function buildRevenueDatasets({ // eslint-disable-line max-lines-per-func
       id: "affiliates",
       title: "Affiliate programmes",
       helper:
-        "Partner codes, contact details, commission terms, payout rails, cookie windows, and status.",
+        "Affiliate codes, contact details, commission terms, payout rails, cookie windows, and status.",
       source: "affiliates",
       sourceLabel: "Open affiliates",
       tone: pendingAffiliates.length > 0 ? "watch" : "ready",

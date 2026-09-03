@@ -1819,6 +1819,16 @@ Status: `[x] implemented and locally verified`
 - `[x]` Added an HTTP route-registration contract for all parked business-owner endpoints and a real-PostgreSQL contract proving reusable records remain persisted but cannot become active or commission-bearing.
 - `[x]` Verification: focused route and parked-state database tests; full database-backed `go test ./...`; `go vet ./...`; `go build ./...`; complete mobile typecheck and five-test suite; and `git diff --check`.
 
+### Item 16 final programme rules, naming exception, and invitation repair — 2026-09-03
+
+- `[x]` Item 16's final functional rules are implemented: immediate self-service Affiliate enrollment, recurring 20% eligible-subscription commission, persistent attribution through inactive periods and reactivation, privacy-minimal referral reporting, configurable 14-day maturity, actionable milestones, and non-financial single-level email invitations.
+- `[x]` The explicit product decision overrides the PDF's final Partner naming addendum: all reachable customer and operator surfaces use **Affiliate**, the marketing route is `/affiliates`, and account links continue to use `affiliate.xtiitch.com`. Historical migration names and internal compatibility symbols remain unchanged to preserve migration safety and API continuity.
+- `[x]` Migration 155 updates the persisted default programme name and description to the Affiliate brand without changing commission, attribution, payout, or lifecycle behavior; its down migration restores the prior persisted values.
+- `[x]` Reproduced the invitation error path and confirmed the entered email was not the problem. The repository had required the inviter to be `active`, collapsed a paused account and an already-registered invitee into the same no-row result, and the UI consequently displayed the generic missing-details message.
+- `[x]` Authenticated non-archived Affiliates can now send invitations, while archived/unavailable inviters receive a specific 403 response and an email already attached to an Affiliate account receives a specific 409 response. The Affiliate portal trims the submitted email and presents precise, actionable messages for both cases.
+- `[x]` Added service and real-PostgreSQL regression coverage for paused-inviter delivery, idempotent repeat invitations, and existing-Affiliate rejection without sending an email.
+- `[x]` Verification: migration 155 fresh-chain and down/up checks; full database-backed `go test ./...`; `go vet ./...`; `go build ./...`; Affiliate, Admin, Marketing, Storefront, and Mobile checks/tests; Affiliate, Admin, Marketing, and Storefront production builds; targeted ESLint for the changed surfaces; naming scan; and `git diff --check`.
+
 ### Updated-spec delta (Xtiitch-Updates-Refined v2, 2026-07-10 22:29) — apply these
 
 Diff vs the version above:

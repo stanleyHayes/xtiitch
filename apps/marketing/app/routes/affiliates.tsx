@@ -18,10 +18,10 @@ import { requireMarketingFlag } from "../lib/launch-gate";
 
 export function meta(): MetaDescriptor[] {
   return pageMeta({
-    title: "Become a Xtiitch Partner",
+    title: "Become a Xtiitch Affiliate",
     description:
-      "Create your Partner link and earn 20% recurring commission from eligible Xtiitch subscription payments.",
-    path: "/partners",
+      "Create your Affiliate link and earn 20% recurring commission from eligible Xtiitch subscription payments.",
+    path: "/affiliates",
   });
 }
 
@@ -50,7 +50,7 @@ const steps = [
   {
     number: "02",
     title: "Activate",
-    body: "Use the secure email link to set your password and open your Partner portal.",
+    body: "Use the secure email link to set your password and open your Affiliate portal.",
   },
   {
     number: "03",
@@ -148,7 +148,7 @@ function AffiliateHero({
                 opacity: 0.72,
               }}
             >
-              Xtiitch Partner Programme
+              Xtiitch Affiliate Programme
             </Typography>
             <Typography
               component="h1"
@@ -199,7 +199,7 @@ function AffiliateHero({
                 size="large"
                 sx={{ color: "#fff8fa", opacity: 0.84 }}
               >
-                Already a Partner? Sign in
+                Already an Affiliate? Sign in
               </Button>
             </Stack>
           </Box>
@@ -664,7 +664,7 @@ function FinalCallToAction({
               size="large"
               sx={{ color: "#fff8fa" }}
             >
-              Partner sign in
+              Affiliate sign in
             </Button>
           </Stack>
         </Box>

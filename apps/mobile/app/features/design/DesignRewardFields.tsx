@@ -122,7 +122,7 @@ export default function DesignRewardFields({
         label="Affiliate code"
         value={values.affiliateCode}
         onChange={(next) => onChange("affiliateCode", next)}
-        placeholder="PARTNER"
+        placeholder="AFFILIATE"
         autoCapitalize="characters"
       />
       <Text style={styles.rewardHint}>

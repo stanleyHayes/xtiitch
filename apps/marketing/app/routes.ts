@@ -7,7 +7,7 @@ export default [
   route("designs", "routes/designs.tsx"),
   route("features", "routes/features.tsx"),
   route("growth", "routes/growth.tsx"),
-	route("partners", "routes/affiliates.tsx"),
+  route("affiliates", "routes/affiliates.tsx"),
   route("how-it-works", "routes/how-it-works.tsx"),
   route("pricing", "routes/pricing.tsx"),
   route("for-customers", "routes/for-customers.tsx"),

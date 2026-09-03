@@ -107,9 +107,9 @@ func TestAffiliatesRequireGrowthPermissionAndAudit(t *testing.T) {
 	if len(audits.created) != 3 {
 		t.Fatalf("expected three affiliate audit events, got %d", len(audits.created))
 	}
-	if audits.created[0].Action != "Created affiliate programme partner" ||
-		audits.created[1].Action != "Updated affiliate programme partner" ||
-		audits.created[2].Action != "Archived affiliate programme partner" ||
+	if audits.created[0].Action != "Created Affiliate" ||
+		audits.created[1].Action != "Updated Affiliate" ||
+		audits.created[2].Action != "Archived Affiliate" ||
 		audits.created[0].Metadata["code"] != "SEWING-PRO" {
 		t.Fatalf("unexpected affiliate audit events: %+v", audits.created)
 	}

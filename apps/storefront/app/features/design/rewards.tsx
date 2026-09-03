@@ -70,9 +70,9 @@ function rewardCues(
     cues.push({
       key: "affiliate",
       icon: <GroupsRounded />,
-      label: `Partner link ${codes.affiliateCode}`,
+      label: `Affiliate link ${codes.affiliateCode}`,
       detail:
-        "Attribution is attached to the order for the partner programme. It does not change the shopper price.",
+        "Attribution is attached to the order for the Affiliate Programme. It does not change the shopper price.",
       chip: codes.affiliateClickID ? "Click recorded" : "Link captured",
       tone: codes.affiliateClickID ? "success" : "info",
     });

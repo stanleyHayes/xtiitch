@@ -83,9 +83,9 @@ export const navGroups: NavGroup[] = [
         icon: <TrendingUpRoundedIcon />,
       },
       {
-				label: "Partner Program",
-				href: "/partners",
-        description: "Apply for a trackable partner code.",
+        label: "Affiliate Program",
+        href: "/affiliates",
+        description: "Apply for a trackable Affiliate code.",
         icon: <CampaignRoundedIcon />,
         flag: "affiliate_signup",
       },
@@ -116,11 +116,17 @@ export const navGroups: NavGroup[] = [
       {
         label: "Contact",
         href: "/contact",
-        description: "Talk to Xtiitch about support, partnerships or your store.",
+        description:
+          "Talk to Xtiitch about support, partnerships or your store.",
         icon: <MailRoundedIcon />,
       },
     ],
   },
 ];
 
-export const NAV_WATERMARK_COLORS = ["#800020", "#c58b2c", "#315f8f", "#237a4b"];
+export const NAV_WATERMARK_COLORS = [
+  "#800020",
+  "#c58b2c",
+  "#315f8f",
+  "#237a4b",
+];

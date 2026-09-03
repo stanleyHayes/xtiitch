@@ -2,6 +2,7 @@ package affiliateauth
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -13,14 +14,31 @@ import (
 type invitationRepositoryFake struct {
 	input  ports.CreatePartnerInvitationInput
 	record *ports.PartnerInvitationRecord
+	err    error
 }
 
 func (repo *invitationRepositoryFake) CreatePartnerInvitation(_ context.Context, input ports.CreatePartnerInvitationInput) (ports.PartnerInvitationRecord, error) {
 	repo.input = input
+	if repo.err != nil {
+		return ports.PartnerInvitationRecord{}, repo.err
+	}
 	if repo.record != nil {
 		return *repo.record, nil
 	}
 	return ports.PartnerInvitationRecord{InvitationID: input.InvitationID, InviteeEmail: input.InviteeEmail, InviteCode: input.InviteCode, CreatedAt: time.Now()}, nil
+}
+
+func TestInvitePartnerMapsExistingAccountWithoutCallingEmail(t *testing.T) {
+	repo := &invitationRepositoryFake{err: ports.ErrAffiliateEmailTaken}
+	emails := &invitationEmailFake{}
+	service := Service{invitations: repo, emails: emails, ids: &invitationIDs{values: []common.ID{"invite-code", "invitation-id"}}, portalURL: "https://affiliate.xtiitch.com"}
+	_, err := service.InvitePartner(context.Background(), "affiliate-id", "joined@example.com")
+	if !errors.Is(err, ErrInviteeAlreadyAffiliate) {
+		t.Fatalf("expected existing Affiliate error, got %v", err)
+	}
+	if emails.message.To != "" {
+		t.Fatalf("existing Affiliate must not receive a signup invitation: %+v", emails.message)
+	}
 }
 
 type invitationEmailFake struct{ message ports.EmailMessage }

@@ -146,7 +146,7 @@ export function AffiliatesSection({
       <SectionHeader
         eyebrow="Growth controls"
         title="Affiliate programmes"
-        helper="Register partners and agents, track codes, commission terms, cookie windows, payout rail readiness, and approval state."
+        helper="Register Affiliates and agents, track codes, commission terms, cookie windows, payout rail readiness, and approval state."
       />
 
       {actionData?.section === "affiliates" && actionData.message ? (

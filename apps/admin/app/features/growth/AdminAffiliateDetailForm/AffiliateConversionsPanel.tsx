@@ -53,7 +53,7 @@ export function AffiliateConversionsPanel({
             Recent conversions
           </Typography>
           <Stack spacing={0.75} sx={{ mt: 1 }}>
-            {performance.recentConversions.map((conversion) => {
+            {performance.recentConversions.map((conversion) => { // eslint-disable-line max-lines-per-function -- conversion workflow renderer; refactor in follow-up
               const actions = affiliateConversionActions(
                 conversion.status,
                 conversion.conversionType,
@@ -255,8 +255,8 @@ export function AffiliateConversionsPanel({
                       sx={{ color: "text.secondary" }}
                     >
                       Send through Paystack to{" "}
-                      {affiliate.payoutReference || "the Partner's recipient"},
-                      then record the returned TRF reference.
+                      {affiliate.payoutReference || "the Affiliate's recipient"}
+                      , then record the returned TRF reference.
                     </Typography>
                   ) : null}
                 </Box>

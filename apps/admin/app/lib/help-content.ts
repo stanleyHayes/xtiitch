@@ -271,12 +271,12 @@ export const HELP_GUIDES: HelpGuide[] = [
   {
     section: "affiliates",
     title: "Affiliates",
-    helper: "Partner programmes and payouts",
+    helper: "Affiliate programmes and payouts",
     summary:
-      "Approve partners, manage affiliate programmes and codes, review attribution, and confirm payout-recipient readiness.",
+      "Approve Affiliates, manage Affiliate programmes and codes, review attribution, and confirm payout-recipient readiness.",
     steps: [
-      "Review pending applications and verify the partner details before approving access.",
-      "Open a partner to manage status, commission terms, cookie window, codes and payout destination readiness.",
+      "Review pending applications and verify the Affiliate details before approving access.",
+      "Open an Affiliate to manage status, commission terms, cookie window, codes and payout destination readiness.",
       "For matured commission, send the payout to the displayed Paystack recipient and record the completed transfer reference.",
     ],
   },

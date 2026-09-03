@@ -6,6 +6,21 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+func TestDefaultAffiliateProgrammeUsesAffiliateBrand(t *testing.T) {
+	pool := openIntegrationPool(t)
+	defer pool.Close()
+	inBypass(t, pool, func(tx pgx.Tx) {
+		var name, description string
+		if err := tx.QueryRow(t.Context(), `select name,description from affiliate_programmes
+			where owner_type='platform' and is_default`).Scan(&name, &description); err != nil {
+			t.Fatal(err)
+		}
+		if name != "Xtiitch Affiliate Programme" || description != "Affiliates earn recurring commission on eligible Xtiitch subscription payments." {
+			t.Fatalf("unexpected Affiliate brand projection: name=%q description=%q", name, description)
+		}
+	})
+}
+
 func TestBusinessProductAffiliateRecordsRemainPersistedButParked(t *testing.T) {
 	pool := openIntegrationPool(t)
 	defer pool.Close()

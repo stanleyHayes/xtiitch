@@ -472,7 +472,7 @@ func affiliateHealthHelper(pending int, active int, manualPayout int) string {
 	if pending > 0 {
 		return healthPlural(pending, "partner") + " need operator review before attribution."
 	}
-	return intString(active) + " active partners; " + intString(manualPayout) + " manual payout rails."
+	return intString(active) + " active Affiliates; " + intString(manualPayout) + " manual payout rails."
 }
 
 func referralHealthHelper(draft int, paused int) string {

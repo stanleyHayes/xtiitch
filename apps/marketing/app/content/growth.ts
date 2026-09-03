@@ -32,8 +32,9 @@ export const growthProgrammes: GrowthProgramme[] = [
   {
     title: "Affiliate links",
     label: "Affiliates",
-    body: "Register partner codes, capture clicks, attribute conversions, and let operators approve, settle, reverse, or reconcile partner commissions from Xtiitch's own commission rails.",
-    status: "Built for admin registry, public click capture, checkout attribution",
+    body: "Register Affiliate codes, capture clicks, attribute conversions, and let operators approve, settle, reverse, or reconcile Affiliate commissions from Xtiitch's own commission rails.",
+    status:
+      "Built for admin registry, public click capture, checkout attribution",
     proof: [
       "Last-click attribution with cookie windows",
       "Click, conversion, and payout batch ledgers",

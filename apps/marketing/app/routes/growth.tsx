@@ -51,7 +51,7 @@ export default function Growth() { // eslint-disable-line max-lines-per-function
               align="left"
               eyebrow="Growth layer"
               title="Four programmes, one clean operating model"
-              subtitle="Promos help stores sell, referrals turn happy customers into advocates, affiliates track partner performance, and sponsored placements bring verified businesses onto the public marketing surface."
+              subtitle="Promos help stores sell, referrals turn happy customers into advocates, Affiliates track referral performance, and sponsored placements bring verified businesses onto the public marketing surface."
             />
             <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25}>
               <Button
@@ -68,10 +68,10 @@ export default function Growth() { // eslint-disable-line max-lines-per-function
               {flags.affiliate_signup ? (
                 <Button
                   component={RouterLink}
-									to="/partners"
+                  to="/affiliates"
                   variant="outlined"
                 >
-									Become a Partner
+                  Become an Affiliate
                 </Button>
               ) : null}
             </Stack>
@@ -168,7 +168,7 @@ export default function Growth() { // eslint-disable-line max-lines-per-function
         <SectionHeading
           eyebrow="Attribution flow"
           title="Every reward follows the order trail"
-          subtitle="Codes and partner links can help customers arrive, but value becomes real only when the order and payment trail prove it."
+          subtitle="Codes and Affiliate links can help customers arrive, but value becomes real only when the order and payment trail prove it."
         />
         <GrowthLoop />
       </Section>
