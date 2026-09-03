@@ -606,18 +606,21 @@ func (repo AffiliateAuthRepository) GetAffiliateDashboard(
 			select signup.business_id,
 				case
 					when subscription.status = 'active'
-						and subscription.current_period_end > now() then 'active'
+						and subscription.current_period_end > now()
+						and current_plan.monthly_fee_minor > 0 then 'active'
 					when exists (
 						select 1 from affiliate_conversions conversion
 						where conversion.affiliate_id = $1::uuid
 						  and conversion.business_id = signup.business_id
 						  and conversion.conversion_type = 'subscription_payment'
+						  and conversion.commission_minor > 0
 					) then 'inactive'
 					else 'not_activated'
 				end as state
 			from affiliate_signups signup
 			left join business_subscriptions subscription
 				on subscription.business_id = signup.business_id
+			left join plans current_plan on current_plan.plan_id = subscription.plan_id
 			where signup.affiliate_id = $1::uuid
 			  and signup.subject_type = 'business'
 			  and signup.status = 'qualified'
@@ -681,13 +684,15 @@ func (repo AffiliateAuthRepository) ListPartnerReferrals(
 	rows, err := tx.Query(ctx, `
 		select business.handle,
 			case
-				when subscription.status = 'active'
-					and subscription.current_period_end > now() then 'active'
+					when subscription.status = 'active'
+						and subscription.current_period_end > now()
+						and current_plan.monthly_fee_minor > 0 then 'active'
 				when exists (
 					select 1 from affiliate_conversions conversion
 					where conversion.affiliate_id = $1::uuid
 					  and conversion.business_id = signup.business_id
-					  and conversion.conversion_type = 'subscription_payment'
+						  and conversion.conversion_type = 'subscription_payment'
+						  and conversion.commission_minor > 0
 				) then 'inactive'
 				else 'not_activated'
 			end
@@ -695,6 +700,7 @@ func (repo AffiliateAuthRepository) ListPartnerReferrals(
 		join businesses business on business.business_id = signup.business_id
 		left join business_subscriptions subscription
 			on subscription.business_id = signup.business_id
+		left join plans current_plan on current_plan.plan_id = subscription.plan_id
 		where signup.affiliate_id = $1::uuid
 		  and signup.subject_type = 'business'
 		  and signup.status = 'qualified'

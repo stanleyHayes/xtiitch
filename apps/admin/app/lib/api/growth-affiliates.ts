@@ -302,6 +302,22 @@ export const affiliatesApi = {
         }),
       },
     ).then(mapAffiliateConversion),
+  correctAffiliateAttribution: (
+    accessToken: string,
+    businessId: string,
+    input: { affiliateId: string; reason: string },
+  ) =>
+    requestJSON(
+      `/admin/businesses/${encodeURIComponent(businessId)}/affiliate-attribution`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          affiliate_id: input.affiliateId,
+          reason: input.reason,
+        }),
+      },
+    ),
   createAffiliatePayout: (
     accessToken: string,
     affiliateId: string,

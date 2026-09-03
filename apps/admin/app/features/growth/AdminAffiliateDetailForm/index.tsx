@@ -9,9 +9,11 @@ import { AffiliateArchiveForm } from "./AffiliateArchiveForm";
 export function AdminAffiliateDetailForm({
   affiliate,
   performance,
+  affiliates,
 }: {
   affiliate: AdminAffiliate;
   performance?: AdminAffiliateAttribution;
+  affiliates: AdminAffiliate[];
 }) {
   return (
     <Stack spacing={2}>
@@ -19,6 +21,7 @@ export function AdminAffiliateDetailForm({
       <AffiliateConversionsPanel
         affiliate={affiliate}
         performance={performance}
+        affiliates={affiliates}
       />
       <AffiliatePayoutsPanel affiliate={affiliate} performance={performance} />
       <AffiliateEditForm affiliate={affiliate} />

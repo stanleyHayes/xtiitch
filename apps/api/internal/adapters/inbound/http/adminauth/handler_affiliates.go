@@ -56,6 +56,30 @@ func (handler Handler) affiliateAttribution(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusOK, map[string][]affiliateAttributionResponse{"attribution": out})
 }
 
+func (handler Handler) correctAffiliateAttribution(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+	var request affiliateAttributionCorrectionRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	record, err := handler.service.CorrectAffiliateAttribution(r.Context(), adminauthapp.CorrectAffiliateAttributionCommand{
+		ActorUserID: principal.AdminUserID, ActorRole: principal.Role,
+		BusinessID: common.ID(chi.URLParam(r, "id")), AffiliateID: common.ID(request.AffiliateID),
+		Reason: request.Reason, UserAgent: r.UserAgent(), IPAddress: requestIP(r),
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"signup_id": record.SignupID, "business_id": record.BusinessID, "affiliate_id": record.AffiliateID, "previous_affiliate_id": record.PreviousAffiliateID, "business_handle": record.BusinessHandle, "affiliate_code": record.AffiliateCode, "reason": record.Reason, "updated_at": record.UpdatedAt})
+}
+
 func (handler Handler) updateAffiliateConversionStatus(w http.ResponseWriter, r *http.Request) {
 	principal, ok := PrincipalFromContext(r.Context())
 	if !ok {

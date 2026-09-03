@@ -19,6 +19,45 @@ type ListAffiliatesCommand struct {
 type ListAffiliateAttributionCommand struct {
 	ActorRole admindomain.Role
 }
+type CorrectAffiliateAttributionCommand struct {
+	ActorUserID common.ID
+	ActorRole   admindomain.Role
+	BusinessID  common.ID
+	AffiliateID common.ID
+	Reason      string
+	UserAgent   string
+	IPAddress   string
+}
+
+func (s Service) CorrectAffiliateAttribution(ctx context.Context, cmd CorrectAffiliateAttributionCommand) (ports.AdminAffiliateAttributionCorrectionRecord, error) {
+	if cmd.ActorUserID.IsZero() || cmd.BusinessID.IsZero() || cmd.AffiliateID.IsZero() || strings.TrimSpace(cmd.Reason) == "" {
+		return ports.AdminAffiliateAttributionCorrectionRecord{}, authdomain.ErrInvalidInput
+	}
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManageGrowth); err != nil {
+		return ports.AdminAffiliateAttributionCorrectionRecord{}, err
+	}
+	if s.businesses == nil {
+		return ports.AdminAffiliateAttributionCorrectionRecord{}, authdomain.ErrForbidden
+	}
+	record, err := s.businesses.CorrectAdminAffiliateAttribution(ctx, ports.CorrectAdminAffiliateAttributionInput{
+		BusinessID: cmd.BusinessID, AffiliateID: cmd.AffiliateID,
+		Reason: normalizeOperatorNote(cmd.Reason), ActorAdminUser: cmd.ActorUserID,
+	})
+	if err != nil {
+		return ports.AdminAffiliateAttributionCorrectionRecord{}, err
+	}
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID, ActorRole: cmd.ActorRole, Action: "Corrected affiliate attribution",
+		TargetType: "affiliate_signup", TargetID: record.SignupID.String(), TargetLabel: record.BusinessHandle,
+		Summary:   "Reassigned business attribution to affiliate " + record.AffiliateCode + ". Reason: " + record.Reason,
+		Severity:  admindomain.AuditSeverityWarning,
+		Metadata:  map[string]string{"business_id": record.BusinessID.String(), "affiliate_id": record.AffiliateID.String(), "previous_affiliate_id": record.PreviousAffiliateID.String(), "reason": record.Reason},
+		IPAddress: cmd.IPAddress, UserAgent: cmd.UserAgent,
+	}); err != nil {
+		return ports.AdminAffiliateAttributionCorrectionRecord{}, err
+	}
+	return record, nil
+}
 
 type UpdateAffiliateConversionStatusCommand struct {
 	ActorUserID  common.ID

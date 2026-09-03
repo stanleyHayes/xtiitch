@@ -15,7 +15,7 @@ import {
 } from "../actionErrors";
 import type { AdminActionFeedback } from "../types";
 
-export async function handleAffiliatesAction({ // eslint-disable-line complexity -- intent dispatcher with many conditional branches; refactor in follow-up
+export async function handleAffiliatesAction({ // eslint-disable-line complexity, max-lines-per-function -- intent dispatcher with many conditional branches; refactor in follow-up
   request,
   intent,
   form,
@@ -156,6 +156,10 @@ export async function handleAffiliatesAction({ // eslint-disable-line complexity
     }
   }
 
+  if (intent === "admin-affiliate-attribution:correct") {
+    return handleAffiliateAttributionCorrection(request, form);
+  }
+
   if (intent === "admin-affiliate-payout:create") {
     const { accessToken } = await requireAdminContext(request);
 
@@ -183,6 +187,35 @@ export async function handleAffiliatesAction({ // eslint-disable-line complexity
   }
 
   return null;
+}
+
+async function handleAffiliateAttributionCorrection(
+  request: Request,
+  form: FormData,
+): Promise<AdminActionFeedback> {
+  const { accessToken } = await requireAdminContext(request);
+  try {
+    await adminApi.correctAffiliateAttribution(
+      accessToken,
+      String(form.get("business_id") ?? ""),
+      {
+        affiliateId: String(form.get("affiliate_id") ?? ""),
+        reason: String(form.get("reason") ?? ""),
+      },
+    );
+    return {
+      section: "affiliates",
+      severity: "success",
+      message:
+        "Affiliate attribution corrected. Existing commission history was preserved.",
+    };
+  } catch (error) {
+    return {
+      section: "affiliates",
+      severity: "error",
+      message: adminAffiliateActionError(error),
+    };
+  }
 }
 
 async function handleAffiliateProgrammeUpdate(

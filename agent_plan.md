@@ -1689,6 +1689,14 @@ Status: `[x] implemented and locally verified`
 - `[x]` Admin pause/archive and conversion-hold controls remain available for abusive accounts or suspicious commissions.
 - `[x]` Verification: focused growth/affiliate-auth tests, full Go suite, affiliate type-check, affected-file ESLint, production build, terminology scan, and `git diff --check`.
 
+### Item 3 gap closure — 2026-09-03
+
+- `[x]` Commission creation now rejects zero-value invoices and invoices attached to free plans while retaining the existing idempotent per-payment recurring ledger.
+- `[x]` Affiliate referral projections classify Active only when the current subscription is active, unexpired, and attached to a paid plan; zero-commission history no longer changes Not Activated/Inactive state.
+- `[x]` Company Admin can reassign a business's future attribution to an active platform Affiliate from the conversion detail UI, with a mandatory reason, growth permission enforcement, manual-attribution marker, and audit event.
+- `[x]` Existing commission records retain their original Affiliate when future attribution is corrected.
+- `[x]` Verification: migration 151 fresh-chain validation, real-Postgres attribution correction test, full Go suite, admin type-check/ESLint/production build, and `git diff --check`.
+
 ### Updated-spec delta (Xtiitch-Updates-Refined v2, 2026-07-10 22:29) — apply these
 
 Diff vs the version above:

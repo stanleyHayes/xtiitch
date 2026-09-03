@@ -124,6 +124,10 @@ type affiliateConversionResponse struct {
 	CreatedAt        string `json:"created_at"`
 	UpdatedAt        string `json:"updated_at"`
 }
+type affiliateAttributionCorrectionRequest struct {
+	AffiliateID string `json:"affiliate_id"`
+	Reason      string `json:"reason"`
+}
 
 type affiliatePayoutResponse struct {
 	PayoutBatchID   string `json:"payout_batch_id"`

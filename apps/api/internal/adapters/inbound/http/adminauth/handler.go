@@ -159,6 +159,7 @@ type Service interface {
 		ctx context.Context,
 		command adminauthapp.ListAffiliateAttributionCommand,
 	) ([]ports.AdminAffiliateAttributionRecord, error)
+	CorrectAffiliateAttribution(context.Context, adminauthapp.CorrectAffiliateAttributionCommand) (ports.AdminAffiliateAttributionCorrectionRecord, error)
 	GrowthReport(context.Context, adminauthapp.GrowthReportCommand) (ports.AdminGrowthReportRecord, error)
 	UpdateAffiliateConversionStatus(
 		ctx context.Context,
@@ -284,6 +285,7 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Patch("/admin/affiliate-programmes/{id}", handler.updateAffiliateProgramme)
 		protected.Get("/admin/affiliates", handler.affiliates)
 		protected.Get("/admin/affiliate-attribution", handler.affiliateAttribution)
+		protected.Patch("/admin/businesses/{id}/affiliate-attribution", handler.correctAffiliateAttribution)
 		protected.Patch("/admin/affiliate-conversions/{id}/status", handler.updateAffiliateConversionStatus)
 		protected.Post("/admin/affiliates/{id}/payouts", handler.createAffiliatePayout)
 		protected.Post("/admin/affiliates", handler.createAffiliate)

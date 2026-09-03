@@ -248,6 +248,7 @@ export function AffiliatesSection({ // eslint-disable-line max-lines-per-functio
           {selectedAffiliate ? (
             <AdminAffiliateDetailForm
               affiliate={selectedAffiliate}
+              affiliates={affiliates}
               performance={affiliateAttribution.find(
                 (item) => item.affiliateId === selectedAffiliate.affiliateId,
               )}

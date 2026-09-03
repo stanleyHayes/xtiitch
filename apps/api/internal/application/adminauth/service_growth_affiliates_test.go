@@ -178,6 +178,32 @@ func TestAffiliateAttributionRequiresGrowthPermission(t *testing.T) {
 	}
 }
 
+func TestCorrectAffiliateAttributionRequiresReasonAndAudits(t *testing.T) {
+	t.Parallel()
+	service, audits := newTestServiceWithBusinesses(
+		&fakeAdminUsers{}, &fakeAdminSessions{}, &fakeAdminBusinesses{},
+		time.Date(2026, 9, 3, 12, 0, 0, 0, time.UTC), []common.ID{"audit-1"},
+	)
+	_, err := service.CorrectAffiliateAttribution(context.Background(), CorrectAffiliateAttributionCommand{
+		ActorUserID: "operator-1", ActorRole: admindomain.RoleOperator,
+		BusinessID: "business-1", AffiliateID: "affiliate-2",
+	})
+	if !errors.Is(err, authdomain.ErrInvalidInput) {
+		t.Fatalf("expected reason validation, got %v", err)
+	}
+	record, err := service.CorrectAffiliateAttribution(context.Background(), CorrectAffiliateAttributionCommand{
+		ActorUserID: "operator-1", ActorRole: admindomain.RoleOperator,
+		BusinessID: "business-1", AffiliateID: "affiliate-2", Reason: " duplicate attribution ",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if record.AffiliateID != "affiliate-2" || len(audits.created) != 1 ||
+		audits.created[0].Action != "Corrected affiliate attribution" {
+		t.Fatalf("correction was not audited: record=%+v audits=%+v", record, audits.created)
+	}
+}
+
 func TestUpdateAffiliateConversionStatusRequiresGrowthPermissionAndAudit(t *testing.T) {
 	t.Parallel()
 

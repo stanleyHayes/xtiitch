@@ -361,6 +361,22 @@ type AdminAffiliateAttributionRecord struct {
 	RecentPayouts           []AdminAffiliatePayoutRecord
 	LastActivityAt          *time.Time
 }
+type CorrectAdminAffiliateAttributionInput struct {
+	BusinessID     common.ID
+	AffiliateID    common.ID
+	Reason         string
+	ActorAdminUser common.ID
+}
+type AdminAffiliateAttributionCorrectionRecord struct {
+	SignupID            common.ID
+	BusinessID          common.ID
+	AffiliateID         common.ID
+	PreviousAffiliateID common.ID
+	BusinessHandle      string
+	AffiliateCode       string
+	Reason              string
+	UpdatedAt           time.Time
+}
 type AdminAffiliateConversionRecord struct {
 	ConversionID     common.ID
 	AffiliateID      common.ID

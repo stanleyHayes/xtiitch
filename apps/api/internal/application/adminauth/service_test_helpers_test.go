@@ -325,6 +325,14 @@ type fakeAdminBusinesses struct {
 	claimedReminders            []common.ID
 }
 
+func (repo *fakeAdminBusinesses) CorrectAdminAffiliateAttribution(_ context.Context, input ports.CorrectAdminAffiliateAttributionInput) (ports.AdminAffiliateAttributionCorrectionRecord, error) {
+	return ports.AdminAffiliateAttributionCorrectionRecord{
+		SignupID: "signup-1", BusinessID: input.BusinessID, AffiliateID: input.AffiliateID,
+		PreviousAffiliateID: "affiliate-previous", BusinessHandle: "sample-business",
+		AffiliateCode: "AFFILIATE", Reason: input.Reason, UpdatedAt: time.Now(),
+	}, nil
+}
+
 func (fake *fakeAdminBusinesses) GetAdminGrowthReport(
 	_ context.Context,
 	from time.Time,

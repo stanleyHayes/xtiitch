@@ -1,6 +1,7 @@
 import { Form } from "react-router";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import MenuItem from "@mui/material/MenuItem";
 import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
@@ -19,9 +20,11 @@ import type {
 export function AffiliateConversionsPanel({
   affiliate,
   performance,
+  affiliates,
 }: {
   affiliate: AdminAffiliate;
   performance?: AdminAffiliateAttribution;
+  affiliates: AdminAffiliate[];
 }) {
   const archived = affiliate.status === "archived";
   const approvedConversionCount = performance?.approvedConversionCount ?? 0;
@@ -143,6 +146,21 @@ export function AffiliateConversionsPanel({
                             </Button>
                           ))}
                         </Stack>
+                      </Stack>
+                    </Form>
+                  ) : null}
+                  {conversion.businessId ? (
+                    <Form method="post">
+                      <input type="hidden" name="intent" value="admin-affiliate-attribution:correct" />
+                      <input type="hidden" name="business_id" value={conversion.businessId} />
+                      <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                        <TextField select required label="Correct attribution to" name="affiliate_id" size="small" sx={{ minWidth: 220 }}>
+                          {affiliates.filter((item) => item.status === "active").map((item) => (
+                            <MenuItem key={item.affiliateId} value={item.affiliateId}>{item.displayName} ({item.code})</MenuItem>
+                          ))}
+                        </TextField>
+                        <TextField required label="Correction reason" name="reason" size="small" sx={{ flex: 1 }} />
+                        <Button type="submit" variant="outlined" color="warning">Correct</Button>
                       </Stack>
                     </Form>
                   ) : null}

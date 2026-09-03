@@ -97,6 +97,7 @@ type AdminBusinessRepository interface {
 	) (AdminAffiliateProgrammeRecord, error)
 	ListAdminAffiliates(ctx context.Context) ([]AdminAffiliateRecord, error)
 	ListAdminAffiliateAttribution(ctx context.Context) ([]AdminAffiliateAttributionRecord, error)
+	CorrectAdminAffiliateAttribution(ctx context.Context, input CorrectAdminAffiliateAttributionInput) (AdminAffiliateAttributionCorrectionRecord, error)
 	GetAdminGrowthReport(ctx context.Context, from, to time.Time) (AdminGrowthReportRecord, error)
 	UpdateAdminAffiliateConversionStatus(
 		ctx context.Context,
