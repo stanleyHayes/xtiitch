@@ -1752,6 +1752,16 @@ Status: `[x] implemented and locally verified`
 - `[x]` Added Training & Updates with curated current Xtiitch product, pricing, trust, FAQ, and responsible-promotion guidance.
 - `[x]` Verification: fresh migration chain, real-PostgreSQL milestone/reward projection test, focused API tests, full Go suite, Affiliate type-check/build, and `git diff --check`.
 
+### Item 10 ethical gamification verification and gap closure — 2026-09-03
+
+- `[x]` The next attainable milestone remains prominent on Overview and Milestones with active-paid-referral count, progress bar, current/target values, and the exact remaining count.
+- `[x]` An open Affiliate portal now revalidates every 15 seconds and immediately on window focus so webhook-qualified referrals, pending commission, and milestone progress appear without a manual reload.
+- `[x]` Newly persisted milestone achievements trigger a tasteful one-time recognition banner with the configured reward description and a direct path to reward status.
+- `[x]` The 10, 50, 100, 500, and 1,000 paid-referral ladder is persisted; achievement records and reward-fulfilment status remain separate.
+- `[x]` The experience exposes only real progress and persisted achievements: no chance rewards, gambling mechanics, fake countdowns/scarcity, spend requirement, downline incentive, or guaranteed-income claim was introduced.
+- `[x]` Motion is brief and disabled under `prefers-reduced-motion`; local-storage restrictions cannot block the portal or recognition content.
+- `[x]` Verification: real-PostgreSQL milestone/reward projection coverage, full Go suite, Affiliate type-check, affected-file ESLint, production build, and `git diff --check`.
+
 ### Updated-spec delta (Xtiitch-Updates-Refined v2, 2026-07-10 22:29) — apply these
 
 Diff vs the version above:

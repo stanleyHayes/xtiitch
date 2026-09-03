@@ -1,4 +1,5 @@
-import { useSearchParams } from "react-router";
+import { useEffect } from "react";
+import { useRevalidator, useSearchParams } from "react-router";
 import { ArrowRightIcon, WalletIcon } from "../../components/Icons";
 import { EarningsSection } from "./EarningsSection";
 import { LinksSection } from "./LinksSection";
@@ -9,6 +10,7 @@ import { SettingsSection } from "./SettingsSection";
 import { ReferralsSection } from "./ReferralsSection";
 import { MilestonesSection } from "./MilestonesSection";
 import { ResourcesSection } from "./ResourcesSection";
+import { AchievementCelebration } from "./AchievementCelebration";
 import type { PortalActionResult, PortalData } from "./types";
 
 const TABS: TabID[] = [
@@ -38,6 +40,7 @@ export function PortalPage({
   actionData?: PortalActionResult;
 }) {
   const [search, setSearch] = useSearchParams();
+  const revalidator = useRevalidator();
   const requested = search.get("tab") ?? "";
   const active: TabID = TABS.includes(requested as TabID)
     ? (requested as TabID)
@@ -54,11 +57,35 @@ export function PortalPage({
     setSearch(next, { replace: true, preventScrollReset: true });
   };
 
+  // Subscription activation and commission events arrive through webhooks, so
+  // there is no local form submission to refresh the progress view. Keep an
+  // open portal current and refresh immediately when the tab regains focus.
+  useEffect(() => {
+    const refresh = () => {
+      if (
+        document.visibilityState === "visible" &&
+        revalidator.state === "idle"
+      ) {
+        void revalidator.revalidate();
+      }
+    };
+    const timer = window.setInterval(refresh, 15_000);
+    window.addEventListener("focus", refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [revalidator]);
+
   return (
     <div className="portal-shell">
       <PortalHeader displayName={data.displayName} code={data.share.code} />
       <PortalNav active={active} onSelect={selectTab} />
       <main className="portal" id="portal-main">
+        <AchievementCelebration
+          achievements={data.dashboard.milestone_achievements ?? []}
+          onView={() => selectTab("milestones")}
+        />
         {!data.profile.masked_identifier && active !== "settings" ? (
           <button
             className="payout-setup-banner"
