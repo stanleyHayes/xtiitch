@@ -1991,3 +1991,12 @@ Status: `[x] implemented and locally verified`
 - `[x]` Audit summaries state the transition in words, so the Admin audit list answers "what changed" without opening the metadata.
 - `[x]` Attribution correction already carried `previous_affiliate_id` and is unchanged.
 - `[x]` Verification: service tests proving previous/new state on suspension, termination, commission hold and reward fulfilment; a test proving a hold or release without a reason is refused; full Go suite against a real PostgreSQL; `go vet`; `go build`; and `git diff --check`.
+
+### Admin brief items 1 and 8 — canonical Affiliate earnings — 2026-09-03
+
+- `[x]` The Admin read model now returns Pending, Available, Held, Paid and Reversed commission as money per Affiliate, plus a held-commission count, instead of the dashboard re-deriving them from whichever conversion rows were loaded.
+- `[x]` The buckets are mutually exclusive and total the ledger: pending means still inside the maturity window or frozen behind a settlement review hold; available means matured with neither in the way; held is an administrative hold on one commission.
+- `[x]` Negative adjustment rows are summed into their own bucket, so a refund nets off the earnings it reverses rather than being counted as new income.
+- `[x]` Available follows the same definition the Affiliate portal reads, so the Admin and Affiliate views of the same money cannot disagree.
+- `[x]` Affiliate detail shows Pending, Available, Lifetime paid, Held and Reversed earnings; the aggregate cards show commissions generated, pending, available, paid and held.
+- `[x]` Verification: real-PostgreSQL test walking one commission through available, pending, held and paid; full Go suite; `go vet`; `go build`; Admin type-check, targeted ESLint, and production build.

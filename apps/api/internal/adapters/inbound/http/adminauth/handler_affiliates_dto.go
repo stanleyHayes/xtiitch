@@ -94,25 +94,31 @@ type affiliateResponse struct {
 }
 
 type affiliateAttributionResponse struct {
-	AffiliateID             string                                  `json:"affiliate_id"`
-	Code                    string                                  `json:"code"`
-	DisplayName             string                                  `json:"display_name"`
-	ClickCount              int64                                   `json:"click_count"`
-	ConversionCount         int64                                   `json:"conversion_count"`
-	PendingConversionCount  int64                                   `json:"pending_conversion_count"`
-	ApprovedConversionCount int64                                   `json:"approved_conversion_count"`
-	SettledConversionCount  int64                                   `json:"settled_conversion_count"`
-	ReversedConversionCount int64                                   `json:"reversed_conversion_count"`
-	ActiveReferralCount     int64                                   `json:"active_referral_count"`
-	InactiveReferralCount   int64                                   `json:"inactive_referral_count"`
-	NotActivatedCount       int64                                   `json:"not_activated_count"`
-	GrossMinor              int64                                   `json:"gross_minor"`
-	CommissionMinor         int64                                   `json:"commission_minor"`
-	RecentConversions       []affiliateConversionResponse           `json:"recent_conversions"`
-	RecentPayouts           []affiliatePayoutResponse               `json:"recent_payouts"`
-	Invitations             []affiliateInvitationResponse           `json:"invitations"`
-	MilestoneAchievements   []affiliateMilestoneAchievementResponse `json:"milestone_achievements"`
-	LastActivityAt          string                                  `json:"last_activity_at,omitempty"`
+	AffiliateID              string                                  `json:"affiliate_id"`
+	Code                     string                                  `json:"code"`
+	DisplayName              string                                  `json:"display_name"`
+	ClickCount               int64                                   `json:"click_count"`
+	ConversionCount          int64                                   `json:"conversion_count"`
+	PendingConversionCount   int64                                   `json:"pending_conversion_count"`
+	ApprovedConversionCount  int64                                   `json:"approved_conversion_count"`
+	SettledConversionCount   int64                                   `json:"settled_conversion_count"`
+	ReversedConversionCount  int64                                   `json:"reversed_conversion_count"`
+	HeldConversionCount      int64                                   `json:"held_conversion_count"`
+	ActiveReferralCount      int64                                   `json:"active_referral_count"`
+	InactiveReferralCount    int64                                   `json:"inactive_referral_count"`
+	NotActivatedCount        int64                                   `json:"not_activated_count"`
+	GrossMinor               int64                                   `json:"gross_minor"`
+	CommissionMinor          int64                                   `json:"commission_minor"`
+	PendingCommissionMinor   int64                                   `json:"pending_commission_minor"`
+	AvailableCommissionMinor int64                                   `json:"available_commission_minor"`
+	PaidCommissionMinor      int64                                   `json:"paid_commission_minor"`
+	HeldCommissionMinor      int64                                   `json:"held_commission_minor"`
+	ReversedCommissionMinor  int64                                   `json:"reversed_commission_minor"`
+	RecentConversions        []affiliateConversionResponse           `json:"recent_conversions"`
+	RecentPayouts            []affiliatePayoutResponse               `json:"recent_payouts"`
+	Invitations              []affiliateInvitationResponse           `json:"invitations"`
+	MilestoneAchievements    []affiliateMilestoneAchievementResponse `json:"milestone_achievements"`
+	LastActivityAt           string                                  `json:"last_activity_at,omitempty"`
 }
 type affiliateInvitationResponse struct {
 	InvitationID        string `json:"invitation_id"`

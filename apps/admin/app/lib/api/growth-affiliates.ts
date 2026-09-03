@@ -59,6 +59,12 @@ export type AdminAffiliateAttribution = {
   notActivatedCount: number;
   grossMinor: number;
   commissionMinor: number;
+  heldConversionCount: number;
+  pendingCommissionMinor: number;
+  availableCommissionMinor: number;
+  paidCommissionMinor: number;
+  heldCommissionMinor: number;
+  reversedCommissionMinor: number;
   recentConversions: AdminAffiliateConversion[];
   recentPayouts: AdminAffiliatePayout[];
   invitations: AdminAffiliateInvitation[];
@@ -178,6 +184,12 @@ type AdminAffiliateAttributionPayload = {
   not_activated_count: number;
   gross_minor: number;
   commission_minor: number;
+  held_conversion_count: number;
+  pending_commission_minor: number;
+  available_commission_minor: number;
+  paid_commission_minor: number;
+  held_commission_minor: number;
+  reversed_commission_minor: number;
   recent_conversions: AdminAffiliateConversionPayload[];
   recent_payouts: AdminAffiliatePayoutPayload[];
   invitations: AdminAffiliateInvitationPayload[];
@@ -293,6 +305,12 @@ function mapAffiliateAttribution(
     notActivatedCount: payload.not_activated_count,
     grossMinor: payload.gross_minor,
     commissionMinor: payload.commission_minor,
+    heldConversionCount: payload.held_conversion_count ?? 0,
+    pendingCommissionMinor: payload.pending_commission_minor ?? 0,
+    availableCommissionMinor: payload.available_commission_minor ?? 0,
+    paidCommissionMinor: payload.paid_commission_minor ?? 0,
+    heldCommissionMinor: payload.held_commission_minor ?? 0,
+    reversedCommissionMinor: payload.reversed_commission_minor ?? 0,
     recentConversions: payload.recent_conversions.map(mapAffiliateConversion),
     recentPayouts: (payload.recent_payouts ?? []).map(mapAffiliatePayout),
     invitations: (payload.invitations ?? []).map((invitation) => ({

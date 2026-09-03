@@ -19,12 +19,6 @@ export function AffiliateSummary({
   performance?: AdminAffiliateAttribution;
   milestones: AdminPartnerMilestone[];
 }) {
-  const approvedConversionCount = performance?.approvedConversionCount ?? 0;
-  const recentApprovedCommissionMinor =
-    performance?.recentConversions
-      .filter((conversion) => conversion.status === "approved")
-      .reduce((total, conversion) => total + conversion.commissionMinor, 0) ??
-    0;
   const lastPayout = performance?.recentPayouts[0];
   const paidReferrals = performance?.activeReferralCount ?? 0;
   const reachedMilestone = [...milestones]
@@ -89,14 +83,26 @@ export function AffiliateSummary({
         value={formatGHS(performance?.grossMinor ?? 0)}
       />
       <DetailLine
-        label="Commission"
-        value={formatGHS(performance?.commissionMinor ?? 0)}
+        label="Pending earnings"
+        value={formatGHS(performance?.pendingCommissionMinor ?? 0)}
       />
       <DetailLine
-        label="Approved"
-        value={`${approvedConversionCount} · ${formatGHS(
-          recentApprovedCommissionMinor,
-        )}`}
+        label="Available earnings"
+        value={formatGHS(performance?.availableCommissionMinor ?? 0)}
+      />
+      <DetailLine
+        label="Lifetime paid earnings"
+        value={formatGHS(performance?.paidCommissionMinor ?? 0)}
+      />
+      <DetailLine
+        label="Held earnings"
+        value={`${formatGHS(performance?.heldCommissionMinor ?? 0)} · ${
+          performance?.heldConversionCount ?? 0
+        } on hold`}
+      />
+      <DetailLine
+        label="Reversed / adjusted"
+        value={formatGHS(performance?.reversedCommissionMinor ?? 0)}
       />
       <DetailLine
         label="Last payout"

@@ -377,11 +377,20 @@ type AdminAffiliateAttributionRecord struct {
 	ApprovedConversionCount int64
 	SettledConversionCount  int64
 	ReversedConversionCount int64
+	HeldConversionCount     int64
 	ActiveReferralCount     int64
 	InactiveReferralCount   int64
 	NotActivatedCount       int64
 	GrossMinor              int64
 	CommissionMinor         int64
+	// Earnings the Admin brief asks for by name. The buckets are mutually
+	// exclusive, so Pending + Available + Held + Paid + Reversed accounts for
+	// every commission row without double counting one.
+	PendingCommissionMinor   int64
+	AvailableCommissionMinor int64
+	PaidCommissionMinor      int64
+	HeldCommissionMinor      int64
+	ReversedCommissionMinor  int64
 	RecentConversions       []AdminAffiliateConversionRecord
 	RecentPayouts           []AdminAffiliatePayoutRecord
 	Invitations             []AdminAffiliateInvitationRecord

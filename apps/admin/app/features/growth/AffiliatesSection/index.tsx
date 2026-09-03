@@ -91,35 +91,22 @@ export function AffiliatesSection({
     notActivated: total.notActivated + item.notActivatedCount,
   }), { active: 0, inactive: 0, notActivated: 0 });
   const invitationTotal = affiliateAttribution.reduce((total, item) => total + item.invitations.length, 0);
-  const pendingCommissionMinor = affiliateAttribution.reduce(
-    (total, item) =>
-      total +
-      item.recentConversions
-        .filter((conversion) => conversion.status === "pending")
-        .reduce(
-          (subtotal, conversion) => subtotal + conversion.commissionMinor,
-          0,
-        ),
-    0,
+  // Earnings come from the read model rather than being re-derived from the
+  // conversion rows on the page: the server owns what "available" means
+  // (matured, no settlement hold, adjustments netted) and the Affiliate portal
+  // reads the same definition, so the two surfaces cannot disagree.
+  const commissionTotals = affiliateAttribution.reduce(
+    (total, item) => ({
+      pending: total.pending + item.pendingCommissionMinor,
+      available: total.available + item.availableCommissionMinor,
+      paid: total.paid + item.paidCommissionMinor,
+      held: total.held + item.heldCommissionMinor,
+      generated: total.generated + item.commissionMinor,
+    }),
+    { pending: 0, available: 0, paid: 0, held: 0, generated: 0 },
   );
-  const approvedCommissionMinor = affiliateAttribution.reduce(
-    (total, item) =>
-      total +
-      item.recentConversions
-        .filter((conversion) => conversion.status === "approved")
-        .reduce(
-          (subtotal, conversion) => subtotal + conversion.commissionMinor,
-          0,
-        ),
-    0,
-  );
-  const reconciledCommissionMinor = affiliateAttribution.reduce(
-    (total, item) =>
-      total +
-      item.recentPayouts.reduce(
-        (subtotal, payout) => subtotal + payout.commissionMinor,
-        0,
-      ),
+  const heldConversionCount = affiliateAttribution.reduce(
+    (total, item) => total + item.heldConversionCount,
     0,
   );
   const filteredAffiliates = affiliates.filter((affiliate) => {
@@ -237,22 +224,34 @@ export function AffiliatesSection({
           trend={`${totalConversions} conversions`}
         />
         <MetricCard
+          label="Commissions generated"
+          value={formatGHS(commissionTotals.generated)}
+          helper="All commission ever attributed"
+          trend="Adjustments netted"
+        />
+        <MetricCard
           label="Pending commission"
-          value={formatGHS(pendingCommissionMinor)}
-          helper="Recent pending rows"
-          trend="Awaiting approval"
+          value={formatGHS(commissionTotals.pending)}
+          helper="Inside the maturity window"
+          trend="Not yet payable"
         />
         <MetricCard
-          label="Approved commission"
-          value={formatGHS(approvedCommissionMinor)}
-          helper="Recent approved rows"
-          trend="Ready to reconcile"
+          label="Available commission"
+          value={formatGHS(commissionTotals.available)}
+          helper="Matured and payable"
+          trend="Ready to pay out"
         />
         <MetricCard
-          label="Reconciled payouts"
-          value={formatGHS(reconciledCommissionMinor)}
-          helper="Recent payout batches"
-          trend="Settled from commission"
+          label="Paid commission"
+          value={formatGHS(commissionTotals.paid)}
+          helper="Settled to Affiliates"
+          trend="Lifetime paid"
+        />
+        <MetricCard
+          label="Held commission"
+          value={formatGHS(commissionTotals.held)}
+          helper="Frozen pending review"
+          trend={`${heldConversionCount} on hold`}
         />
       </Box>
 

@@ -81,8 +81,40 @@ func (repo AdminAuthRepository) ListAdminAffiliateAttribution(ctx context.Contex
 				count(*) filter (where status = 'approved' and conversion_type <> 'adjustment')::bigint as approved_count,
 				count(*) filter (where status = 'settled' and conversion_type <> 'adjustment')::bigint as settled_count,
 				count(*) filter (where status = 'reversed' and conversion_type <> 'adjustment')::bigint as reversed_count,
+				count(*) filter (where status = 'held' and conversion_type <> 'adjustment')::bigint as held_count,
 				coalesce(sum(gross_minor), 0)::bigint as gross_minor,
 				coalesce(sum(commission_minor), 0)::bigint as commission_minor,
+				-- Mutually exclusive earnings buckets. A pending commission is
+				-- still inside its maturity window or frozen behind a settlement
+				-- review hold; once it matures with neither in the way it is
+				-- money the Affiliate can be paid. Negative adjustment rows are
+				-- deliberately included so a reversal nets off the bucket it
+				-- belongs to rather than being counted as new earnings.
+				coalesce(sum(commission_minor) filter (
+					where status = 'pending'
+						and (
+							(hold_until is not null and hold_until > now())
+							or exists (
+								select 1 from admin_settlement_review_holds hold
+								where hold.business_id = affiliate_conversions.business_id
+									and hold.is_active
+							)
+						)
+				), 0)::bigint as pending_commission_minor,
+				coalesce(sum(commission_minor) filter (
+					where (
+						status = 'approved'
+						or (status = 'pending' and (hold_until is null or hold_until <= now()))
+					)
+						and not exists (
+							select 1 from admin_settlement_review_holds hold
+							where hold.business_id = affiliate_conversions.business_id
+								and hold.is_active
+						)
+				), 0)::bigint as available_commission_minor,
+				coalesce(sum(commission_minor) filter (where status = 'settled'), 0)::bigint as paid_commission_minor,
+				coalesce(sum(commission_minor) filter (where status = 'held'), 0)::bigint as held_commission_minor,
+				coalesce(sum(commission_minor) filter (where status = 'reversed'), 0)::bigint as reversed_commission_minor,
 				max(updated_at) as last_conversion_at
 			from affiliate_conversions
 			group by affiliate_id
@@ -118,11 +150,17 @@ func (repo AdminAuthRepository) ListAdminAffiliateAttribution(ctx context.Contex
 			coalesce(conversion_stats.approved_count, 0)::bigint,
 			coalesce(conversion_stats.settled_count, 0)::bigint,
 			coalesce(conversion_stats.reversed_count, 0)::bigint,
+			coalesce(conversion_stats.held_count, 0)::bigint,
 			coalesce(referral_stats.active_count, 0)::bigint,
 			coalesce(referral_stats.inactive_count, 0)::bigint,
 			coalesce(referral_stats.not_activated_count, 0)::bigint,
 			coalesce(conversion_stats.gross_minor, 0)::bigint,
 			coalesce(conversion_stats.commission_minor, 0)::bigint,
+			coalesce(conversion_stats.pending_commission_minor, 0)::bigint,
+			coalesce(conversion_stats.available_commission_minor, 0)::bigint,
+			coalesce(conversion_stats.paid_commission_minor, 0)::bigint,
+			coalesce(conversion_stats.held_commission_minor, 0)::bigint,
+			coalesce(conversion_stats.reversed_commission_minor, 0)::bigint,
 			greatest(
 				a.updated_at,
 				coalesce(click_stats.last_clicked_at, 'epoch'::timestamptz),
@@ -156,11 +194,17 @@ func (repo AdminAuthRepository) ListAdminAffiliateAttribution(ctx context.Contex
 			&record.ApprovedConversionCount,
 			&record.SettledConversionCount,
 			&record.ReversedConversionCount,
+			&record.HeldConversionCount,
 			&record.ActiveReferralCount,
 			&record.InactiveReferralCount,
 			&record.NotActivatedCount,
 			&record.GrossMinor,
 			&record.CommissionMinor,
+			&record.PendingCommissionMinor,
+			&record.AvailableCommissionMinor,
+			&record.PaidCommissionMinor,
+			&record.HeldCommissionMinor,
+			&record.ReversedCommissionMinor,
 			&lastActivityAt,
 		); err != nil {
 			return nil, err

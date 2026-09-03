@@ -460,3 +460,74 @@ func TestAffiliateCommissionHoldPausesPayoutAndReleaseRestoresPriorStatus(t *tes
 		t.Fatalf("expected the released commission to settle once, got %+v", payout)
 	}
 }
+
+// Items 1 and 8: the Admin read model must supply Pending, Available, Held and
+// lifetime Paid earnings as money, so the dashboard stops re-deriving them from
+// whichever conversion rows happen to be on the page.
+func TestAdminAffiliateAttributionReportsEarningsByStatus(t *testing.T) {
+	pool := openIntegrationPool(t)
+	defer pool.Close()
+	seedAdminAffiliateConversionFixture(t, pool)
+	defer cleanupAdminAffiliateConversionFixture(t, pool)
+
+	repo := NewAdminAuthRepository(pool)
+	ctx := context.Background()
+
+	// The seeded commission has no maturity date left to run, so it is money
+	// the Affiliate could be paid today.
+	if record := findAdminAffiliateAttribution(t, repo, ctx); record.AvailableCommissionMinor != 2500 ||
+		record.PendingCommissionMinor != 0 || record.HeldCommissionMinor != 0 ||
+		record.PaidCommissionMinor != 0 {
+		t.Fatalf("expected a matured commission to be available, got %+v", record)
+	}
+
+	inBypass(t, pool, func(tx pgx.Tx) {
+		mustExec(t, tx, `update affiliate_conversions set hold_until=$2 where affiliate_conversion_id=$1`,
+			itAdminAffConversion, time.Now().UTC().Add(72*time.Hour))
+	})
+	if record := findAdminAffiliateAttribution(t, repo, ctx); record.PendingCommissionMinor != 2500 ||
+		record.AvailableCommissionMinor != 0 {
+		t.Fatalf("expected an unmatured commission to be pending, got %+v", record)
+	}
+
+	if _, err := repo.UpdateAdminAffiliateConversionStatus(ctx, ports.UpdateAdminAffiliateConversionStatusInput{
+		ConversionID: itAdminAffConversion, Status: "held",
+		Reason: "Suspicious referral.", ActorAdminUser: itAdminAffAdmin,
+	}); err != nil {
+		t.Fatalf("hold commission: %v", err)
+	}
+	if record := findAdminAffiliateAttribution(t, repo, ctx); record.HeldCommissionMinor != 2500 ||
+		record.HeldConversionCount != 1 || record.PendingCommissionMinor != 0 ||
+		record.AvailableCommissionMinor != 0 {
+		t.Fatalf("expected a held commission to leave the pending and available buckets, got %+v", record)
+	}
+
+	inBypass(t, pool, func(tx pgx.Tx) {
+		mustExec(t, tx, `update affiliate_conversions
+			set status='settled', approved_at=now(), settled_at=now(), pre_hold_status=null
+			where affiliate_conversion_id=$1`, itAdminAffConversion)
+	})
+	if record := findAdminAffiliateAttribution(t, repo, ctx); record.PaidCommissionMinor != 2500 ||
+		record.HeldCommissionMinor != 0 {
+		t.Fatalf("expected a settled commission to count as lifetime paid, got %+v", record)
+	}
+}
+
+func findAdminAffiliateAttribution(
+	t *testing.T,
+	repo AdminAuthRepository,
+	ctx context.Context,
+) ports.AdminAffiliateAttributionRecord {
+	t.Helper()
+	records, err := repo.ListAdminAffiliateAttribution(ctx)
+	if err != nil {
+		t.Fatalf("list affiliate attribution: %v", err)
+	}
+	for _, record := range records {
+		if record.AffiliateID == common.ID(itAdminAffAffiliate) {
+			return record
+		}
+	}
+	t.Fatalf("seeded affiliate missing from the attribution read model")
+	return ports.AdminAffiliateAttributionRecord{}
+}
