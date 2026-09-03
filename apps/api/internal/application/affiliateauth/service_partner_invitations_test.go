@@ -11,11 +11,15 @@ import (
 )
 
 type invitationRepositoryFake struct {
-	input ports.CreatePartnerInvitationInput
+	input  ports.CreatePartnerInvitationInput
+	record *ports.PartnerInvitationRecord
 }
 
 func (repo *invitationRepositoryFake) CreatePartnerInvitation(_ context.Context, input ports.CreatePartnerInvitationInput) (ports.PartnerInvitationRecord, error) {
 	repo.input = input
+	if repo.record != nil {
+		return *repo.record, nil
+	}
 	return ports.PartnerInvitationRecord{InvitationID: input.InvitationID, InviteeEmail: input.InviteeEmail, InviteCode: input.InviteCode, CreatedAt: time.Now()}, nil
 }
 
@@ -47,5 +51,29 @@ func TestInvitePartnerPersistsAndEmailsAffiliateSignupLink(t *testing.T) {
 	}
 	if emails.message.To != "friend@example.com" || !strings.Contains(emails.message.Body, "https://affiliate.xtiitch.com/signup?invite=invite-code&email=friend%40example.com") || !strings.Contains(emails.message.Body, "do not create commissions") {
 		t.Fatalf("unexpected invitation email: %+v", emails.message)
+	}
+}
+
+func TestInvitePartnerResendEmailsPersistedPendingInviteCode(t *testing.T) {
+	repo := &invitationRepositoryFake{record: &ports.PartnerInvitationRecord{
+		InvitationID: "existing-invitation", InviteeEmail: "friend@example.com",
+		InviteCode: "existing-pending-code", CreatedAt: time.Now(),
+	}}
+	emails := &invitationEmailFake{}
+	service := Service{
+		invitations: repo, emails: emails,
+		ids:       &invitationIDs{values: []common.ID{"unused-new-code", "unused-new-invitation-id"}},
+		portalURL: "https://affiliate.xtiitch.com",
+	}
+
+	_, err := service.InvitePartner(context.Background(), "affiliate-id", "friend@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(emails.message.Body, "invite=existing-pending-code") {
+		t.Fatalf("resend must email the persisted pending code: %+v", emails.message)
+	}
+	if strings.Contains(emails.message.Body, "unused-new-code") {
+		t.Fatalf("resend emailed an unstored replacement code: %+v", emails.message)
 	}
 }

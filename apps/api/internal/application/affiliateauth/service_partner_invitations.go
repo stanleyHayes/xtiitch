@@ -27,7 +27,9 @@ func (s Service) InvitePartner(ctx context.Context, affiliateID common.ID, invit
 	if err != nil {
 		return ports.PartnerInvitationRecord{}, err
 	}
-	inviteURL := s.portalURL + "/signup?invite=" + url.QueryEscape(code) + "&email=" + url.QueryEscape(email)
+	// A repeated send can return the existing pending invitation. Always put the
+	// persisted code in the email so a retry cannot distribute an unstored token.
+	inviteURL := s.portalURL + "/signup?invite=" + url.QueryEscape(record.InviteCode) + "&email=" + url.QueryEscape(email)
 	err = s.emails.Send(ctx, ports.EmailMessage{To: email, Subject: "You are invited to join the Xtiitch Affiliate Program", Body: "You have been invited to become a Xtiitch affiliate. Create your own account and referral code here:\n\n" + inviteURL + "\n\nAffiliate invitations do not create commissions or downstream rewards.", ReplyTo: notification.ReplyToOperational})
 	if err != nil {
 		return ports.PartnerInvitationRecord{}, err

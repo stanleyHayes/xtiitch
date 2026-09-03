@@ -1724,6 +1724,15 @@ Status: `[x] implemented and locally verified`
 - `[x]` Existing suspension, application lifecycle, and account-status fields preserve a future verification path without adding friction to current signup.
 - `[x]` Verification: focused service/HTTP/repository tests, migration 153 fresh-chain and down/up validation, full Go suite, Affiliate check/build, and `git diff --check`.
 
+### Item 7 verification and gap closure — 2026-09-03
+
+- `[x]` Authenticated Affiliates can invite another person by email from their dashboard using an email-bound signup link on `affiliate.xtiitch.com`.
+- `[x]` Affiliate invitations remain strictly non-financial and single-level: they contain no commission, reward, parent-affiliate, or downstream-percentage fields and never participate in commission creation.
+- `[x]` An accepted invitation contributes only to the non-financial Affiliates Invited count; paid-business milestone progress continues to use direct qualified business referrals exclusively.
+- `[x]` Invited Affiliates receive their own independent referral code and earn only from businesses they refer themselves.
+- `[x]` Re-sending a pending invitation now emails the persisted reusable invitation code instead of an unstored replacement token.
+- `[x]` Verification: focused invitation service tests, real-PostgreSQL creation/acceptance and financial-isolation tests, full Go suite, Affiliate check/build, and `git diff --check`.
+
 ### Updated-spec delta (Xtiitch-Updates-Refined v2, 2026-07-10 22:29) — apply these
 
 Diff vs the version above:
