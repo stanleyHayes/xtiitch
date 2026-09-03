@@ -1870,6 +1870,13 @@ Status: `[x] implemented and locally verified`
 - `[x]` Increased directory pagination from four cards to ten table rows and retained search, status filtering, empty/error states, accessible action labels, and mobile horizontal scrolling with a sticky actions column.
 - `[x]` Verification: Admin type-check, all 12 Admin tests, targeted ESLint, production build, dead-component reference scan, and `git diff --check`.
 
+### Affiliate detail display hierarchy — 2026-09-03
+
+- `[x]` Every Affiliate summary display now follows the same icon, title, and description/value structure.
+- `[x]` Added distinct semantic icons across commission terms, contact details, account state, milestones, referral activity, invitations, earnings, holds, reversals, and payout history.
+- `[x]` Reused the established summary-tile component so spacing, colors, typography, responsive layout, and accessible decorative-icon handling remain consistent with the Admin design system.
+- `[x]` Verification: Admin type-check, all 12 Admin tests, targeted ESLint, production build, and `git diff --check`.
+
 ### Updated-spec delta (Xtiitch-Updates-Refined v2, 2026-07-10 22:29) — apply these
 
 Diff vs the version above:
