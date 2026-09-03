@@ -2017,3 +2017,11 @@ Status: `[x] implemented and locally verified`
 - `[x]` Attribution correction is available per referral, requires a target Affiliate and a reason, and remains audited with the previous Affiliate recorded.
 - `[x]` Attribution stays attached to the original Affiliate when a business lapses and later resubscribes; the panel says so explicitly.
 - `[x]` Verification: real-PostgreSQL test for the referral list and its agreement with the counts, full Go suite, `go vet`, `go build`, Admin type-check, 12 Admin tests, targeted ESLint, and production build.
+
+### Admin brief item 6 — configurable milestone reward type and value — 2026-09-03
+
+- `[x]` Migration 158 adds `reward_type` and `reward_value_minor` to `partner_milestones`, covering money, bonus, gift, merchandise, recognition, access, and another approved benefit.
+- `[x]` A database constraint holds the rule that a monetary reward needs a positive amount and every other reward kind carries none; the service enforces the same rule before the write.
+- `[x]` Existing milestones default to `recognition`, which is what an unconfigured milestone already was, so no historical row changes meaning.
+- `[x]` The Admin milestone editor now sets threshold, recognition, reward description, reward type, reward value and active state per rung.
+- `[x]` Verification: migration 158 fresh chain and down/up round trip, service tests for each reward rule, full Go suite, `go vet`, `go build`, Admin type-check, 12 Admin tests, targeted ESLint, and production build.

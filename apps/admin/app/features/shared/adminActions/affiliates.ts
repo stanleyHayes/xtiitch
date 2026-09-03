@@ -14,6 +14,7 @@ import {
   affiliateConversionActionMessage,
 } from "../actionErrors";
 import type { AdminActionFeedback } from "../types";
+import type { AdminMilestoneRewardType } from "../../../lib/api";
 
 // eslint-disable-next-line complexity, max-lines-per-function -- intent dispatcher with many conditional branches; refactor in follow-up
 export async function handleAffiliatesAction({
@@ -285,13 +286,20 @@ async function handleAffiliateProgrammeUpdate(
         allowedTargetScope: String(
           form.get("allowed_target_scope") ?? "platform",
         ) as "platform" | "store" | "collection" | "design" | "product",
-        milestones: JSON.parse(String(form.get("milestones") ?? "[]")) as {
-          milestoneId: string;
-          threshold: number;
-          title: string;
-          rewardDescription: string;
-          status: "active" | "paused" | "archived";
-        }[],
+        milestones: (
+          JSON.parse(String(form.get("milestones") ?? "[]")) as {
+            milestoneId: string;
+            threshold: number;
+            title: string;
+            rewardDescription: string;
+            rewardType: AdminMilestoneRewardType;
+            rewardValueMinor: number | null;
+            status: "active" | "paused" | "archived";
+          }[]
+        ).map((milestone) => ({
+          ...milestone,
+          rewardValueMinor: milestone.rewardValueMinor ?? undefined,
+        })),
       },
     );
     return {

@@ -255,7 +255,11 @@ type AdminPartnerMilestoneRecord struct {
 	Threshold         int
 	Title             string
 	RewardDescription string
-	Status            string
+	// RewardType names what the milestone pays out. RewardValueMinor carries
+	// the amount for the monetary types and is nil for the rest.
+	RewardType       string
+	RewardValueMinor *int64
+	Status           string
 }
 type CreateAdminAffiliateProgrammeInput struct {
 	AffiliateProgrammeID              common.ID

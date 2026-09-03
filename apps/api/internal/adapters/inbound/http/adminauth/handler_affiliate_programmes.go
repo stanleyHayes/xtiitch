@@ -31,6 +31,8 @@ type partnerMilestoneRequest struct {
 	Threshold         int    `json:"threshold"`
 	Title             string `json:"title"`
 	RewardDescription string `json:"reward_description"`
+	RewardType        string `json:"reward_type"`
+	RewardValueMinor  *int64 `json:"reward_value_minor"`
 	Status            string `json:"status"`
 }
 
@@ -61,6 +63,8 @@ type partnerMilestoneResponse struct {
 	Threshold         int    `json:"threshold"`
 	Title             string `json:"title"`
 	RewardDescription string `json:"reward_description"`
+	RewardType        string `json:"reward_type"`
+	RewardValueMinor  *int64 `json:"reward_value_minor,omitempty"`
 	Status            string `json:"status"`
 }
 
@@ -115,7 +119,9 @@ func newPartnerMilestoneInputs(records []partnerMilestoneRequest) []ports.AdminP
 	for _, record := range records {
 		out = append(out, ports.AdminPartnerMilestoneRecord{
 			MilestoneID: common.ID(record.MilestoneID), Threshold: record.Threshold,
-			Title: record.Title, RewardDescription: record.RewardDescription, Status: record.Status,
+			Title: record.Title, RewardDescription: record.RewardDescription,
+			RewardType: record.RewardType, RewardValueMinor: record.RewardValueMinor,
+			Status: record.Status,
 		})
 	}
 	return out
@@ -182,7 +188,9 @@ func newAffiliateProgrammeResponse(record ports.AdminAffiliateProgrammeRecord) a
 	for _, milestone := range record.Milestones {
 		response.Milestones = append(response.Milestones, partnerMilestoneResponse{
 			MilestoneID: milestone.MilestoneID.String(), Threshold: milestone.Threshold,
-			Title: milestone.Title, RewardDescription: milestone.RewardDescription, Status: milestone.Status,
+			Title: milestone.Title, RewardDescription: milestone.RewardDescription,
+			RewardType: milestone.RewardType, RewardValueMinor: milestone.RewardValueMinor,
+			Status: milestone.Status,
 		})
 	}
 	return response

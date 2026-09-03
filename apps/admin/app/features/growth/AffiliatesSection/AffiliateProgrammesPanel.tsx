@@ -43,6 +43,8 @@ function ProgrammeForm({ programme }: { programme: AdminAffiliateProgramme }) {
     threshold: milestone.threshold,
     title: milestone.title,
     rewardDescription: milestone.rewardDescription,
+    rewardType: milestone.rewardType,
+    rewardValueMinor: milestone.rewardValueMinor ?? null,
     status: milestone.status,
   }));
   return (
@@ -206,7 +208,7 @@ function MilestoneFields({
       sx={{
         display: "grid",
         gap: 1.25,
-        gridTemplateColumns: { xs: "1fr", md: "0.6fr 1fr 2fr 0.8fr" },
+        gridTemplateColumns: { xs: "1fr", md: "0.6fr 1fr 1.6fr 0.9fr 0.8fr 0.8fr" },
       }}
     >
       <TextField
@@ -249,6 +251,46 @@ function MilestoneFields({
       />
       <TextField
         select
+        label="Reward type"
+        defaultValue={milestone.rewardType}
+        onChange={(event) =>
+          updateMilestonePayload(
+            event.currentTarget.form,
+            index,
+            "rewardType",
+            event.target.value,
+          )
+        }
+      >
+        <MenuItem value="cash">Money</MenuItem>
+        <MenuItem value="bonus">Bonus</MenuItem>
+        <MenuItem value="gift">Gift</MenuItem>
+        <MenuItem value="merchandise">Merchandise</MenuItem>
+        <MenuItem value="recognition">Recognition</MenuItem>
+        <MenuItem value="access">Access</MenuItem>
+        <MenuItem value="other">Other benefit</MenuItem>
+      </TextField>
+      <TextField
+        label="Reward value (GHS)"
+        type="number"
+        helperText="Money and bonus rewards only"
+        defaultValue={
+          milestone.rewardValueMinor ? milestone.rewardValueMinor / 100 : ""
+        }
+        slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
+        onChange={(event) =>
+          updateMilestonePayload(
+            event.currentTarget.form,
+            index,
+            "rewardValueMinor",
+            event.target.value
+              ? Math.round(Number(event.target.value) * 100)
+              : null,
+          )
+        }
+      />
+      <TextField
+        select
         label="Status"
         defaultValue={milestone.status}
         onChange={(event) =>
@@ -272,7 +314,7 @@ function updateMilestonePayload(
   form: HTMLFormElement | null,
   index: number,
   field: string,
-  value: string | number,
+  value: string | number | null,
 ) {
   const input = form?.elements.namedItem(
     "milestones",
@@ -280,7 +322,7 @@ function updateMilestonePayload(
   if (!input) return;
   const milestones = JSON.parse(input.value) as Record<
     string,
-    string | number
+    string | number | null
   >[];
   if (!milestones[index]) return;
   milestones[index][field] = value;

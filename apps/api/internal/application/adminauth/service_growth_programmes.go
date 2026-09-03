@@ -163,6 +163,9 @@ func normalizeUpdateAffiliateProgramme(
 		milestone.Title = normalizeProgrammeName(milestone.Title)
 		milestone.RewardDescription = normalizeOperatorNote(milestone.RewardDescription)
 		milestone.Status = strings.TrimSpace(milestone.Status)
+		if err := normalizeMilestoneReward(milestone); err != nil {
+			return ports.UpdateAdminAffiliateProgrammeInput{}, err
+		}
 		if milestone.MilestoneID.IsZero() || milestone.Threshold <= 0 || milestone.Title == "" ||
 			milestone.RewardDescription == "" || seenThresholds[milestone.Threshold] ||
 			!map[string]bool{"active": true, "paused": true, "archived": true}[milestone.Status] {
@@ -214,6 +217,36 @@ func validAffiliateProgrammePolicy(
 
 func normalizeProgrammeName(value string) string {
 	return strings.Join(strings.Fields(value), " ")
+}
+
+// milestoneRewardTypes are the reward kinds the programme can pay out. The
+// brief lists bonuses, money, gifts, merchandise, recognition and access, with
+// room for another approved benefit.
+var milestoneRewardTypes = map[string]bool{
+	"cash": true, "bonus": true, "gift": true, "merchandise": true,
+	"recognition": true, "access": true, "other": true,
+}
+
+// normalizeMilestoneReward defaults an unset reward type to recognition, which
+// is what an unconfigured milestone already was, and holds the rule that a
+// monetary reward needs an amount while every other kind has none to carry.
+func normalizeMilestoneReward(milestone *ports.AdminPartnerMilestoneRecord) error {
+	milestone.RewardType = strings.TrimSpace(milestone.RewardType)
+	if milestone.RewardType == "" {
+		milestone.RewardType = "recognition"
+	}
+	if !milestoneRewardTypes[milestone.RewardType] {
+		return authdomain.ErrInvalidInput
+	}
+	monetary := milestone.RewardType == "cash" || milestone.RewardType == "bonus"
+	if !monetary {
+		milestone.RewardValueMinor = nil
+		return nil
+	}
+	if milestone.RewardValueMinor == nil || *milestone.RewardValueMinor <= 0 {
+		return authdomain.ErrInvalidInput
+	}
+	return nil
 }
 
 func (s Service) auditAffiliateProgramme(

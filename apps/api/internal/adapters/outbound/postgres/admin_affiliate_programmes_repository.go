@@ -103,7 +103,8 @@ func (repo AdminAuthRepository) CreateAdminAffiliateProgramme(
 
 func listAdminPartnerMilestones(ctx context.Context, tx pgx.Tx) ([]ports.AdminPartnerMilestoneRecord, error) {
 	rows, err := tx.Query(ctx, `
-		select partner_milestone_id::text, threshold, title, reward_description, status
+		select partner_milestone_id::text, threshold, title, reward_description,
+			reward_type, reward_value_minor, status
 		from partner_milestones order by threshold
 	`)
 	if err != nil {
@@ -113,8 +114,14 @@ func listAdminPartnerMilestones(ctx context.Context, tx pgx.Tx) ([]ports.AdminPa
 	records := []ports.AdminPartnerMilestoneRecord{}
 	for rows.Next() {
 		var record ports.AdminPartnerMilestoneRecord
-		if err := rows.Scan(&record.MilestoneID, &record.Threshold, &record.Title, &record.RewardDescription, &record.Status); err != nil {
+		var rewardValue pgtype.Int8
+		if err := rows.Scan(&record.MilestoneID, &record.Threshold, &record.Title,
+			&record.RewardDescription, &record.RewardType, &rewardValue, &record.Status); err != nil {
 			return nil, err
+		}
+		if rewardValue.Valid {
+			value := rewardValue.Int64
+			record.RewardValueMinor = &value
 		}
 		records = append(records, record)
 	}
@@ -187,10 +194,11 @@ func (repo AdminAuthRepository) UpdateAdminAffiliateProgramme(
 			tag, updateErr := tx.Exec(ctx, `
 				update partner_milestones
 				set threshold=$2, title=$3, reward_description=$4,
-					status=$5, updated_at=now()
+					reward_type=$5, reward_value_minor=$6, status=$7, updated_at=now()
 				where partner_milestone_id=$1::uuid
 			`, milestone.MilestoneID.String(), milestone.Threshold, milestone.Title,
-				milestone.RewardDescription, milestone.Status)
+				milestone.RewardDescription, milestone.RewardType,
+				milestone.RewardValueMinor, milestone.Status)
 			if updateErr != nil {
 				return ports.AdminAffiliateProgrammeRecord{}, updateErr
 			}

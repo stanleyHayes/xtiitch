@@ -28,11 +28,24 @@ export type AdminAffiliateProgramme = {
   milestones: AdminPartnerMilestone[];
 };
 
+// Item 6: rewards are configurable, not fixed. Monetary types carry a value;
+// the rest carry none.
+export type AdminMilestoneRewardType =
+  | "cash"
+  | "bonus"
+  | "gift"
+  | "merchandise"
+  | "recognition"
+  | "access"
+  | "other";
+
 export type AdminPartnerMilestone = {
   milestoneId: string;
   threshold: number;
   title: string;
   rewardDescription: string;
+  rewardType: AdminMilestoneRewardType;
+  rewardValueMinor?: number;
   status: "active" | "paused" | "archived";
 };
 
@@ -78,6 +91,8 @@ type ProgrammePayload = {
     threshold: number;
     title: string;
     reward_description: string;
+    reward_type?: AdminMilestoneRewardType;
+    reward_value_minor?: number;
     status: AdminPartnerMilestone["status"];
   }[];
 };
@@ -108,6 +123,8 @@ function mapProgramme(payload: ProgrammePayload): AdminAffiliateProgramme {
       threshold: milestone.threshold,
       title: milestone.title,
       rewardDescription: milestone.reward_description,
+      rewardType: milestone.reward_type ?? "recognition",
+      rewardValueMinor: milestone.reward_value_minor,
       status: milestone.status,
     })),
   };
@@ -133,6 +150,8 @@ function programmeBody(input: AdminAffiliateProgrammeInput) {
       threshold: milestone.threshold,
       title: milestone.title,
       reward_description: milestone.rewardDescription,
+      reward_type: milestone.rewardType,
+      reward_value_minor: milestone.rewardValueMinor ?? null,
       status: milestone.status,
     })),
   });
