@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { Form, useNavigation } from "react-router";
 import { FormStatus } from "./FormStatus";
 import type { Dashboard, PartnerReferral, PortalActionResult } from "./types";
@@ -62,12 +63,43 @@ export function ReferralsSection({
 }
 
 function InviteAffiliateForm({ result }: { result?: PortalActionResult }) {
-	const navigation=useNavigation();
-	const submitting=navigation.state==="submitting" && navigation.formData?.get("intent")==="invite";
-	return <Form method="post" className="compact-form">
+	const navigation = useNavigation();
+	const formRef = useRef<HTMLFormElement>(null);
+	const [copied, setCopied] = useState(false);
+	const submitting = navigation.state === "submitting" && navigation.formData?.get("intent") === "invite";
+	const invitationSent = result?.intent === "invite" && Boolean(result.success);
+
+	useEffect(() => {
+		if (invitationSent) {
+			formRef.current?.reset();
+		}
+	}, [invitationSent, result]);
+
+	useEffect(() => {
+		if (!copied) return;
+		const timer = window.setTimeout(() => setCopied(false), 2000);
+		return () => window.clearTimeout(timer);
+	}, [copied]);
+
+	const copyInvitationLink = async () => {
+		const url = new URL("/signup", window.location.origin).toString();
+		try {
+			if (!navigator.clipboard) throw new Error("clipboard unavailable");
+			await navigator.clipboard.writeText(url);
+			setCopied(true);
+		} catch {
+			window.prompt("Copy this Affiliate invitation link", url);
+		}
+	};
+
+	return <Form ref={formRef} method="post" className="compact-form">
 		<input type="hidden" name="intent" value="invite" />
 		<label>Email address<input type="email" name="invitee_email" placeholder="friend@example.com" autoComplete="email" required /></label>
 		<FormStatus intent="invite" result={result} />
-		<button className="button" type="submit" disabled={submitting}>{submitting ? "Sending..." : "Send invitation"}</button>
+		<div className="share-actions">
+			<button className="button" type="submit" disabled={submitting}>{submitting ? "Sending..." : "Send invitation"}</button>
+			<button className="small-button secondary" type="button" onClick={copyInvitationLink}>{copied ? "Link copied" : "Copy invitation link"}</button>
+		</div>
+		<p className="field-hint">The copied link opens Affiliate signup directly. Invitations never create downstream commission.</p>
 	</Form>;
 }

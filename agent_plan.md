@@ -1829,6 +1829,13 @@ Status: `[x] implemented and locally verified`
 - `[x]` Added service and real-PostgreSQL regression coverage for paused-inviter delivery, idempotent repeat invitations, and existing-Affiliate rejection without sending an email.
 - `[x]` Verification: migration 155 fresh-chain and down/up checks; full database-backed `go test ./...`; `go vet ./...`; `go build ./...`; Affiliate, Admin, Marketing, Storefront, and Mobile checks/tests; Affiliate, Admin, Marketing, and Storefront production builds; targeted ESLint for the changed surfaces; naming scan; and `git diff --check`.
 
+### Affiliate invitation follow-up — 2026-09-03
+
+- `[x]` The invitation email form resets only after a confirmed successful send, while preserving the entered address when validation or delivery fails.
+- `[x]` Affiliates can copy the environment-correct `/signup` invitation URL directly from the invitation card, with clipboard feedback and a manual-copy fallback when browser clipboard access is unavailable.
+- `[x]` Link-based signup remains open and non-financial by design; it creates no downstream commission relationship.
+- `[x]` Verification: Affiliate type-check, production build, targeted ESLint, and `git diff --check`.
+
 ### Updated-spec delta (Xtiitch-Updates-Refined v2, 2026-07-10 22:29) — apply these
 
 Diff vs the version above:
