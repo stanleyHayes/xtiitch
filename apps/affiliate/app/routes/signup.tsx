@@ -28,10 +28,10 @@ import { PhoneField } from "../components/PhoneField";
 import { ArrowLeftIcon, ArrowRightIcon, CheckIcon } from "../components/Icons";
 
 export const meta: MetaFunction = () => [
-	{ title: "Join | Xtiitch Partner Program" },
+	{ title: "Join | Xtiitch Affiliate Program" },
   {
     name: "description",
-		content: "Create a Xtiitch Partner account and earn recurring commission on eligible subscriptions.",
+		content: "Create a Xtiitch Affiliate account and earn recurring commission on eligible subscriptions.",
   },
 ];
 
@@ -78,7 +78,7 @@ function fieldErrorMessage(code: string): string {
     return "That referral code is already taken. Try another one.";
   }
   if (code === "affiliate_email_taken") {
-    return "A Partner account already exists for this email. Sign in or reset your password.";
+    return "An Affiliate account already exists for this email. Sign in or reset your password.";
   }
   if (code === "invalid_application") {
     return "Some details are missing or invalid. Check the form and try again.";
@@ -268,7 +268,7 @@ export default function Signup() {
     <AuthLayout
       wide
 		title="Earn recurring commission when businesses subscribe."
-		lede="Share your Partner link and earn 20% on eligible Xtiitch subscription payments. Join now with no credential approval."
+		lede="Share your Affiliate link and earn 20% on eligible Xtiitch subscription payments. Join now with no credential approval."
     >
       <Form
         method="post"
@@ -278,7 +278,7 @@ export default function Signup() {
       >
 		<input type="hidden" name="invite_code" value={inviteCode} />
         <div className="form-head">
-					<h2>Create your Partner account</h2>
+					<h2>Create your Affiliate account</h2>
           <p className="muted">
 					Tell us who you are and how you'll promote Xtiitch. We'll email your
             secure activation link as soon as you finish.
@@ -449,7 +449,7 @@ export default function Signup() {
             <span>
               I have read and accept the{" "}
               <Link to="/terms" target="_blank" rel="noopener noreferrer">
-								Partner Program terms
+								Affiliate Program terms
               </Link>
               , and agree to receive programme and account messages.
             </span>
@@ -521,7 +521,7 @@ export default function Signup() {
         )}
 
         <p className="form-foot">
-				Already a Partner? <Link to="/login">Sign in</Link>
+				Already an Affiliate? <Link to="/login">Sign in</Link>
         </p>
       </Form>
     </AuthLayout>

@@ -52,7 +52,7 @@ export function OverviewSection({
     <div className="section">
       <div className="section-head">
         <div>
-			<p className="eyebrow">Partner performance</p>
+			<p className="eyebrow">Affiliate performance</p>
           <h1>{firstName ? `Welcome back, ${firstName}` : "Your overview"}</h1>
           <p className="muted">
             Your last 30 days of momentum, with lifetime earnings.
@@ -79,7 +79,7 @@ export function OverviewSection({
         />
       </div>
 
-      <section className="stat-row" aria-label="Partner referral progress">
+      <section className="stat-row" aria-label="Affiliate referral progress">
         <article className="stat">
           <span className="stat-label">Link clicks</span>
           <strong className="stat-value">
@@ -101,7 +101,7 @@ export function OverviewSection({
 			<span className="stat-hint">20% recurring on eligible payments</span>
         </article>
         <article className="stat">
-			<span className="stat-label">Partners invited</span>
+			<span className="stat-label">Affiliates invited</span>
           <strong className="stat-value">
 				{dashboard.partners_invited.toLocaleString()}
           </strong>

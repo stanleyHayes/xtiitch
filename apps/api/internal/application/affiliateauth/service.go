@@ -266,14 +266,14 @@ func (s Service) RequestRecovery(ctx context.Context, rawEmail string) error {
 	}
 	resetURL := s.portalURL + "/reset-password?token=" + url.QueryEscape(token)
 	body := fmt.Sprintf(
-		"Hi %s,\n\nReset your Xtiitch Partner password here:\n\n%s\n\n"+
+		"Hi %s,\n\nReset your Xtiitch Affiliate password here:\n\n%s\n\n"+
 			"This link expires in 30 minutes. If you did not request it, ignore this email.",
 		account.DisplayName,
 		resetURL,
 	)
 	return s.emails.Send(ctx, ports.EmailMessage{
 		To:      account.Email,
-		Subject: "Reset your Xtiitch Partner password",
+		Subject: "Reset your Xtiitch Affiliate password",
 		Body:    body,
 	})
 }
@@ -303,12 +303,12 @@ func (s Service) ResendActivation(ctx context.Context, rawEmail string) error {
 	}
 	activationURL := s.portalURL + "/activate?token=" + url.QueryEscape(token)
 	body := fmt.Sprintf(
-		"Hi %s,\n\nActivate your Xtiitch Partner account here:\n\n%s\n\n"+
+		"Hi %s,\n\nActivate your Xtiitch Affiliate account here:\n\n%s\n\n"+
 			"This link expires in 48 hours. If you did not request it, ignore this email.",
 		account.DisplayName, activationURL,
 	)
 	return s.emails.Send(ctx, ports.EmailMessage{
-		To: account.Email, Subject: "Activate your Xtiitch Partner account", Body: body,
+		To: account.Email, Subject: "Activate your Xtiitch Affiliate account", Body: body,
 	})
 }
 

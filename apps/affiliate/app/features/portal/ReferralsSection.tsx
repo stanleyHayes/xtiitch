@@ -36,7 +36,7 @@ export function ReferralsSection({
       </section>
       <section className="card">
         {referrals.length === 0 ? (
-          <div className="empty-state"><p className="empty-title">No referred businesses yet</p><p className="muted">Share your Partner link to get started.</p></div>
+          <div className="empty-state"><p className="empty-title">No referred businesses yet</p><p className="muted">Share your Affiliate link to get started.</p></div>
         ) : (
           <div className="list">
             {referrals.map((referral) => (

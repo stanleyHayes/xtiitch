@@ -11,14 +11,14 @@ import { AuthLayout } from "../features/auth/AuthLayout";
 import { MailIcon } from "../components/Icons";
 
 export const meta: MetaFunction = () => [
-  { title: "Reset your password | Xtiitch Partners" }
+  { title: "Reset your password | Xtiitch Affiliates" }
 ];
 
 export async function action({ request }: ActionFunctionArgs) {
   const form = await request.formData();
   const email = String(form.get("email") ?? "").trim();
   if (!email) {
-    return { error: "Enter the email address on your Partner account." };
+    return { error: "Enter the email address on your Affiliate account." };
   }
 
   // The response is identical whether or not the address exists. Confirming
@@ -48,7 +48,7 @@ export default function ForgotPassword() {
           <div className="form-head">
             <h2>Check your email</h2>
             <p className="muted">
-              If that address has a Partner account, a reset link is on its
+              If that address has an Affiliate account, a reset link is on its
               way. It expires soon, so use it while it's fresh.
             </p>
           </div>
@@ -65,7 +65,7 @@ export default function ForgotPassword() {
           <div className="form-head">
             <h2>Reset your password</h2>
             <p className="muted">
-              Enter the email address on your Partner account.
+              Enter the email address on your Affiliate account.
             </p>
           </div>
 

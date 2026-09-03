@@ -120,7 +120,7 @@ export function ErrorBoundary() {
 
   return (
     <main className="system-page">
-      <p className="eyebrow">Xtiitch Partner portal</p>
+      <p className="eyebrow">Xtiitch Affiliate portal</p>
       <h1>{view.title}</h1>
       <p className="lede">{view.body}</p>
       <div className="system-actions">

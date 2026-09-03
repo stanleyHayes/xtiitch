@@ -110,6 +110,7 @@ func TestSubmitAffiliateApplicationNormalizesInput(t *testing.T) {
 	}
 	if record.ApplicationID != "application-1" ||
 		repo.input.Email != "ama@example.com" ||
+		repo.input.Phone != "+233200000000" ||
 		repo.input.RequestedCode != "AMA-CREATES" ||
 		len(repo.input.PromotionChannels) != 2 ||
 		repo.input.IPHash == "" ||
@@ -122,12 +123,55 @@ func TestSubmitAffiliateApplicationNormalizesInput(t *testing.T) {
 	}
 	if len(emails.sent) != 1 ||
 		emails.sent[0].To != "ama@example.com" ||
-		emails.sent[0].Subject != "Activate your Xtiitch Partner account" {
+		emails.sent[0].Subject != "Activate your Xtiitch Affiliate account" {
 		t.Fatalf("unexpected application email: %+v", emails.sent)
 	}
 	if !strings.Contains(emails.sent[0].Body, "https://affiliate.xtiitch.com/activate?token=") ||
 		strings.Contains(emails.sent[0].Body, "partners.xtiitch.com") {
 		t.Fatalf("unexpected activation URL in application email: %q", emails.sent[0].Body)
+	}
+}
+
+func TestSubmitAffiliateApplicationRejectsInvalidWhatsAppNumber(t *testing.T) {
+	t.Parallel()
+
+	service := NewService(Dependencies{
+		Applications:  &fakeAffiliateApplications{},
+		IDs:           sequenceIDs{ids: []common.ID{"application-1", "affiliate-1", "account-1", "activation-1"}},
+		RefreshTokens: fakeGrowthRefreshTokens{},
+		Clock:         fakeGrowthClock{now: time.Date(2026, 8, 16, 12, 0, 0, 0, time.UTC)},
+	})
+	_, err := service.SubmitAffiliateApplication(context.Background(), SubmitAffiliateApplicationCommand{
+		DisplayName: "Ama Creates", ContactName: "Ama Mensah", Email: "ama@example.com",
+		Phone: "not-whatsapp", RequestedCode: "AMACREATES",
+		PromotionChannels: []string{"whatsapp"}, Consent: true,
+	})
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected invalid WhatsApp number, got %v", err)
+	}
+}
+
+func TestNormalizeAffiliateWhatsApp(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{name: "Ghana local", input: "024 350 3670", want: "+233243503670"},
+		{name: "Ghana country code", input: "233 24 350 3670", want: "+233243503670"},
+		{name: "international", input: "+44 7700 900123", want: "+447700900123"},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := normalizeAffiliateWhatsApp(test.input)
+			if err != nil || got != test.want {
+				t.Fatalf("normalizeAffiliateWhatsApp(%q) = %q, %v; want %q", test.input, got, err, test.want)
+			}
+		})
 	}
 }
 

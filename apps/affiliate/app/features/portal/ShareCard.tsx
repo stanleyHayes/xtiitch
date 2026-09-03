@@ -83,7 +83,7 @@ export function ShareCard({
         </p>
       ) : (
         <p className="share-note">
-					Eligible clicks are captured for {cookieWindowDays} days. Once a business registers, its Partner attribution remains in place.
+					Eligible clicks are captured for {cookieWindowDays} days. Once a business registers, its Affiliate attribution remains in place.
           click.
         </p>
       )}

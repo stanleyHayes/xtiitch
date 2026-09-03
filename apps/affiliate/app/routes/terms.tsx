@@ -2,7 +2,7 @@ import { Link, type MetaFunction } from "react-router";
 import { Logo } from "../components/Logo";
 
 export const meta: MetaFunction = () => [
-  { title: "Partner Programme terms | Xtiitch" },
+  { title: "Affiliate Programme terms | Xtiitch" },
   { name: "robots", content: "noindex, nofollow" },
 ];
 
@@ -23,8 +23,8 @@ const SECTIONS: { heading: string; paragraphs: string[] }[] = [
   {
     heading: "1. Joining the programme",
     paragraphs: [
-      "Creating a Partner account enrolls you immediately in the Xtiitch Partner Programme. You'll receive an activation link by email to set a password and open your portal.",
-      "You must be at least 18 years old and provide accurate details, including an active WhatsApp number. One person or business may hold one Partner account unless we agree otherwise in writing.",
+      "Creating an Affiliate account enrolls you immediately in the Xtiitch Affiliate Programme. You'll receive an activation link by email to set a password and open your portal.",
+      "You must be at least 18 years old and provide accurate details, including an active WhatsApp number. One person or business may hold one Affiliate account unless we agree otherwise in writing.",
     ],
   },
   {
@@ -81,14 +81,14 @@ export default function Terms() {
   return (
     <div className="doc-shell">
       <header className="doc-header">
-        <Logo href="/login" size={32} subtitle="Partners" />
+        <Logo href="/login" size={32} subtitle="Affiliates" />
         <Link className="ghost-button" to="/signup">
           Back to signup
         </Link>
       </header>
 
       <main className="doc">
-        <p className="eyebrow">Partner Programme</p>
+        <p className="eyebrow">Affiliate Programme</p>
         <h1>Terms and conditions</h1>
         <p className="muted doc-meta">Last updated {LAST_UPDATED}</p>
 
@@ -99,7 +99,7 @@ export default function Terms() {
         </div>
 
         <p className="lede">
-          These terms cover taking part in the Xtiitch Partner Programme — how
+          These terms cover taking part in the Xtiitch Affiliate Programme — how
           you're accepted, how referrals are attributed, how commission is
           earned and paid, and what ends participation. Read them before you
           join.

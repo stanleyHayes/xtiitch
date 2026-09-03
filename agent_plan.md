@@ -1681,6 +1681,14 @@ Status: `[x] implemented and locally verified`
 - `[x]` Parked merchant-product affiliate UI and mutation dispatch were removed from the business dashboard while historical APIs/data and database-enforced paused/zero-commission state remain preserved.
 - `[x]` Verification: full Go suite, focused real-Postgres invitation creation/acceptance tests, migration 150 fresh-chain and down/up checks, affiliate/dashboard type-checks and production builds, affected-file ESLint, and `git diff --check`.
 
+### Item 2 gap closure — 2026-09-03
+
+- `[x]` Affiliate enrollment remains public and self-service: submission atomically creates the active affiliate, reserves the referral code, and issues the activation email without an admin approval step.
+- `[x]` Mandatory WhatsApp input is now normalized and validated at the API boundary; Ghana local numbers become `+233...`, correctly prefixed international numbers are preserved, and malformed/arbitrary values are rejected.
+- `[x]` Customer-facing signup, authentication, portal, terms, and account-email wording consistently uses Affiliate terminology while retaining `affiliate.xtiitch.com`.
+- `[x]` Admin pause/archive and conversion-hold controls remain available for abusive accounts or suspicious commissions.
+- `[x]` Verification: focused growth/affiliate-auth tests, full Go suite, affiliate type-check, affected-file ESLint, production build, terminology scan, and `git diff --check`.
+
 ### Updated-spec delta (Xtiitch-Updates-Refined v2, 2026-07-10 22:29) — apply these
 
 Diff vs the version above:

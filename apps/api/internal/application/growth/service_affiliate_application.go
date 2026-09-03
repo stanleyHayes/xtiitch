@@ -115,8 +115,8 @@ func (s Service) sendAffiliateWelcomeEmail(
 	}
 	_ = s.emails.Send(ctx, ports.EmailMessage{
 		To:      record.Email,
-		Subject: "Activate your Xtiitch Partner account",
-		Body: "Hi " + record.DisplayName + ",\n\nYour Partner code " +
+		Subject: "Activate your Xtiitch Affiliate account",
+		Body: "Hi " + record.DisplayName + ",\n\nYour Affiliate code " +
 			record.RequestedCode + " is ready. Set your password and open your dashboard within 48 hours:\n" +
 			"https://affiliate.xtiitch.com/activate?token=" + url.QueryEscape(activationToken),
 		ReplyTo: notification.ReplyToOperational,
@@ -137,8 +137,8 @@ func normalizeAffiliateApplication(
 	displayName := limitText(cmd.DisplayName, 120)
 	contactName := limitText(cmd.ContactName, 120)
 	email, err := normalizeApplicationEmail(cmd.Email)
-	phone := limitText(cmd.Phone, 40)
-	if displayName == "" || contactName == "" || phone == "" || err != nil {
+	phone, phoneErr := normalizeAffiliateWhatsApp(cmd.Phone)
+	if displayName == "" || contactName == "" || phoneErr != nil || err != nil {
 		return ports.SubmitAffiliateApplicationInput{}, ErrInvalidInput
 	}
 
@@ -167,6 +167,43 @@ func normalizeAffiliateApplication(
 		AudienceSummary:   limitText(cmd.AudienceSummary, 1000),
 		PromotionChannels: channels,
 	}, nil
+}
+
+func normalizeAffiliateWhatsApp(value string) (string, error) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return "", ErrInvalidInput
+	}
+	for index, character := range trimmed {
+		if character == '+' && index == 0 {
+			continue
+		}
+		if character >= '0' && character <= '9' {
+			continue
+		}
+		switch character {
+		case ' ', '-', '(', ')':
+			continue
+		default:
+			return "", ErrInvalidInput
+		}
+	}
+
+	digits := strings.Map(func(character rune) rune {
+		if character >= '0' && character <= '9' {
+			return character
+		}
+		return -1
+	}, trimmed)
+	if strings.HasPrefix(digits, "0") && !strings.HasPrefix(trimmed, "+") {
+		digits = "233" + strings.TrimPrefix(digits, "0")
+	} else if !strings.HasPrefix(trimmed, "+") && !strings.HasPrefix(digits, "233") {
+		return "", ErrInvalidInput
+	}
+	if len(digits) < 8 || len(digits) > 15 || digits[0] == '0' {
+		return "", ErrInvalidInput
+	}
+	return "+" + digits, nil
 }
 
 func normalizeApplicationEmail(value string) (string, error) {
