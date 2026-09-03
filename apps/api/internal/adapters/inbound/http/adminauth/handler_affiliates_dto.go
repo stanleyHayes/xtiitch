@@ -118,7 +118,18 @@ type affiliateAttributionResponse struct {
 	RecentPayouts            []affiliatePayoutResponse               `json:"recent_payouts"`
 	Invitations              []affiliateInvitationResponse           `json:"invitations"`
 	MilestoneAchievements    []affiliateMilestoneAchievementResponse `json:"milestone_achievements"`
+	Referrals                []affiliateReferralResponse             `json:"referrals"`
 	LastActivityAt           string                                  `json:"last_activity_at,omitempty"`
+}
+type affiliateReferralResponse struct {
+	SignupID         string `json:"signup_id"`
+	BusinessID       string `json:"business_id"`
+	BusinessName     string `json:"business_name"`
+	BusinessHandle   string `json:"business_handle"`
+	State            string `json:"state"`
+	AttributionModel string `json:"attribution_model"`
+	PlanName         string `json:"plan_name,omitempty"`
+	AttributedAt     string `json:"attributed_at"`
 }
 type affiliateInvitationResponse struct {
 	InvitationID        string `json:"invitation_id"`

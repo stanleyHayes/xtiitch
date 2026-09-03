@@ -365,3 +365,73 @@ func lockAdminAffiliateStatus(ctx context.Context, tx pgx.Tx, affiliateID string
 	}
 	return status, nil
 }
+
+// listAdminAffiliateReferrals returns every Affiliate -> referred business
+// attribution with the business's current state, for item 5's attribution
+// inspection. The state classification matches the aggregate counts in the
+// attribution read model: Active means a live paid subscription, Inactive means
+// the business has paid an Affiliate commission at some point but is not paying
+// now, and Not Activated means it never has. Disqualified signups are excluded
+// exactly as they are from the counts.
+func listAdminAffiliateReferrals(
+	ctx context.Context,
+	tx pgx.Tx,
+) (map[common.ID][]ports.AdminAffiliateReferralRecord, error) {
+	rows, err := tx.Query(ctx, `
+		select
+			signup.affiliate_signup_id::text,
+			signup.affiliate_id::text,
+			signup.business_id::text,
+			coalesce(business.name, ''),
+			coalesce(business.handle, ''),
+			case
+				when subscription.status = 'active'
+					and subscription.current_period_end > now()
+					and plan.monthly_fee_minor > 0 then 'active'
+				when exists (
+					select 1 from affiliate_conversions conversion
+					where conversion.affiliate_id = signup.affiliate_id
+						and conversion.business_id = signup.business_id
+						and conversion.conversion_type = 'subscription_payment'
+						and conversion.commission_minor > 0
+				) then 'inactive'
+				else 'not_activated'
+			end,
+			signup.attribution_model,
+			coalesce(plan.name, ''),
+			signup.qualified_at
+		from affiliate_signups signup
+		left join businesses business on business.business_id = signup.business_id
+		left join business_subscriptions subscription on subscription.business_id = signup.business_id
+		left join plans plan on plan.plan_id = subscription.plan_id
+		where signup.subject_type = 'business' and signup.status = 'qualified'
+		order by signup.affiliate_id, signup.qualified_at desc
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	records := map[common.ID][]ports.AdminAffiliateReferralRecord{}
+	for rows.Next() {
+		var record ports.AdminAffiliateReferralRecord
+		if err := rows.Scan(
+			&record.SignupID,
+			&record.AffiliateID,
+			&record.BusinessID,
+			&record.BusinessName,
+			&record.BusinessHandle,
+			&record.State,
+			&record.AttributionModel,
+			&record.PlanName,
+			&record.AttributedAt,
+		); err != nil {
+			return nil, err
+		}
+		records[record.AffiliateID] = append(records[record.AffiliateID], record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
+}

@@ -65,12 +65,27 @@ export type AdminAffiliateAttribution = {
   paidCommissionMinor: number;
   heldCommissionMinor: number;
   reversedCommissionMinor: number;
+  referrals: AdminAffiliateReferral[];
   recentConversions: AdminAffiliateConversion[];
   recentPayouts: AdminAffiliatePayout[];
   invitations: AdminAffiliateInvitation[];
   milestoneAchievements: AdminAffiliateMilestoneAchievement[];
   lastActivityAt?: string;
 };
+// Item 5: one Affiliate -> referred business attribution. The attribution
+// survives the business lapsing and resubscribing, so state is a property of
+// the business today, not of who gets the credit.
+export type AdminAffiliateReferral = {
+  signupId: string;
+  businessId: string;
+  businessName: string;
+  businessHandle: string;
+  state: "active" | "inactive" | "not_activated";
+  attributionModel: "last_click" | "manual";
+  planName?: string;
+  attributedAt: string;
+};
+
 export type AdminAffiliateInvitation = {
   invitationId: string;
   inviteeEmail: string;
@@ -190,12 +205,24 @@ type AdminAffiliateAttributionPayload = {
   paid_commission_minor: number;
   held_commission_minor: number;
   reversed_commission_minor: number;
+  referrals?: AdminAffiliateReferralPayload[];
   recent_conversions: AdminAffiliateConversionPayload[];
   recent_payouts: AdminAffiliatePayoutPayload[];
   invitations: AdminAffiliateInvitationPayload[];
   milestone_achievements: AdminAffiliateMilestoneAchievementPayload[];
   last_activity_at?: string;
 };
+type AdminAffiliateReferralPayload = {
+  signup_id: string;
+  business_id: string;
+  business_name: string;
+  business_handle: string;
+  state: AdminAffiliateReferral["state"];
+  attribution_model: AdminAffiliateReferral["attributionModel"];
+  plan_name?: string;
+  attributed_at: string;
+};
+
 type AdminAffiliateInvitationPayload = {
   invitation_id: string;
   invitee_email: string;
@@ -311,6 +338,16 @@ function mapAffiliateAttribution(
     paidCommissionMinor: payload.paid_commission_minor ?? 0,
     heldCommissionMinor: payload.held_commission_minor ?? 0,
     reversedCommissionMinor: payload.reversed_commission_minor ?? 0,
+    referrals: (payload.referrals ?? []).map((referral) => ({
+      signupId: referral.signup_id,
+      businessId: referral.business_id,
+      businessName: referral.business_name,
+      businessHandle: referral.business_handle,
+      state: referral.state,
+      attributionModel: referral.attribution_model,
+      planName: referral.plan_name,
+      attributedAt: referral.attributed_at,
+    })),
     recentConversions: payload.recent_conversions.map(mapAffiliateConversion),
     recentPayouts: (payload.recent_payouts ?? []).map(mapAffiliatePayout),
     invitations: (payload.invitations ?? []).map((invitation) => ({

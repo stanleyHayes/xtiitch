@@ -2008,3 +2008,12 @@ Status: `[x] implemented and locally verified`
 - `[x]` "Approaching" is proportional to the rung, within a fifth of the threshold and never fewer than two, because the ladder spans 10 to 1,000 paid referrals and a fixed distance would be meaningless at one end.
 - `[x]` The pipeline wording keeps achievement and fulfilment separate: reaching a milestone unlocks a reward, it does not deliver one.
 - `[x]` Verification: Admin type-check, all 12 Admin tests, targeted ESLint, and production build.
+
+### Admin brief item 5 — referral attribution inspection — 2026-09-03
+
+- `[x]` Each Affiliate detail now lists every referred business by name and `@handle`, with its attribution date, attribution model, current plan, and canonical Active / Inactive / Not Activated state.
+- `[x]` The list is searchable by business or handle and filterable by state.
+- `[x]` The per-referral states are computed by the same rule as the aggregate counts, and a regression test asserts the list and the counts agree so the dashboard cannot contradict itself.
+- `[x]` Attribution correction is available per referral, requires a target Affiliate and a reason, and remains audited with the previous Affiliate recorded.
+- `[x]` Attribution stays attached to the original Affiliate when a business lapses and later resubscribes; the panel says so explicitly.
+- `[x]` Verification: real-PostgreSQL test for the referral list and its agreement with the counts, full Go suite, `go vet`, `go build`, Admin type-check, 12 Admin tests, targeted ESLint, and production build.

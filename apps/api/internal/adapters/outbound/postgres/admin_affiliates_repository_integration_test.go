@@ -531,3 +531,50 @@ func findAdminAffiliateAttribution(
 	t.Fatalf("seeded affiliate missing from the attribution read model")
 	return ports.AdminAffiliateAttributionRecord{}
 }
+
+// Item 5: Admin must be able to inspect the Affiliate -> referred business
+// attribution itself, not just a count of it, with the business handle, the
+// attribution date and the business's current state.
+func TestAdminAffiliateAttributionListsReferredBusinesses(t *testing.T) {
+	pool := openIntegrationPool(t)
+	defer pool.Close()
+	seedAdminAffiliateConversionFixture(t, pool)
+	defer cleanupAdminAffiliateConversionFixture(t, pool)
+
+	const signupID = "cccccccc-9999-4999-8999-999999999901"
+	inBypass(t, pool, func(tx pgx.Tx) {
+		mustExec(t, tx, `insert into affiliate_signups(
+			affiliate_signup_id,affiliate_id,subject_type,business_id,code,status)
+			values($1,$2,'business',$3,'ITAFFILIATE','qualified')`,
+			signupID, itAdminAffAffiliate, itAdminAffBiz)
+	})
+	defer inBypass(t, pool, func(tx pgx.Tx) {
+		mustExec(t, tx, `delete from affiliate_signups where affiliate_signup_id=$1`, signupID)
+	})
+
+	record := findAdminAffiliateAttribution(t, NewAdminAuthRepository(pool), context.Background())
+	if len(record.Referrals) != 1 {
+		t.Fatalf("expected one referred business, got %+v", record.Referrals)
+	}
+	referral := record.Referrals[0]
+	if referral.BusinessID != common.ID(itAdminAffBiz) || referral.BusinessHandle == "" {
+		t.Fatalf("expected the referred business and its handle, got %+v", referral)
+	}
+	if referral.State != "active" && referral.State != "inactive" && referral.State != "not_activated" {
+		t.Fatalf("expected a canonical referral state, got %q", referral.State)
+	}
+	if referral.AttributedAt.IsZero() {
+		t.Fatalf("expected an attribution date, got %+v", referral)
+	}
+	// The per-referral states must agree with the aggregate counts the same
+	// read model reports, or the dashboard would contradict itself.
+	stateCounts := map[string]int64{}
+	for _, item := range record.Referrals {
+		stateCounts[item.State]++
+	}
+	if stateCounts["active"] != record.ActiveReferralCount ||
+		stateCounts["inactive"] != record.InactiveReferralCount ||
+		stateCounts["not_activated"] != record.NotActivatedCount {
+		t.Fatalf("referral list disagrees with the aggregate counts: list=%+v record=%+v", stateCounts, record)
+	}
+}

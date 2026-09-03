@@ -333,6 +333,15 @@ func newAffiliateAttributionResponse(record ports.AdminAffiliateAttributionRecor
 		RecentPayouts:            make([]affiliatePayoutResponse, 0, len(record.RecentPayouts)),
 		Invitations:              make([]affiliateInvitationResponse, 0, len(record.Invitations)),
 		MilestoneAchievements:    make([]affiliateMilestoneAchievementResponse, 0, len(record.MilestoneAchievements)),
+		Referrals:                make([]affiliateReferralResponse, 0, len(record.Referrals)),
+	}
+	for _, referral := range record.Referrals {
+		response.Referrals = append(response.Referrals, affiliateReferralResponse{
+			SignupID: referral.SignupID.String(), BusinessID: referral.BusinessID.String(),
+			BusinessName: referral.BusinessName, BusinessHandle: referral.BusinessHandle,
+			State: referral.State, AttributionModel: referral.AttributionModel,
+			PlanName: referral.PlanName, AttributedAt: referral.AttributedAt.Format(time.RFC3339),
+		})
 	}
 	if record.LastActivityAt != nil {
 		response.LastActivityAt = record.LastActivityAt.Format(time.RFC3339)

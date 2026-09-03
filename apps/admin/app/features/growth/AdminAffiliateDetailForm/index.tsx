@@ -10,6 +10,7 @@ import { AffiliatePayoutsPanel } from "./AffiliatePayoutsPanel";
 import { AffiliateEditForm } from "./AffiliateEditForm";
 import { AffiliateMilestonesPanel } from "./AffiliateMilestonesPanel";
 import { AffiliateInvitationsPanel } from "./AffiliateInvitationsPanel";
+import { AffiliateReferralsPanel } from "./AffiliateReferralsPanel";
 import { AffiliateLifecycleActions } from "./AffiliateLifecycleActions";
 
 export function AdminAffiliateDetailForm({
@@ -31,6 +32,11 @@ export function AdminAffiliateDetailForm({
         milestones={milestones}
       />
       <AffiliateLifecycleActions affiliate={affiliate} />
+      <AffiliateReferralsPanel
+        affiliate={affiliate}
+        performance={performance}
+        affiliates={affiliates}
+      />
       <AffiliateConversionsPanel
         affiliate={affiliate}
         performance={performance}

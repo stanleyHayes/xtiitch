@@ -232,11 +232,16 @@ func (repo AdminAuthRepository) ListAdminAffiliateAttribution(ctx context.Contex
 	if err != nil {
 		return nil, err
 	}
+	referrals, err := listAdminAffiliateReferrals(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
 	for index := range records {
 		records[index].RecentConversions = conversions[records[index].AffiliateID]
 		records[index].RecentPayouts = payouts[records[index].AffiliateID]
 		records[index].Invitations = invitations[records[index].AffiliateID]
 		records[index].MilestoneAchievements = achievements[records[index].AffiliateID]
+		records[index].Referrals = referrals[records[index].AffiliateID]
 	}
 
 	if err := tx.Commit(ctx); err != nil {

@@ -395,7 +395,23 @@ type AdminAffiliateAttributionRecord struct {
 	RecentPayouts           []AdminAffiliatePayoutRecord
 	Invitations             []AdminAffiliateInvitationRecord
 	MilestoneAchievements   []AdminAffiliateMilestoneAchievementRecord
+	Referrals               []AdminAffiliateReferralRecord
 	LastActivityAt          *time.Time
+}
+
+// AdminAffiliateReferralRecord is one Affiliate -> referred business
+// attribution. The attribution outlives the business's subscription state, so
+// a business that lapses and later resubscribes stays with the same Affiliate.
+type AdminAffiliateReferralRecord struct {
+	SignupID         common.ID
+	AffiliateID      common.ID
+	BusinessID       common.ID
+	BusinessName     string
+	BusinessHandle   string
+	State            string
+	AttributionModel string
+	PlanName         string
+	AttributedAt     time.Time
 }
 type AdminAffiliateInvitationRecord struct {
 	InvitationID        common.ID
