@@ -29,6 +29,7 @@ import { AffiliateApplicationsPanel } from "./AffiliateApplicationsPanel";
 import { AffiliateProgrammesPanel } from "./AffiliateProgrammesPanel";
 import { GrowthReportPanel } from "./GrowthReportPanel";
 import { AffiliatePerformancePanel } from "./AffiliatePerformancePanel";
+import { AffiliatePayoutQueuePanel } from "./AffiliatePayoutQueuePanel";
 
 // eslint-disable-next-line max-lines-per-function -- large presentational component; refactor in follow-up
 export function AffiliatesSection({
@@ -290,6 +291,11 @@ export function AffiliatesSection({
         affiliateAttribution={affiliateAttribution}
         milestones={programmeMilestones}
         onSelect={setDetailID}
+      />
+
+      <AffiliatePayoutQueuePanel
+        affiliates={affiliates}
+        affiliateAttribution={affiliateAttribution}
       />
 
       <AffiliateTable

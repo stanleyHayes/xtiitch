@@ -2025,3 +2025,12 @@ Status: `[x] implemented and locally verified`
 - `[x]` Existing milestones default to `recognition`, which is what an unconfigured milestone already was, so no historical row changes meaning.
 - `[x]` The Admin milestone editor now sets threshold, recognition, reward description, reward type, reward value and active state per rung.
 - `[x]` Verification: migration 158 fresh chain and down/up round trip, service tests for each reward rule, full Go suite, `go vet`, `go build`, Admin type-check, 12 Admin tests, targeted ESLint, and production build.
+
+### Admin brief item 10 — consolidated payout administration — 2026-09-03
+
+- `[x]` Admin now has one place listing every Affiliate with an Available balance, ranked by amount, with the total payable across the programme.
+- `[x]` Each row states payout readiness, so a Paystack-transfer Affiliate with no recipient on file is visible before the operator reaches Paystack, and a payout can be recorded from the row.
+- `[x]` Archived Affiliates keep their payout history but never appear as payable.
+- `[x]` Payout history spans all Affiliates, showing the batch reference, status, the number of commissions it settled and its date; commission rows already carry their payout batch ID, connecting a payout to the commissions underneath it.
+- `[x]` Adjustments continue to net off future payouts rather than rewriting a settled batch.
+- `[x]` Verification: Admin type-check, 12 Admin tests, targeted ESLint, production build, and the full Go suite against a real PostgreSQL.
