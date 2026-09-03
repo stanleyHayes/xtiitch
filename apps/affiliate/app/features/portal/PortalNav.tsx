@@ -6,7 +6,14 @@ import {
   WalletIcon,
 } from "../../components/Icons";
 
-export type TabID = "overview" | "referrals" | "links" | "earnings" | "settings";
+export type TabID =
+  | "overview"
+  | "referrals"
+  | "links"
+  | "earnings"
+  | "milestones"
+  | "resources"
+  | "settings";
 
 const TABS: {
   id: TabID;
@@ -14,9 +21,11 @@ const TABS: {
   icon: ComponentType<{ size?: number }>;
 }[] = [
   { id: "overview", label: "Overview", icon: ChartIcon },
-	{ id: "referrals", label: "My referrals", icon: ChartIcon },
+  { id: "referrals", label: "My referrals", icon: ChartIcon },
   { id: "links", label: "Links", icon: LinkIcon },
   { id: "earnings", label: "Earnings", icon: WalletIcon },
+  { id: "milestones", label: "Milestones", icon: ChartIcon },
+  { id: "resources", label: "Resources", icon: LinkIcon },
   { id: "settings", label: "Settings", icon: LockIcon },
 ];
 

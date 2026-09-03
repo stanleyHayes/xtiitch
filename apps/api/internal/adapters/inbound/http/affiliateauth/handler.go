@@ -164,27 +164,28 @@ type sessionResponse struct {
 }
 
 type dashboardResponse struct {
-	From                     string `json:"from"`
-	To                       string `json:"to"`
-	Clicks                   int64  `json:"clicks"`
-	CustomerSignups          int64  `json:"customer_signups"`
-	BusinessSignups          int64  `json:"business_signups"`
-	PaidPlanSignups          int64  `json:"paid_plan_signups"`
-	Purchases                int64  `json:"purchases"`
-	GrossEligibleMinor       int64  `json:"gross_eligible_minor"`
-	ClickToSignupRateBPS     int64  `json:"click_to_signup_rate_bps"`
-	ClickToPurchaseRateBPS   int64  `json:"click_to_purchase_rate_bps"`
-	PendingCommissionMinor   int64  `json:"pending_commission_minor"`
-	AvailableCommissionMinor int64  `json:"available_commission_minor"`
-	PaidCommissionMinor      int64  `json:"paid_commission_minor"`
-	ReversedCommissionMinor  int64  `json:"reversed_commission_minor"`
-	LifetimeEarningsMinor    int64  `json:"lifetime_earnings_minor"`
-	ActiveReferrals          int64  `json:"active_referrals"`
-	InactiveReferrals        int64  `json:"inactive_referrals"`
-	NotActivatedReferrals    int64  `json:"not_activated_referrals"`
-	NextMilestoneThreshold   int    `json:"next_milestone_threshold"`
-	NextMilestoneTitle       string `json:"next_milestone_title"`
-	PartnersInvited          int64  `json:"partners_invited"`
+	From                     string                                    `json:"from"`
+	To                       string                                    `json:"to"`
+	Clicks                   int64                                     `json:"clicks"`
+	CustomerSignups          int64                                     `json:"customer_signups"`
+	BusinessSignups          int64                                     `json:"business_signups"`
+	PaidPlanSignups          int64                                     `json:"paid_plan_signups"`
+	Purchases                int64                                     `json:"purchases"`
+	GrossEligibleMinor       int64                                     `json:"gross_eligible_minor"`
+	ClickToSignupRateBPS     int64                                     `json:"click_to_signup_rate_bps"`
+	ClickToPurchaseRateBPS   int64                                     `json:"click_to_purchase_rate_bps"`
+	PendingCommissionMinor   int64                                     `json:"pending_commission_minor"`
+	AvailableCommissionMinor int64                                     `json:"available_commission_minor"`
+	PaidCommissionMinor      int64                                     `json:"paid_commission_minor"`
+	ReversedCommissionMinor  int64                                     `json:"reversed_commission_minor"`
+	LifetimeEarningsMinor    int64                                     `json:"lifetime_earnings_minor"`
+	ActiveReferrals          int64                                     `json:"active_referrals"`
+	InactiveReferrals        int64                                     `json:"inactive_referrals"`
+	NotActivatedReferrals    int64                                     `json:"not_activated_referrals"`
+	NextMilestoneThreshold   int                                       `json:"next_milestone_threshold"`
+	NextMilestoneTitle       string                                    `json:"next_milestone_title"`
+	PartnersInvited          int64                                     `json:"partners_invited"`
+	MilestoneAchievements    []ports.PartnerMilestoneAchievementRecord `json:"milestone_achievements"`
 }
 
 type conversionResponse struct {
@@ -769,6 +770,7 @@ func newDashboardResponse(result affiliateauthapp.DashboardResult) dashboardResp
 		NextMilestoneThreshold:   record.NextMilestoneThreshold,
 		NextMilestoneTitle:       record.NextMilestoneTitle,
 		PartnersInvited:          record.PartnersInvitedCount,
+		MilestoneAchievements:    record.MilestoneAchievements,
 	}
 }
 

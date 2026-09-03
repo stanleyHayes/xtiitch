@@ -1,10 +1,15 @@
 import { useEffect, useState } from "react";
-import { CheckIcon, CopyIcon, ShareIcon } from "../../components/Icons";
+import {
+  CheckIcon,
+  CopyIcon,
+  DownloadIcon,
+  ShareIcon,
+} from "../../components/Icons";
 
 export function ShareCard({
   code,
   url,
-  cookieWindowDays
+  cookieWindowDays,
 }: {
   code: string;
   url: string;
@@ -76,6 +81,10 @@ export function ShareCard({
           <ShareIcon />
           Share
         </button>
+        <a className="small-button secondary" href="/portal/qr.png" download>
+          <DownloadIcon />
+          Download QR
+        </a>
       </div>
       {failed ? (
         <p className="share-note error-text" role="alert">
@@ -83,8 +92,8 @@ export function ShareCard({
         </p>
       ) : (
         <p className="share-note">
-					Eligible clicks are captured for {cookieWindowDays} days. Once a business registers, its Affiliate attribution remains in place.
-          click.
+          Eligible clicks are captured for {cookieWindowDays} days. Once a
+          business registers, its Affiliate attribution remains in place.
         </p>
       )}
     </section>

@@ -667,6 +667,35 @@ func (repo AffiliateAuthRepository) GetAffiliateDashboard(
 	if err != nil {
 		return ports.AffiliateDashboardRecord{}, err
 	}
+	rows, err := tx.Query(ctx, `
+		select achievement.partner_milestone_achievement_id::text,
+			milestone.threshold, milestone.title, milestone.reward_description,
+			achievement.reward_status, achievement.achieved_at
+		from partner_milestone_achievements achievement
+		join partner_milestones milestone
+			on milestone.partner_milestone_id = achievement.partner_milestone_id
+		where achievement.affiliate_id = $1::uuid
+		order by milestone.threshold desc
+	`, input.AffiliateID.String())
+	if err != nil {
+		return ports.AffiliateDashboardRecord{}, err
+	}
+	defer rows.Close()
+	record.MilestoneAchievements = []ports.PartnerMilestoneAchievementRecord{}
+	for rows.Next() {
+		var achievement ports.PartnerMilestoneAchievementRecord
+		if err := rows.Scan(
+			&achievement.AchievementID, &achievement.Threshold,
+			&achievement.Title, &achievement.RewardDescription,
+			&achievement.RewardStatus, &achievement.AchievedAt,
+		); err != nil {
+			return ports.AffiliateDashboardRecord{}, err
+		}
+		record.MilestoneAchievements = append(record.MilestoneAchievements, achievement)
+	}
+	if err := rows.Err(); err != nil {
+		return ports.AffiliateDashboardRecord{}, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return ports.AffiliateDashboardRecord{}, err
 	}

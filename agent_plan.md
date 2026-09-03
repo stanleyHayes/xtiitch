@@ -1742,6 +1742,16 @@ Status: `[x] implemented and locally verified`
 - `[x]` Added an API-record serialization contract test that fails if the privacy-minimal response grows beyond `handle` and `status`.
 - `[x]` Verification: focused privacy serialization contract test, referral-query data-flow audit, full Go suite, Affiliate check/build, and `git diff --check`.
 
+### Item 9 dashboard verification and gap closure — 2026-09-03
+
+- `[x]` Overview shows pending, available, paid/lifetime earnings, aggregate referral counts, and next-milestone progress.
+- `[x]` My Referrals remains restricted to registered handle and Active, Inactive, or Not Activated status; Invite Affiliates provides the non-financial email flow.
+- `[x]` Promote Xtiitch now includes the Affiliate code, canonical referral link, copy/share controls, named campaign links, and a working authenticated QR download.
+- `[x]` Earnings and Payout History render only the signed-in Affiliate's commission and payout records with lifecycle statuses and CSV export.
+- `[x]` Added a dedicated Milestones & Rewards surface backed by authenticated achievement records, including threshold, achieved date, reward description, and fulfilment status.
+- `[x]` Added Training & Updates with curated current Xtiitch product, pricing, trust, FAQ, and responsible-promotion guidance.
+- `[x]` Verification: fresh migration chain, real-PostgreSQL milestone/reward projection test, focused API tests, full Go suite, Affiliate type-check/build, and `git diff --check`.
+
 ### Updated-spec delta (Xtiitch-Updates-Refined v2, 2026-07-10 22:29) — apply these
 
 Diff vs the version above:

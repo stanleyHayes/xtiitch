@@ -129,6 +129,16 @@ type AffiliateDashboardRecord struct {
 	NextMilestoneThreshold   int
 	NextMilestoneTitle       string
 	PartnersInvitedCount     int64
+	MilestoneAchievements    []PartnerMilestoneAchievementRecord
+}
+
+type PartnerMilestoneAchievementRecord struct {
+	AchievementID     common.ID `json:"achievement_id"`
+	Threshold         int       `json:"threshold"`
+	Title             string    `json:"title"`
+	RewardDescription string    `json:"reward_description"`
+	RewardStatus      string    `json:"reward_status"`
+	AchievedAt        time.Time `json:"achieved_at"`
 }
 
 // PartnerReferralRecord is deliberately privacy-minimal. Do not add contact,
