@@ -2,6 +2,9 @@ import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import IconButton from "@mui/material/IconButton";
+import Tooltip from "@mui/material/Tooltip";
+import ManageAccountsRounded from "@mui/icons-material/ManageAccountsRounded";
 import { alpha } from "@mui/material/styles";
 import type {
   AdminAffiliate,
@@ -11,7 +14,6 @@ import { Panel } from "../../../components/ui/Panel";
 import { formatGHS } from "../../shared/formatting";
 import { shortTime } from "../../shared/dates";
 import { DetailLine } from "../../shared/DetailLine";
-import { CardDetailAction } from "../../shared/CardDetailAction";
 import {
   affiliateCommissionLabel,
   affiliateEntityLabel,
@@ -19,6 +21,7 @@ import {
   affiliateStatusColor,
   affiliateStatusLabel,
 } from "../utils";
+import { AffiliateLifecycleActions } from "../AdminAffiliateDetailForm/AffiliateLifecycleActions";
 
 export function AffiliateDetail({ // eslint-disable-line complexity -- large presentational component; refactor in follow-up
   affiliate,
@@ -149,16 +152,18 @@ export function AffiliateDetail({ // eslint-disable-line complexity -- large pre
           />
         </Box>
 
-        <CardDetailAction
-          onClick={onOpen}
-          hint={
-            approvedConversionCount > 0 && !archived
-              ? `${formatGHS(
-                  recentApprovedCommissionMinor,
-                )} ready to reconcile`
-              : undefined
-          }
-        />
+        <AffiliateLifecycleActions affiliate={affiliate} />
+
+        <Stack direction="row" spacing={1} sx={{ alignItems: "center", justifyContent: "space-between", pt: 1, borderTop: "1px solid", borderColor: "divider" }}>
+          <Typography variant="caption" color="text.secondary">
+            {approvedConversionCount > 0 && !archived ? `${formatGHS(recentApprovedCommissionMinor)} ready to reconcile` : "Manage Affiliate details"}
+          </Typography>
+          <Tooltip title="Manage Affiliate">
+            <IconButton type="button" aria-label={`Manage ${affiliate.displayName}`} onClick={onOpen} color="primary">
+              <ManageAccountsRounded />
+            </IconButton>
+          </Tooltip>
+        </Stack>
       </Stack>
     </Panel>
   );

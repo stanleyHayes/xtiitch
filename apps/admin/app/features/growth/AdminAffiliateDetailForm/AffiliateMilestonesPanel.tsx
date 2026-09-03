@@ -1,6 +1,8 @@
 import { Form } from "react-router";
 import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
+import IconButton from "@mui/material/IconButton";
+import Tooltip from "@mui/material/Tooltip";
+import SaveRounded from "@mui/icons-material/SaveRounded";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
@@ -69,13 +71,14 @@ export function AffiliateMilestonesPanel({
                 name="reason"
                 label="Audit reason"
               />
-              <Button
+              <Tooltip title="Update reward"><IconButton
                 type="submit"
-                variant="outlined"
+                aria-label="Update reward"
+                color="primary"
                 sx={{ alignSelf: "flex-start" }}
               >
-                Update reward
-              </Button>
+                <SaveRounded />
+              </IconButton></Tooltip>
             </Stack>
           </Form>
         </Box>

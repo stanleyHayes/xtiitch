@@ -1849,6 +1849,13 @@ Status: `[x] implemented and locally verified`
 - `[x]` Regression coverage proves the Admin read model returns more than the former five-row commission cap and includes invitation monitoring data.
 - `[x]` Verification: fresh PostgreSQL migration chain through 156; migration 156 down/up; real-PostgreSQL focused and full repository suites; Go service/HTTP tests, vet, and build; Admin type-check, 12 tests, targeted ESLint, production build; and `git diff --check`.
 
+### Affiliate management icon actions — 2026-09-03
+
+- `[x]` Replaced Affiliate lifecycle text controls with compact status-aware icon actions for activate, block, reactivate, and deactivate on both the Affiliate list cards and detail view.
+- `[x]` Converted the remaining per-Affiliate operational controls—application review/rejection/approval, activation resend, conversion transitions, attribution correction, payout recording, reward update, profile save, and detail management—to icon buttons.
+- `[x]` Preserved operator clarity and safety through tooltips, accessible labels, semantic colors, and mandatory reason dialogs for all lifecycle changes; block maps to the existing paused state and deactivate maps to archival so financial and referral history is retained.
+- `[x]` Verification: Admin type-check, all 12 Admin tests, production build, targeted ESLint, action-label source sweep, and `git diff --check`.
+
 ### Updated-spec delta (Xtiitch-Updates-Refined v2, 2026-07-10 22:29) — apply these
 
 Diff vs the version above:

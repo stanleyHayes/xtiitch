@@ -1,6 +1,8 @@
 import { Form } from "react-router";
 import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
+import IconButton from "@mui/material/IconButton";
+import Tooltip from "@mui/material/Tooltip";
+import SaveRounded from "@mui/icons-material/SaveRounded";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import TextField from "../../../components/form-text-field";
@@ -222,14 +224,13 @@ export function AffiliateEditForm({
             helperText="Required for the audit record, including pause or reactivation."
           />
         </Box>
-        <Button
-          type="submit"
-          variant="contained"
-          disabled={archived}
-          sx={{ alignSelf: "flex-start" }}
-        >
-          Save Affiliate
-        </Button>
+        <Tooltip title="Save Affiliate changes">
+          <span style={{ alignSelf: "flex-start" }}>
+            <IconButton type="submit" color="primary" aria-label="Save Affiliate changes" disabled={archived}>
+              <SaveRounded />
+            </IconButton>
+          </span>
+        </Tooltip>
       </Stack>
     </Form>
   );

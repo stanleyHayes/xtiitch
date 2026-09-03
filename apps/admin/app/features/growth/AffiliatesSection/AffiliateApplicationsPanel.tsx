@@ -2,7 +2,6 @@ import { Form } from "react-router";
 import { useEffect, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
 import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
@@ -10,8 +9,14 @@ import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
+import Tooltip from "@mui/material/Tooltip";
+import IconButton from "@mui/material/IconButton";
 import Typography from "@mui/material/Typography";
 import HowToRegRounded from "@mui/icons-material/HowToRegRounded";
+import CancelRounded from "@mui/icons-material/CancelRounded";
+import CloseRounded from "@mui/icons-material/CloseRounded";
+import ReplayRounded from "@mui/icons-material/ReplayRounded";
+import VisibilityRounded from "@mui/icons-material/VisibilityRounded";
 import type { AdminAffiliateApplication } from "../../../lib/api";
 import TextField from "../../../components/form-text-field";
 import { AdminEmptyState } from "../../../components/ui/AdminEmptyState";
@@ -131,13 +136,11 @@ export function AffiliateApplicationsPanel({
                 <Typography variant="caption" sx={{ color: "text.secondary" }}>
                   Applied {shortTime(application.createdAt)}
                 </Typography>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={() => setSelectedId(application.applicationId)}
-                >
-                  Review
-                </Button>
+                <Tooltip title="Review application">
+                  <IconButton aria-label={`Review ${application.displayName}`} onClick={() => setSelectedId(application.applicationId)}>
+                    <VisibilityRounded />
+                  </IconButton>
+                </Tooltip>
               </Stack>
             </Box>
           ))}
@@ -174,9 +177,11 @@ export function AffiliateApplicationsPanel({
                 <Form method="post">
                   <input type="hidden" name="intent" value="admin-affiliate-application:resend" />
                   <input type="hidden" name="email" value={application.email} />
-                  <Button type="submit" size="small" variant="outlined">
-                    Resend activation
-                  </Button>
+                  <Tooltip title="Resend activation">
+                    <IconButton type="submit" aria-label={`Resend activation to ${application.displayName}`} color="primary">
+                      <ReplayRounded />
+                    </IconButton>
+                  </Tooltip>
                 </Form>
               </Stack>
             ))}
@@ -266,24 +271,25 @@ export function AffiliateApplicationsPanel({
             </Stack>
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setSelectedId(null)}>Cancel</Button>
-            <Button
+            <Tooltip title="Cancel"><IconButton type="button" aria-label="Cancel review" onClick={() => setSelectedId(null)}><CloseRounded /></IconButton></Tooltip>
+            <Tooltip title="Reject application"><IconButton
               type="submit"
               name="decision"
               value="rejected"
               color="error"
-              variant="outlined"
+              aria-label="Reject application"
             >
-              Reject
-            </Button>
-            <Button
+              <CancelRounded />
+            </IconButton></Tooltip>
+            <Tooltip title="Approve and invite"><IconButton
               type="submit"
               name="decision"
               value="approved"
-              variant="contained"
+              color="success"
+              aria-label="Approve and invite"
             >
-              Approve &amp; invite
-            </Button>
+              <HowToRegRounded />
+            </IconButton></Tooltip>
           </DialogActions>
         </Form>
       </Dialog>

@@ -1,9 +1,14 @@
 import { Form } from "react-router";
 import { useState } from "react";
 import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
+import IconButton from "@mui/material/IconButton";
+import Tooltip from "@mui/material/Tooltip";
 import MenuItem from "@mui/material/MenuItem";
 import Chip from "@mui/material/Chip";
+import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
+import PaymentsRounded from "@mui/icons-material/PaymentsRounded";
+import SwapHorizRounded from "@mui/icons-material/SwapHorizRounded";
+import UndoRounded from "@mui/icons-material/UndoRounded";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
@@ -163,16 +168,16 @@ export function AffiliateConversionsPanel({
                           sx={{ flexWrap: "wrap" }}
                         >
                           {actions.map((action) => (
-                            <Button
-                              key={action.status}
+                            <Tooltip key={action.status} title={action.label}><IconButton
                               type="submit"
                               name="status"
                               value={action.status}
                               size="small"
-                              variant="outlined"
+                              aria-label={action.label}
+                              color={action.status === "reversed" ? "error" : "primary"}
                             >
-                              {action.label}
-                            </Button>
+                              {action.status === "approved" ? <CheckCircleRounded /> : action.status === "settled" ? <PaymentsRounded /> : <UndoRounded />}
+                            </IconButton></Tooltip>
                           ))}
                         </Stack>
                       </Stack>
@@ -220,13 +225,13 @@ export function AffiliateConversionsPanel({
                           size="small"
                           sx={{ flex: 1 }}
                         />
-                        <Button
+                        <Tooltip title="Correct attribution"><IconButton
                           type="submit"
-                          variant="outlined"
                           color="warning"
+                          aria-label="Correct attribution"
                         >
-                          Correct
-                        </Button>
+                          <SwapHorizRounded />
+                        </IconButton></Tooltip>
                       </Stack>
                     </Form>
                   ) : null}
@@ -287,9 +292,7 @@ export function AffiliateConversionsPanel({
                     </Typography>
                   ) : null}
                 </Box>
-                <Button type="submit" size="small" variant="contained">
-                  Record completed payout
-                </Button>
+                <Tooltip title="Record completed payout"><IconButton type="submit" aria-label="Record completed payout" color="success"><PaymentsRounded /></IconButton></Tooltip>
               </Stack>
               <Box
                 sx={{
