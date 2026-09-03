@@ -2000,3 +2000,11 @@ Status: `[x] implemented and locally verified`
 - `[x]` Available follows the same definition the Affiliate portal reads, so the Admin and Affiliate views of the same money cannot disagree.
 - `[x]` Affiliate detail shows Pending, Available, Lifetime paid, Held and Reversed earnings; the aggregate cards show commissions generated, pending, available, paid and held.
 - `[x]` Verification: real-PostgreSQL test walking one commission through available, pending, held and paid; full Go suite; `go vet`; `go build`; Admin type-check, targeted ESLint, and production build.
+
+### Admin brief item 8 — top performers and milestone pipeline — 2026-09-03
+
+- `[x]` Admin now sees a top-performing Affiliate leaderboard ranked by paid referrals, then lifetime commission, with archived accounts excluded and each row opening that Affiliate's detail.
+- `[x]` Admin now sees Affiliates approaching their next milestone, with how many paid referrals remain and a progress bar against the threshold.
+- `[x]` "Approaching" is proportional to the rung, within a fifth of the threshold and never fewer than two, because the ladder spans 10 to 1,000 paid referrals and a fixed distance would be meaningless at one end.
+- `[x]` The pipeline wording keeps achievement and fulfilment separate: reaching a milestone unlocks a reward, it does not deliver one.
+- `[x]` Verification: Admin type-check, all 12 Admin tests, targeted ESLint, and production build.

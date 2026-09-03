@@ -28,6 +28,7 @@ import { AffiliateTable } from "./AffiliateTable";
 import { AffiliateApplicationsPanel } from "./AffiliateApplicationsPanel";
 import { AffiliateProgrammesPanel } from "./AffiliateProgrammesPanel";
 import { GrowthReportPanel } from "./GrowthReportPanel";
+import { AffiliatePerformancePanel } from "./AffiliatePerformancePanel";
 
 // eslint-disable-next-line max-lines-per-function -- large presentational component; refactor in follow-up
 export function AffiliatesSection({
@@ -109,6 +110,8 @@ export function AffiliatesSection({
     (total, item) => total + item.heldConversionCount,
     0,
   );
+  const programmeMilestones =
+    programmes.find((programme) => programme.isDefault)?.milestones ?? [];
   const filteredAffiliates = affiliates.filter((affiliate) => {
     const query = affiliateSearch.trim().toLowerCase();
     const matchesQuery =
@@ -281,6 +284,13 @@ export function AffiliatesSection({
           <MenuItem value="archived">Archived</MenuItem>
         </TextField>
       </Box>
+
+      <AffiliatePerformancePanel
+        affiliates={affiliates}
+        affiliateAttribution={affiliateAttribution}
+        milestones={programmeMilestones}
+        onSelect={setDetailID}
+      />
 
       <AffiliateTable
         affiliates={filteredAffiliates}
