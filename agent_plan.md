@@ -1877,6 +1877,13 @@ Status: `[x] implemented and locally verified`
 - `[x]` Reused the established summary-tile component so spacing, colors, typography, responsive layout, and accessible decorative-icon handling remain consistent with the Admin design system.
 - `[x]` Verification: Admin type-check, all 12 Admin tests, targeted ESLint, production build, and `git diff --check`.
 
+### Affiliate directory mobile parity — 2026-09-03
+
+- `[x]` Replaced desktop-width overflow behavior with an explicit phone-width Affiliate table containing Affiliate identity/contact, status, lifecycle actions, and the visibility-eye detail action.
+- `[x]` Hid comparison-only financial columns below their useful breakpoints while preserving every row action and the complete record in the existing detail dialog.
+- `[x]` Reduced compact lifecycle controls to phone-appropriate icon targets and extracted the responsive directory into a focused component to remain within repository complexity and file-size limits.
+- `[x]` Verification: Admin type-check, all 12 Admin tests, targeted ESLint, production build, responsive source audit, and `git diff --check`.
+
 ### Updated-spec delta (Xtiitch-Updates-Refined v2, 2026-07-10 22:29) — apply these
 
 Diff vs the version above:

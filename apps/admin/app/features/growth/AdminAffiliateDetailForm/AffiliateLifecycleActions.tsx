@@ -35,7 +35,7 @@ export function AffiliateLifecycleActions({ affiliate, compact = false }: { affi
   const archive = action === "archive";
 
   return (
-    <Box sx={compact ? undefined : { p: 1.25, border: "1px solid", borderColor: "divider", borderRadius: 1 }}>
+    <Box sx={compact ? { "& .MuiIconButton-root": { width: 34, height: 34 } } : { p: 1.25, border: "1px solid", borderColor: "divider", borderRadius: 1 }}>
       <Stack direction="row" spacing={1} sx={{ alignItems: "center", justifyContent: compact ? "flex-end" : "space-between" }}>
         {!compact ? <Typography variant="body2" sx={{ fontWeight: 900 }}>Affiliate actions</Typography> : null}
         <Stack direction="row" spacing={0.5}>
