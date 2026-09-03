@@ -1773,6 +1773,19 @@ Status: `[x] implemented and locally verified`
 - `[x]` Controlled future-attribution correction, commission reversal/adjustment, payout reconciliation, programme lifecycle controls, and audit retention were reverified as the remaining operational controls required by item 11.
 - `[x]` Verification: full Go suite, Admin type-check, unit tests, production build, focused milestone repository compilation, and `git diff --check`. A fresh real-PostgreSQL milestone/settings test is included; the local Docker engine stalled while applying the full migration chain and is recorded separately from the green deterministic suite.
 
+### Item 12 existing-system update map verification — 2026-09-03
+
+- `[x]` One-time Affiliate commission has evolved into idempotent 20% recurring eligible-subscription commission events, with historical purchase commission retained only as parked history.
+- `[x]` Business/handle attribution persists through Not Activated, Active, and Inactive states and returns to Active for the original Affiliate when an eligible paid subscription resumes.
+- `[x]` Affiliate enrollment activates immediately without a credential/manual approval gate after the required signup fields, mandatory WhatsApp, and terms consent are submitted.
+- `[x]` Merchant-product and purchase Affiliate programmes are parked: the business dashboard neither loads nor routes the legacy management surface, while database guards force retained business-owned programmes and Affiliate records to paused with zero commission.
+- `[x]` Affiliate merchant visibility remains an API-enforced allowlist of registered handle and lifecycle status only; the exact serialized key set has regression coverage.
+- `[x]` The default 20% rate and 14-day maturity are Company Admin configurable and synchronize to the settings consumed by commission creation and payout maturity.
+- `[x]` Paid-referral milestones, live progress, persisted achievements, configurable rewards, and separate reward-fulfilment status are implemented without downstream or chance-based incentives.
+- `[x]` Affiliate-to-Affiliate email invitations remain non-financial and create no parent commission, downstream percentage, or milestone credit.
+- `[x]` No new code gap was found in item 12 because it is a consolidation/traceability map of items 1-11; this section records the cross-system evidence without duplicating those implementations.
+- `[x]` Verification: focused Affiliate/growth/admin/API tests; full Go test, vet, and build; Affiliate type-check and production build; Admin check/tests/build; Dashboard check, 75 tests, and production build; `git diff --check`.
+
 ### Updated-spec delta (Xtiitch-Updates-Refined v2, 2026-07-10 22:29) — apply these
 
 Diff vs the version above:
