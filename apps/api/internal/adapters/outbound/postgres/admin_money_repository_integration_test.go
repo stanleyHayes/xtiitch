@@ -139,6 +139,41 @@ func TestReverseAdminMoneyPaymentVoidsGrowthLedgers(t *testing.T) {
 	}
 }
 
+func TestReverseAdminMoneyPaymentCreatesAdjustmentForSettledAffiliateCommission(t *testing.T) {
+	pool := openIntegrationPool(t)
+	defer pool.Close()
+	seedAdminMoneyReversalFixture(t, pool)
+	defer cleanupAdminMoneyReversalFixture(t, pool)
+
+	inBypass(t, pool, func(tx pgx.Tx) {
+		mustExec(t, tx, `update affiliate_conversions set status='settled',settled_at=now() where affiliate_conversion_id=$1`, itAdminReverseConversion)
+	})
+	record, err := NewAdminAuthRepository(pool).ReverseAdminMoneyPayment(context.Background(), ports.ReverseAdminMoneyPaymentInput{
+		ProviderReference: itAdminReverseProviderRef,
+		ActorAdminUser:    common.ID(itAdminReverseAdmin),
+		Reason:            "Post-payout refund confirmed.",
+	})
+	if err != nil {
+		t.Fatalf("reverse payment with settled Affiliate commission: %v", err)
+	}
+	if record.AffiliateConversionCount != 1 {
+		t.Fatalf("expected one negative Affiliate adjustment, got %+v", record)
+	}
+	inBypass(t, pool, func(tx pgx.Tx) {
+		var sourceStatus, adjustmentStatus string
+		var gross, commission int64
+		if err := tx.QueryRow(context.Background(), `select status from affiliate_conversions where affiliate_conversion_id=$1`, itAdminReverseConversion).Scan(&sourceStatus); err != nil {
+			t.Fatalf("read source commission: %v", err)
+		}
+		if err := tx.QueryRow(context.Background(), `select status,gross_minor,commission_minor from affiliate_conversions where source_conversion_id=$1`, itAdminReverseConversion).Scan(&adjustmentStatus, &gross, &commission); err != nil {
+			t.Fatalf("read negative adjustment: %v", err)
+		}
+		if sourceStatus != "settled" || adjustmentStatus != "approved" || gross != -40000 || commission != -4000 {
+			t.Fatalf("unexpected adjustment source=%s adjustment=%s gross=%d commission=%d", sourceStatus, adjustmentStatus, gross, commission)
+		}
+	})
+}
+
 func seedAdminMoneyReversalFixture(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	cleanupAdminMoneyReversalFixture(t, pool)
@@ -326,6 +361,7 @@ func cleanupAdminMoneyReversalFixture(t *testing.T, pool *pgxpool.Pool) {
 		mustExec(t, tx, `delete from referrals where referral_id = $1`, itAdminReverseReferral)
 		mustExec(t, tx, `delete from referral_codes where referral_code_id = $1`, itAdminReverseCode)
 		mustExec(t, tx, `delete from referral_programmes where referral_programme_id = $1`, itAdminReverseProgramme)
+		mustExec(t, tx, `delete from affiliate_conversions where source_conversion_id = $1`, itAdminReverseConversion)
 		mustExec(t, tx, `delete from affiliate_conversions where affiliate_conversion_id = $1`, itAdminReverseConversion)
 		mustExec(t, tx, `delete from affiliates where affiliate_id = $1`, itAdminReverseAffiliate)
 		mustExec(t, tx, `delete from promotion_redemptions where promotion_redemption_id = $1`, itAdminReverseRedemption)

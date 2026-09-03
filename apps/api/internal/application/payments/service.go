@@ -496,6 +496,8 @@ func (s Service) HandleProviderEvent(ctx context.Context, payload []byte, signat
 			PaymentReference: event.ProviderReference,
 			EventType:        event.EventType,
 			Succeeded:        event.Succeeded,
+			AmountMinor:      event.AmountMinor,
+			EventSignature:   event.Signature,
 		},
 	)
 	if err != nil {

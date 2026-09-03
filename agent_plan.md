@@ -1705,6 +1705,16 @@ Status: `[x] implemented and locally verified`
 - `[x]` Reversed commission remains excluded from maturity and payout selection, and payout processing stays separate from maturity calculation.
 - `[x]` Verification: focused payout/admin/affiliate repository tests, full Go suite, admin and Affiliate checks/builds, and `git diff --check`.
 
+### Item 5 verification and gap closure — 2026-09-03
+
+- `[x]` Full subscription refunds before maturity reverse the related Pending Affiliate commission without deleting its ledger history.
+- `[x]` Partial refunds create proportional, idempotent negative commission adjustments tied to the original commission and provider refund event.
+- `[x]` Post-payout reversals preserve the settled source commission and create an auditable negative adjustment that is automatically netted from future Affiliate payouts.
+- `[x]` Paystack refund deduplication uses the refund reference while still resolving the original charge reference, so multiple legitimate partial refunds remain independently processable.
+- `[x]` Existing administrative settlement holds continue to block dashboard availability, manual payouts, automatic payouts, and retries until released.
+- `[x]` Company Admin can add a reversal adjustment to a settled commission; adjustment rows and their reasons remain visible in the financial ledger and audit trail.
+- `[x]` Verification: migration 152 fresh-chain and down/up validation, real-PostgreSQL refund/adjustment/net-payout tests, full Go suite, Admin and Affiliate checks/builds, and `git diff --check`.
+
 ### Updated-spec delta (Xtiitch-Updates-Refined v2, 2026-07-10 22:29) — apply these
 
 Diff vs the version above:

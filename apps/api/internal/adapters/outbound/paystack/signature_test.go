@@ -64,12 +64,15 @@ func TestParseChargeEvent(t *testing.T) {
 	}
 
 	refund, err := parseChargeEvent([]byte(
-		`{"event":"refund.processed","data":{"reference":"refund_1","status":"processed","transaction":{"reference":"xtsub_act_1"}}}`))
+		`{"event":"refund.processed","data":{"reference":"refund_1","status":"processed","amount":2000,"transaction":{"reference":"xtsub_act_1"}}}`))
 	if err != nil {
 		t.Fatalf("parse refund event: %v", err)
 	}
 	if refund.ProviderReference != "xtsub_act_1" || refund.Succeeded {
 		t.Fatalf("expected refund to identify and reverse its original charge: %+v", refund)
+	}
+	if refund.AmountMinor != 2000 || refund.Signature != "paystack:refund.processed:refund_1" {
+		t.Fatalf("expected refund amount and refund-specific dedupe signature: %+v", refund)
 	}
 
 	if _, err := parseChargeEvent([]byte(`{"event":"","data":{}}`)); !errors.Is(err, ErrUnparseableEvent) {

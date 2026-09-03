@@ -9,11 +9,11 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
-	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
 const itAdminAffAutomaticPayout = "ffffffff-9999-4999-8999-999999999983"
+const itAdminAffAdjustment = "eeeeeeee-9999-4999-8999-999999999984"
 
 func TestUpdateAdminAffiliateConversionStatusPersistsTransition(t *testing.T) {
 	pool := openIntegrationPool(t)
@@ -50,14 +50,17 @@ func TestUpdateAdminAffiliateConversionStatusPersistsTransition(t *testing.T) {
 		t.Fatalf("expected settled conversion, got %+v", settled)
 	}
 
-	_, err = repo.UpdateAdminAffiliateConversionStatus(ctx, ports.UpdateAdminAffiliateConversionStatusInput{
+	adjustment, err := repo.UpdateAdminAffiliateConversionStatus(ctx, ports.UpdateAdminAffiliateConversionStatusInput{
 		ConversionID:   itAdminAffConversion,
 		Status:         "reversed",
-		Reason:         "Too late.",
+		Reason:         "Post-payout reversal.",
 		ActorAdminUser: itAdminAffAdmin,
 	})
-	if !errors.Is(err, authdomain.ErrInvalidInput) {
-		t.Fatalf("expected settled conversion to be terminal, got %v", err)
+	if err != nil {
+		t.Fatalf("create settled conversion adjustment: %v", err)
+	}
+	if adjustment.ConversionType != "adjustment" || adjustment.Status != "approved" || adjustment.CommissionMinor != -2500 {
+		t.Fatalf("expected approved negative adjustment, got %+v", adjustment)
 	}
 }
 
@@ -188,6 +191,48 @@ func TestAffiliateSettlementHoldBlocksManualAndAutomaticPayoutsUntilReleased(t *
 	if !claimed || dispatch.AmountMinor != 2500 || dispatch.AffiliateID != common.ID(itAdminAffAffiliate) {
 		t.Fatalf("expected released commission to become claimable, got claimed=%v dispatch=%+v", claimed, dispatch)
 	}
+}
+
+func TestAutomaticAffiliatePayoutNetsApprovedNegativeAdjustments(t *testing.T) {
+	pool := openIntegrationPool(t)
+	defer pool.Close()
+	seedAdminAffiliateConversionFixture(t, pool)
+	defer cleanupAdminAffiliateConversionFixture(t, pool)
+
+	now := time.Now().UTC()
+	inBypass(t, pool, func(tx pgx.Tx) {
+		mustExec(t, tx, `update affiliate_conversions set status='approved',approved_at=$2 where affiliate_conversion_id=$1`, itAdminAffConversion, now)
+		mustExec(t, tx, `insert into affiliate_conversions(
+			affiliate_conversion_id,affiliate_id,affiliate_programme_id,programme_owner_type,
+			funding_source,business_id,conversion_type,gross_minor,commission_minor,
+			commission_model,commission_rate,attribution_model,status,approved_at,
+			source_conversion_id,adjustment_event_signature,reversal_reason)
+			select $1,affiliate_id,affiliate_programme_id,programme_owner_type,funding_source,
+				business_id,'adjustment',-10000,-1000,commission_model,commission_rate,
+				attribution_model,'approved',$3,affiliate_conversion_id,'it:net-adjustment','Partial refund'
+			from affiliate_conversions where affiliate_conversion_id=$2`, itAdminAffAdjustment, itAdminAffConversion, now)
+		mustExec(t, tx, `insert into affiliate_payout_profiles(affiliate_id,payout_method,account_name,provider_name,account_identifier_encrypted,account_identifier_last4,status,provider_recipient_ref)
+			values($1,'mobile_money','IT Affiliate','MTN','encrypted','0000','verified','RCP_IT_AFF_NET')`, itAdminAffAffiliate)
+	})
+
+	dispatch, claimed, err := NewAdminAuthRepository(pool).ClaimDueAffiliatePayout(
+		context.Background(), common.ID(itAdminAffAutomaticPayout), now,
+	)
+	if err != nil {
+		t.Fatalf("claim net Affiliate payout: %v", err)
+	}
+	if !claimed || dispatch.AmountMinor != 1500 {
+		t.Fatalf("expected GHS 15.00 net payout, got claimed=%v dispatch=%+v", claimed, dispatch)
+	}
+	inBypass(t, pool, func(tx pgx.Tx) {
+		var linked int
+		if err := tx.QueryRow(context.Background(), `select count(*)::int from affiliate_conversions where payout_batch_id=$1`, itAdminAffAutomaticPayout).Scan(&linked); err != nil {
+			t.Fatalf("count netted payout rows: %v", err)
+		}
+		if linked != 2 {
+			t.Fatalf("expected source commission and adjustment in one payout, got %d rows", linked)
+		}
+	})
 }
 
 func seedAdminAffiliateConversionFixture(t *testing.T, pool *pgxpool.Pool) {

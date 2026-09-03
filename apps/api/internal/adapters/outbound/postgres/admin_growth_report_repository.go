@@ -36,7 +36,7 @@ func (repo AdminAuthRepository) GetAdminGrowthReport(
 		conversions as (
 			select
 				count(*) filter (where conversion_type = 'purchase')::bigint as purchases,
-				count(*) filter (where conversion_type = 'paid_plan_signup')::bigint as plans,
+				count(*) filter (where conversion_type = 'subscription_payment')::bigint as plans,
 				coalesce(sum(gross_minor), 0)::bigint as gross,
 				coalesce(sum(commission_minor) filter (where status = 'pending'), 0)::bigint as pending,
 				coalesce(sum(commission_minor) filter (where status = 'approved'), 0)::bigint as approved,

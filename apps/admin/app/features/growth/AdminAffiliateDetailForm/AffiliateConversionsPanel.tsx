@@ -54,7 +54,10 @@ export function AffiliateConversionsPanel({
           </Typography>
           <Stack spacing={0.75} sx={{ mt: 1 }}>
             {performance.recentConversions.map((conversion) => {
-              const actions = affiliateConversionActions(conversion.status);
+              const actions = affiliateConversionActions(
+                conversion.status,
+                conversion.conversionType,
+              );
               return (
                 <Stack
                   key={conversion.conversionId}
@@ -151,16 +154,53 @@ export function AffiliateConversionsPanel({
                   ) : null}
                   {conversion.businessId ? (
                     <Form method="post">
-                      <input type="hidden" name="intent" value="admin-affiliate-attribution:correct" />
-                      <input type="hidden" name="business_id" value={conversion.businessId} />
-                      <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-                        <TextField select required label="Correct attribution to" name="affiliate_id" size="small" sx={{ minWidth: 220 }}>
-                          {affiliates.filter((item) => item.status === "active").map((item) => (
-                            <MenuItem key={item.affiliateId} value={item.affiliateId}>{item.displayName} ({item.code})</MenuItem>
-                          ))}
+                      <input
+                        type="hidden"
+                        name="intent"
+                        value="admin-affiliate-attribution:correct"
+                      />
+                      <input
+                        type="hidden"
+                        name="business_id"
+                        value={conversion.businessId}
+                      />
+                      <Stack
+                        direction={{ xs: "column", sm: "row" }}
+                        spacing={1}
+                      >
+                        <TextField
+                          select
+                          required
+                          label="Correct attribution to"
+                          name="affiliate_id"
+                          size="small"
+                          sx={{ minWidth: 220 }}
+                        >
+                          {affiliates
+                            .filter((item) => item.status === "active")
+                            .map((item) => (
+                              <MenuItem
+                                key={item.affiliateId}
+                                value={item.affiliateId}
+                              >
+                                {item.displayName} ({item.code})
+                              </MenuItem>
+                            ))}
                         </TextField>
-                        <TextField required label="Correction reason" name="reason" size="small" sx={{ flex: 1 }} />
-                        <Button type="submit" variant="outlined" color="warning">Correct</Button>
+                        <TextField
+                          required
+                          label="Correction reason"
+                          name="reason"
+                          size="small"
+                          sx={{ flex: 1 }}
+                        />
+                        <Button
+                          type="submit"
+                          variant="outlined"
+                          color="warning"
+                        >
+                          Correct
+                        </Button>
                       </Stack>
                     </Form>
                   ) : null}

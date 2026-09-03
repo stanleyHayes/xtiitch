@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
 func (repo AdminAuthRepository) ListAdminAffiliates(ctx context.Context) ([]ports.AdminAffiliateRecord, error) {
@@ -74,11 +75,11 @@ func (repo AdminAuthRepository) ListAdminAffiliateAttribution(ctx context.Contex
 		conversion_stats as (
 			select
 				affiliate_id,
-				count(*)::bigint as conversion_count,
-				count(*) filter (where status = 'pending')::bigint as pending_count,
-				count(*) filter (where status = 'approved')::bigint as approved_count,
-				count(*) filter (where status = 'settled')::bigint as settled_count,
-				count(*) filter (where status = 'reversed')::bigint as reversed_count,
+				count(*) filter (where conversion_type <> 'adjustment')::bigint as conversion_count,
+				count(*) filter (where status = 'pending' and conversion_type <> 'adjustment')::bigint as pending_count,
+				count(*) filter (where status = 'approved' and conversion_type <> 'adjustment')::bigint as approved_count,
+				count(*) filter (where status = 'settled' and conversion_type <> 'adjustment')::bigint as settled_count,
+				count(*) filter (where status = 'reversed' and conversion_type <> 'adjustment')::bigint as reversed_count,
 				coalesce(sum(gross_minor), 0)::bigint as gross_minor,
 				coalesce(sum(commission_minor), 0)::bigint as commission_minor,
 				max(updated_at) as last_conversion_at
@@ -183,6 +184,42 @@ func (repo AdminAuthRepository) UpdateAdminAffiliateConversionStatus(
 	if !validAffiliateConversionTransition(current.Status, input.Status) {
 		return ports.AdminAffiliateConversionRecord{}, authdomain.ErrInvalidInput
 	}
+	if current.Status == "settled" && input.Status == "reversed" {
+		if current.ConversionType == "adjustment" {
+			return ports.AdminAffiliateConversionRecord{}, authdomain.ErrInvalidInput
+		}
+		var adjustmentID common.ID
+		err = tx.QueryRow(ctx, `
+			insert into affiliate_conversions(
+				affiliate_id,affiliate_programme_id,programme_owner_type,funding_source,
+				business_id,conversion_type,gross_minor,commission_minor,
+				commission_model,commission_rate,attribution_model,status,approved_at,
+				source_conversion_id,adjustment_event_signature,reversal_reason,metadata
+			)
+			select affiliate_id,affiliate_programme_id,programme_owner_type,funding_source,
+				business_id,'adjustment',-gross_minor,-commission_minor,
+				commission_model,commission_rate,attribution_model,'approved',now(),
+				affiliate_conversion_id,'admin-reversal:' || affiliate_conversion_id::text,$2,
+				jsonb_build_object('source','admin_post_payout_adjustment',
+					'admin_status_by',$3::text,'admin_status_at',now(),
+					'adjustment_reason',$2::text)
+			from affiliate_conversions where affiliate_conversion_id=$1::uuid
+			on conflict (adjustment_event_signature)
+				where conversion_type='adjustment' do update set updated_at=affiliate_conversions.updated_at
+			returning affiliate_conversion_id::text
+		`, input.ConversionID.String(), input.Reason, input.ActorAdminUser.String()).Scan(&adjustmentID)
+		if err != nil {
+			return ports.AdminAffiliateConversionRecord{}, err
+		}
+		record, err := queryAdminAffiliateConversion(ctx, tx, adjustmentID.String())
+		if err != nil {
+			return ports.AdminAffiliateConversionRecord{}, err
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return ports.AdminAffiliateConversionRecord{}, err
+		}
+		return record, nil
+	}
 
 	if _, err := tx.Exec(ctx, `
 		update affiliate_conversions
@@ -279,7 +316,7 @@ func (repo AdminAuthRepository) CreateAdminAffiliatePayout(
 				coalesce(sum(gross_minor), 0)::bigint as gross_minor,
 				coalesce(sum(commission_minor), 0)::bigint as commission_minor
 			from eligible
-			having count(*) > 0
+			having count(*) > 0 and sum(commission_minor) > 0
 		),
 		inserted as (
 			insert into affiliate_payout_batches (

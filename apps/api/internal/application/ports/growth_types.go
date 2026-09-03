@@ -140,6 +140,8 @@ type ApplyFirstPaidPlanProviderEventInput struct {
 	PaymentReference string
 	EventType        string
 	Succeeded        bool
+	AmountMinor      int64
+	EventSignature   string
 }
 
 type ListActiveSponsoredPlacementsInput struct {

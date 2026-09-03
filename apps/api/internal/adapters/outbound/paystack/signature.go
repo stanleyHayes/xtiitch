@@ -81,9 +81,13 @@ func parseChargeEvent(payload []byte) (ports.ProviderChargeEvent, error) {
 		return ports.ProviderChargeEvent{}, err
 	}
 	reference := envelope.Data.Reference
+	eventReference := reference
 	if envelope.Data.Transaction != nil &&
 		envelope.Data.Transaction.Reference != "" {
 		reference = envelope.Data.Transaction.Reference
+	}
+	if eventReference == "" {
+		eventReference = reference
 	}
 	if envelope.Event == "" || reference == "" {
 		return ports.ProviderChargeEvent{}, ErrUnparseableEvent
@@ -95,7 +99,7 @@ func parseChargeEvent(payload []byte) (ports.ProviderChargeEvent, error) {
 		Succeeded:         envelope.Event == "charge.success" && envelope.Data.Status == "success",
 		AmountMinor:       envelope.Data.Amount,
 		FeeMinor:          resolveProviderFee(envelope),
-		Signature:         "paystack:" + envelope.Event + ":" + reference,
+		Signature:         "paystack:" + envelope.Event + ":" + eventReference,
 	}, nil
 }
 

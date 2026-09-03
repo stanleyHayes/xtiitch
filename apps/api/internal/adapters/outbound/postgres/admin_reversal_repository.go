@@ -90,6 +90,28 @@ func (repo AdminAuthRepository) ReverseAdminMoneyPayment(
 					and status in ('pending', 'applied')
 				returning 1
 			),
+			post_payout_adjustments as (
+				insert into affiliate_conversions(
+					affiliate_id,affiliate_programme_id,programme_owner_type,funding_source,
+					business_id,conversion_type,gross_minor,commission_minor,
+					commission_model,commission_rate,attribution_model,status,approved_at,
+					source_conversion_id,adjustment_event_signature,reversal_reason,metadata
+				)
+				select affiliate_id,affiliate_programme_id,programme_owner_type,funding_source,
+					business_id,'adjustment',-gross_minor,-commission_minor,
+					commission_model,commission_rate,attribution_model,'approved',now(),
+					affiliate_conversion_id,
+					'admin-payment-reversal:' || affiliate_conversion_id::text || ':' || $5::text,$3,
+					jsonb_build_object('source','admin_post_payout_adjustment',
+						'reversed_by_admin_user_id',$4::text,
+						'reversed_provider_reference',$5::text,
+						'adjustment_reason',$3::text)
+				from affiliate_conversions
+				where business_id=$1::uuid and order_id=$2::uuid and status='settled'
+				on conflict (adjustment_event_signature)
+					where conversion_type='adjustment' do nothing
+				returning 1
+			),
 			reversed_affiliates as (
 				update affiliate_conversions
 				set status = 'reversed',
@@ -105,7 +127,7 @@ func (repo AdminAuthRepository) ReverseAdminMoneyPayment(
 					updated_at = now()
 				where business_id = $1::uuid
 					and order_id = $2::uuid
-					and status <> 'reversed'
+					and status in ('pending','approved')
 				returning 1
 			),
 			voided_referrals as (
@@ -167,7 +189,8 @@ func (repo AdminAuthRepository) ReverseAdminMoneyPayment(
 			)
 			select
 				(select count(*)::int from voided_redemptions),
-				(select count(*)::int from reversed_affiliates),
+				((select count(*) from reversed_affiliates) +
+				 (select count(*) from post_payout_adjustments))::int,
 				(select count(*)::int from voided_referrals),
 				(select count(*)::int from voided_rewards),
 				(select count(*)::int from archived_generated_promotions),

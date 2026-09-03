@@ -7,8 +7,6 @@ import {
 } from "../../lib/api";
 import { formatGHS } from "./formatting";
 
-
-
 export function supportActionMessage(
   status: AdminSupportTicketStatus,
   assignment: AdminSupportAssignment,
@@ -24,8 +22,6 @@ export function supportActionMessage(
   }
   return "Support ticket reopened.";
 }
-
-
 
 export function adminUserActionError(error: unknown): string {
   if (error instanceof AdminApiError) {
@@ -45,8 +41,6 @@ export function adminUserActionError(error: unknown): string {
   return "The operator change could not be saved.";
 }
 
-
-
 export function adminRoleActionError(error: unknown): string {
   if (error instanceof AdminApiError) {
     switch (error.code) {
@@ -60,8 +54,6 @@ export function adminRoleActionError(error: unknown): string {
   }
   return "The role permissions could not be saved.";
 }
-
-
 
 export function adminSettingsActionError(error: unknown): string {
   if (error instanceof AdminApiError) {
@@ -81,8 +73,6 @@ export function adminSettingsActionError(error: unknown): string {
   return "The settings change could not be saved.";
 }
 
-
-
 export function adminVerificationActionError(error: unknown): string {
   if (error instanceof AdminApiError) {
     switch (error.code) {
@@ -99,8 +89,6 @@ export function adminVerificationActionError(error: unknown): string {
   return "The verification decision could not be saved.";
 }
 
-
-
 export function adminBusinessActionError(error: unknown): string {
   if (error instanceof AdminApiError) {
     switch (error.code) {
@@ -116,8 +104,6 @@ export function adminBusinessActionError(error: unknown): string {
   }
   return "The business status change could not be saved.";
 }
-
-
 
 // Delete is a different failure shape from a status change: the only
 // invalid_input the API returns for DELETE is a missing/mismatched confirm
@@ -138,8 +124,6 @@ export function adminBusinessDeleteActionError(error: unknown): string {
   return "The business could not be deleted.";
 }
 
-
-
 export function adminMoneyActionError(error: unknown): string {
   if (error instanceof AdminApiError) {
     switch (error.code) {
@@ -155,8 +139,6 @@ export function adminMoneyActionError(error: unknown): string {
   }
   return "The money rails action could not be saved.";
 }
-
-
 
 export function adminSubscriptionActionError(error: unknown): string {
   if (error instanceof AdminApiError) {
@@ -178,8 +160,6 @@ export function adminSubscriptionActionError(error: unknown): string {
   return "The subscription change could not be saved.";
 }
 
-
-
 export function adminPlanActionError(error: unknown): string {
   if (error instanceof AdminApiError) {
     switch (error.code) {
@@ -196,8 +176,6 @@ export function adminPlanActionError(error: unknown): string {
   return "The plan package change could not be saved.";
 }
 
-
-
 export function adminPromotionActionError(error: unknown): string {
   if (error instanceof AdminApiError) {
     switch (error.code) {
@@ -213,8 +191,6 @@ export function adminPromotionActionError(error: unknown): string {
   }
   return "The promotion change could not be saved.";
 }
-
-
 
 export function adminAdCampaignActionError(error: unknown): string {
   if (error instanceof AdminApiError) {
@@ -234,8 +210,6 @@ export function adminAdCampaignActionError(error: unknown): string {
   return "The sponsored placement change could not be saved.";
 }
 
-
-
 export function adminAffiliateActionError(error: unknown): string {
   if (error instanceof AdminApiError) {
     switch (error.code) {
@@ -252,8 +226,6 @@ export function adminAffiliateActionError(error: unknown): string {
   return "The affiliate programme change could not be saved.";
 }
 
-
-
 export function affiliateConversionActionMessage(
   status: Exclude<AdminAffiliateConversion["status"], "pending">,
 ): string {
@@ -266,10 +238,9 @@ export function affiliateConversionActionMessage(
   return "Affiliate conversion approved.";
 }
 
-
-
 export function affiliateConversionActions(
   status: AdminAffiliateConversion["status"],
+  conversionType?: AdminAffiliateConversion["conversionType"],
 ): {
   status: Exclude<AdminAffiliateConversion["status"], "pending">;
   label: string;
@@ -286,10 +257,11 @@ export function affiliateConversionActions(
       { status: "reversed", label: "Reverse" },
     ];
   }
+  if (status === "settled" && conversionType !== "adjustment") {
+    return [{ status: "reversed", label: "Add reversal adjustment" }];
+  }
   return [];
 }
-
-
 
 export function adminReferralProgrammeActionError(error: unknown): string {
   if (error instanceof AdminApiError) {
@@ -307,8 +279,6 @@ export function adminReferralProgrammeActionError(error: unknown): string {
   return "The referral programme change could not be saved.";
 }
 
-
-
 export function referralRewardIssueActionMessage(
   result: AdminReferralRewardIssue,
 ): string {
@@ -318,8 +288,6 @@ export function referralRewardIssueActionMessage(
 
   return `Issued ${result.rewardCount} referral rewards across ${result.referralCount} referrals: ${result.voucherCount} vouchers, ${result.commissionRebateCount} commission rebates, ${formatGHS(result.totalRewardMinor)} fixed reward value.`;
 }
-
-
 
 export function adminRiskActionError(error: unknown): string {
   if (error instanceof AdminApiError) {
@@ -336,8 +304,6 @@ export function adminRiskActionError(error: unknown): string {
   }
   return "The risk review action could not be saved.";
 }
-
-
 
 export function adminSupportActionError(error: unknown): string {
   if (error instanceof AdminApiError) {

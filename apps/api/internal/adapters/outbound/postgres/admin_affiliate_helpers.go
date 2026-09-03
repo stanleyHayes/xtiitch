@@ -271,6 +271,8 @@ func validAffiliateConversionTransition(from string, to string) bool {
 		return to == "approved" || to == "reversed"
 	case "approved":
 		return to == "settled" || to == "reversed"
+	case "settled":
+		return to == "reversed"
 	default:
 		return false
 	}

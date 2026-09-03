@@ -65,7 +65,7 @@ export type AdminAffiliateConversion = {
   affiliateId: string;
   businessId: string;
   businessName: string;
-  conversionType: "purchase" | "paid_plan_signup";
+  conversionType: "purchase" | "subscription_payment" | "adjustment";
   orderId?: string;
   subscriptionId?: string;
   paymentReference?: string;

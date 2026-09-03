@@ -307,19 +307,79 @@ func (repo AffiliateRepository) ApplyFirstPaidPlanProviderEvent(
 		strings.Contains(reason, "chargeback") ||
 		strings.Contains(reason, "dispute")
 	if reversal {
+		eventSignature := strings.TrimSpace(input.EventSignature)
+		if eventSignature == "" {
+			eventSignature = "affiliate-adjustment:" + reason + ":" + reference
+		}
 		_, err = tx.Exec(ctx, `
-			update affiliate_conversions
-			set status = 'reversed',
-				reversed_at = coalesce(reversed_at, now()),
-				reversal_reason = $2,
-				metadata = metadata || jsonb_build_object(
-					'provider_reversal_event', $2
-				),
-				updated_at = now()
-			where conversion_type = 'subscription_payment'
-				and payment_reference = $1
-				and status <> 'reversed'
-		`, reference, reason)
+			with source as (
+				select conversion.*,
+					coalesce((select sum(-adjustment.gross_minor)
+						from affiliate_conversions adjustment
+						where adjustment.source_conversion_id=conversion.affiliate_conversion_id
+						  and adjustment.conversion_type='adjustment'
+						  and adjustment.status <> 'reversed'),0)::bigint as refunded_minor,
+					coalesce((select sum(-adjustment.commission_minor)
+						from affiliate_conversions adjustment
+						where adjustment.source_conversion_id=conversion.affiliate_conversion_id
+						  and adjustment.conversion_type='adjustment'
+						  and adjustment.status <> 'reversed'),0)::bigint as debited_minor
+				from affiliate_conversions conversion
+				where conversion.conversion_type='subscription_payment'
+				  and conversion.payment_reference=$1
+				  and conversion.status <> 'reversed'
+				for update of conversion
+			), amounts as (
+				select source.*,
+					least(greatest(case when $3::bigint > 0 then $3::bigint else gross_minor end,0),
+						greatest(gross_minor-refunded_minor,0))::bigint as refund_minor
+				from source
+			), calculated as (
+				select amounts.*,
+					least(greatest(commission_minor-debited_minor,0),
+						case when refund_minor = greatest(gross_minor-refunded_minor,0)
+							then greatest(commission_minor-debited_minor,0)
+							else greatest(1,(commission_minor*refund_minor)/gross_minor)
+						end)::bigint as debit_minor
+				from amounts
+			), reversed_source as (
+				update affiliate_conversions conversion
+				set status='reversed', reversed_at=coalesce(conversion.reversed_at,now()),
+					reversal_reason=$2,
+					metadata=conversion.metadata || jsonb_build_object(
+						'provider_reversal_event',$2::text,
+						'provider_reversal_signature',$4::text,
+						'refunded_minor',calculated.refund_minor
+					), updated_at=now()
+				from calculated
+				where conversion.affiliate_conversion_id=calculated.affiliate_conversion_id
+				  and calculated.status in ('pending','approved')
+				  and calculated.refunded_minor=0
+				  and calculated.refund_minor >= calculated.gross_minor
+				returning conversion.affiliate_conversion_id
+			)
+			insert into affiliate_conversions(
+				affiliate_conversion_id,affiliate_id,affiliate_programme_id,
+				programme_owner_type,funding_source,business_id,conversion_type,
+				gross_minor,commission_minor,commission_model,commission_rate,
+				attribution_model,status,hold_until,approved_at,source_conversion_id,
+				adjustment_event_signature,reversal_reason,metadata
+			)
+			select $5::uuid,affiliate_id,affiliate_programme_id,
+				programme_owner_type,funding_source,business_id,'adjustment',
+				-refund_minor,-debit_minor,commission_model,commission_rate,
+				attribution_model,case when status='pending' then 'pending' else 'approved' end,
+				hold_until,case when status='pending' then null else now() end,
+				affiliate_conversion_id,$4,$2,
+				jsonb_build_object('source','provider_refund_adjustment',
+					'event_type',$2::text,'refund_minor',refund_minor,
+					'source_payment_reference',$1::text)
+			from calculated
+			where refund_minor > 0 and debit_minor > 0
+			  and not exists(select 1 from reversed_source)
+			on conflict (adjustment_event_signature)
+				where conversion_type='adjustment' do nothing
+		`, reference, reason, input.AmountMinor, eventSignature, input.ConversionID.String())
 	} else {
 		_, err = tx.Exec(ctx, `
 			update affiliate_plan_attribution_reservations
