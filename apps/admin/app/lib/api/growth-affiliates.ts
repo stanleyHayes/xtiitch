@@ -86,6 +86,15 @@ export type AdminAffiliateMilestoneAchievement = {
   fulfilledAt?: string;
 };
 
+// Item 4: "released" is an operator action, not a stored status — the server
+// restores whichever status the commission carried before the hold.
+export type AdminAffiliateConversionAction =
+  | "approved"
+  | "settled"
+  | "reversed"
+  | "held"
+  | "released";
+
 export type AdminAffiliateConversion = {
   conversionId: string;
   affiliateId: string;
@@ -99,9 +108,13 @@ export type AdminAffiliateConversion = {
   payoutBatchId?: string;
   grossMinor: number;
   commissionMinor: number;
-  status: "pending" | "approved" | "settled" | "reversed";
+  status: "pending" | "approved" | "settled" | "reversed" | "held";
   attributionModel: "last_click" | "manual";
   holdUntil?: string;
+  holdReason?: string;
+  preHoldStatus?: string;
+  holdPlacedAt?: string;
+  holdReleasedAt?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -208,6 +221,10 @@ type AdminAffiliateConversionPayload = {
   status: AdminAffiliateConversion["status"];
   attribution_model: AdminAffiliateConversion["attributionModel"];
   hold_until?: string;
+  hold_reason?: string;
+  pre_hold_status?: string;
+  hold_placed_at?: string;
+  hold_released_at?: string;
   created_at: string;
   updated_at: string;
 };
@@ -328,6 +345,10 @@ function mapAffiliateConversion(
     status: payload.status,
     attributionModel: payload.attribution_model,
     holdUntil: payload.hold_until,
+    holdReason: payload.hold_reason,
+    preHoldStatus: payload.pre_hold_status,
+    holdPlacedAt: payload.hold_placed_at,
+    holdReleasedAt: payload.hold_released_at,
     createdAt: payload.created_at,
     updatedAt: payload.updated_at,
   };
@@ -376,7 +397,7 @@ export const affiliatesApi = {
     accessToken: string,
     conversionId: string,
     input: {
-      status: Exclude<AdminAffiliateConversion["status"], "pending">;
+      status: AdminAffiliateConversionAction;
       reason: string;
     },
   ) =>

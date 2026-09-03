@@ -22,6 +22,25 @@ import type {
   AdminAffiliateAttribution,
 } from "../../../lib/api";
 
+// Commission-status wording the operator sees. "held" is an administrative
+// hold placed on one suspicious commission; "pending" with a holdUntil date is
+// the ordinary maturity window, which is a different thing entirely.
+function conversionStatusLabel(
+  conversion: AdminAffiliateAttribution["recentConversions"][number],
+): string {
+  if (conversion.status === "held") {
+    return conversion.holdPlacedAt
+      ? `Held ${shortTime(conversion.holdPlacedAt)}`
+      : "Held";
+  }
+  if (conversion.status === "pending" && conversion.holdUntil) {
+    return `Maturing ${shortTime(conversion.holdUntil)}`;
+  }
+  if (conversion.status === "approved") return "Available";
+  if (conversion.status === "settled") return "Paid";
+  return conversion.status;
+}
+
 // eslint-disable-next-line max-lines-per-function -- large presentational component; refactor in follow-up
 export function AffiliateConversionsPanel({
   affiliate,
@@ -71,9 +90,10 @@ export function AffiliateConversionsPanel({
             <TextField size="small" label="Business, handle or payment" value={query} onChange={(event) => setQuery(event.target.value)} sx={{ flex: 1 }} />
             <TextField select size="small" label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} sx={{ minWidth: 150 }}>
               <MenuItem value="all">All statuses</MenuItem>
-              <MenuItem value="pending">Pending / held</MenuItem>
+              <MenuItem value="pending">Pending</MenuItem>
               <MenuItem value="approved">Available</MenuItem>
               <MenuItem value="settled">Paid</MenuItem>
+              <MenuItem value="held">Held</MenuItem>
               <MenuItem value="reversed">Reversed / adjusted</MenuItem>
             </TextField>
             <TextField size="small" type="date" label="From date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
@@ -116,6 +136,12 @@ export function AffiliateConversionsPanel({
                         · {conversion.attributionModel.replace("_", " ")}
 						{conversion.payoutBatchId ? ` · Payout ${shortID(conversion.payoutBatchId)}` : ""}
                       </Typography>
+                      {conversion.status === "held" && conversion.holdReason ? (
+                        <Typography variant="body2" sx={{ color: "warning.main" }}>
+                          Hold reason: {conversion.holdReason}
+                          {conversion.preHoldStatus ? ` · releases to ${conversion.preHoldStatus}` : ""}
+                        </Typography>
+                      ) : null}
                     </Box>
                     <Stack
                       direction="row"
@@ -127,11 +153,7 @@ export function AffiliateConversionsPanel({
                     >
                       <Chip
                         size="small"
-                        label={conversion.status === "pending" && conversion.holdUntil
-                          ? `Held until ${shortTime(conversion.holdUntil)}`
-                          : conversion.status === "approved" ? "Available"
-                            : conversion.status === "settled" ? "Paid"
-                              : conversion.status}
+                        label={conversionStatusLabel(conversion)}
                         variant="outlined"
                       />
                       <Typography sx={{ fontWeight: 900 }}>
@@ -157,7 +179,7 @@ export function AffiliateConversionsPanel({
                         sx={{ alignItems: { sm: "center" } }}
                       >
                         <TextField
-                          label="Note"
+                          label="Reason (required to hold or release)"
                           name="reason"
                           size="small"
                           sx={{ flex: 1 }}

@@ -361,3 +361,84 @@ func cleanupAdminAffiliateConversionFixture(t *testing.T, pool *pgxpool.Pool) {
 		mustExec(t, tx, `delete from admin_users where admin_user_id = $1`, itAdminAffAdmin)
 	})
 }
+
+// Item 4: an individual suspicious commission can be held and released without
+// losing the status it carried beforehand, and a held commission must never be
+// picked up by a manual or automatic payout while the hold stands.
+func TestAffiliateCommissionHoldPausesPayoutAndReleaseRestoresPriorStatus(t *testing.T) {
+	pool := openIntegrationPool(t)
+	defer pool.Close()
+	seedAdminAffiliateConversionFixture(t, pool)
+	defer cleanupAdminAffiliateConversionFixture(t, pool)
+
+	repo := NewAdminAuthRepository(pool)
+	ctx := context.Background()
+
+	approved, err := repo.UpdateAdminAffiliateConversionStatus(ctx, ports.UpdateAdminAffiliateConversionStatusInput{
+		ConversionID:   itAdminAffConversion,
+		Status:         "approved",
+		Reason:         "Matured for payout.",
+		ActorAdminUser: itAdminAffAdmin,
+	})
+	if err != nil {
+		t.Fatalf("approve affiliate conversion: %v", err)
+	}
+	if approved.Status != "approved" {
+		t.Fatalf("expected approved conversion, got %+v", approved)
+	}
+
+	held, err := repo.UpdateAdminAffiliateConversionStatus(ctx, ports.UpdateAdminAffiliateConversionStatusInput{
+		ConversionID:   itAdminAffConversion,
+		Status:         "held",
+		Reason:         "Suspicious referral pattern under review.",
+		ActorAdminUser: itAdminAffAdmin,
+	})
+	if err != nil {
+		t.Fatalf("hold affiliate commission: %v", err)
+	}
+	if held.Status != "held" || held.PreHoldStatus != "approved" {
+		t.Fatalf("expected held conversion restoring to approved, got %+v", held)
+	}
+	if held.HoldReason != "Suspicious referral pattern under review." || held.HoldPlacedAt == nil {
+		t.Fatalf("expected recorded hold reason and timestamp, got %+v", held)
+	}
+	if held.CommissionMinor != approved.CommissionMinor {
+		t.Fatalf("hold must not change the commission amount, got %d", held.CommissionMinor)
+	}
+
+	if _, err := repo.CreateAdminAffiliatePayout(ctx, ports.CreateAdminAffiliatePayoutInput{
+		PayoutBatchID: itAdminAffPayout, AffiliateID: itAdminAffAffiliate,
+		PayoutReference: "TRF_IT_AFF_COMMISSION_HOLD", Notes: "Must skip the held commission.",
+		ActorAdminUser: itAdminAffAdmin,
+	}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected held commission to leave nothing payable, got %v", err)
+	}
+
+	released, err := repo.UpdateAdminAffiliateConversionStatus(ctx, ports.UpdateAdminAffiliateConversionStatusInput{
+		ConversionID:   itAdminAffConversion,
+		Status:         "released",
+		Reason:         "Review cleared the referral.",
+		ActorAdminUser: itAdminAffAdmin,
+	})
+	if err != nil {
+		t.Fatalf("release affiliate commission hold: %v", err)
+	}
+	if released.Status != "approved" {
+		t.Fatalf("expected release to restore the pre-hold status, got %+v", released)
+	}
+	if released.PreHoldStatus != "" || released.HoldReason != "" || released.HoldReleasedAt == nil {
+		t.Fatalf("expected cleared hold state with a release timestamp, got %+v", released)
+	}
+
+	payout, err := repo.CreateAdminAffiliatePayout(ctx, ports.CreateAdminAffiliatePayoutInput{
+		PayoutBatchID: itAdminAffPayout, AffiliateID: itAdminAffAffiliate,
+		PayoutReference: "TRF_IT_AFF_COMMISSION_RELEASED", Notes: "Released commission is payable.",
+		ActorAdminUser: itAdminAffAdmin,
+	})
+	if err != nil {
+		t.Fatalf("pay out released commission: %v", err)
+	}
+	if payout.CommissionMinor != approved.CommissionMinor || payout.ConversionCount != 1 {
+		t.Fatalf("expected the released commission to settle once, got %+v", payout)
+	}
+}

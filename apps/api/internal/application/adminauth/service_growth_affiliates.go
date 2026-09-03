@@ -230,11 +230,17 @@ func (s Service) UpdateAffiliateConversionStatus(
 	}
 
 	status := strings.TrimSpace(cmd.Status)
-	if status != "approved" && status != "settled" && status != "reversed" {
+	if status != "approved" && status != "settled" && status != "reversed" &&
+		status != "held" && status != "released" {
 		return ports.AdminAffiliateConversionRecord{}, authdomain.ErrInvalidInput
 	}
 
 	reason := normalizeOperatorNote(cmd.Reason)
+	// Item 4/12: a hold or a release is a sensitive financial action, so the
+	// operator must state why rather than fall back to a generated note.
+	if reason == "" && (status == "held" || status == "released") {
+		return ports.AdminAffiliateConversionRecord{}, authdomain.ErrInvalidInput
+	}
 	if reason == "" {
 		reason = "Operator marked affiliate conversion " + status + "."
 	}
@@ -249,9 +255,9 @@ func (s Service) UpdateAffiliateConversionStatus(
 		return ports.AdminAffiliateConversionRecord{}, err
 	}
 
-	action := "Marked affiliate conversion " + status
+	action := affiliateConversionAuditAction(status)
 	severity := admindomain.AuditSeverityInfo
-	if status == "reversed" {
+	if status == "reversed" || status == "held" {
 		severity = admindomain.AuditSeverityWarning
 	}
 	if err := s.recordAudit(ctx, auditInput{
@@ -268,6 +274,7 @@ func (s Service) UpdateAffiliateConversionStatus(
 			"business_id":      record.BusinessID.String(),
 			"order_id":         record.OrderID.String(),
 			"status":           record.Status,
+			"hold_reason":      record.HoldReason,
 			"commission_minor": intString64(record.CommissionMinor),
 			"reason":           reason,
 		},
@@ -696,6 +703,20 @@ func normalizeAffiliateURL(value string) (string, error) {
 		return "", authdomain.ErrInvalidInput
 	}
 	return parsed.String(), nil
+}
+
+// affiliateConversionAuditAction names the operator action behind a commission
+// status transition. Hold and release are separate actions from the ordinary
+// approve/settle/reverse ladder so the audit trail reads unambiguously.
+func affiliateConversionAuditAction(status string) string {
+	switch status {
+	case "held":
+		return "Placed affiliate commission on hold"
+	case "released":
+		return "Released affiliate commission hold"
+	default:
+		return "Marked affiliate conversion " + status
+	}
 }
 
 func affiliateAuditSummary(record ports.AdminAffiliateRecord) string {

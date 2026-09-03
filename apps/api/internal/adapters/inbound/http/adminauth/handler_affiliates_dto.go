@@ -156,6 +156,10 @@ type affiliateConversionResponse struct {
 	Status           string `json:"status"`
 	AttributionModel string `json:"attribution_model"`
 	HoldUntil        string `json:"hold_until,omitempty"`
+	HoldReason       string `json:"hold_reason,omitempty"`
+	PreHoldStatus    string `json:"pre_hold_status,omitempty"`
+	HoldPlacedAt     string `json:"hold_placed_at,omitempty"`
+	HoldReleasedAt   string `json:"hold_released_at,omitempty"`
 	CreatedAt        string `json:"created_at"`
 	UpdatedAt        string `json:"updated_at"`
 }

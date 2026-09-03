@@ -408,11 +408,19 @@ func newAffiliateConversionResponse(record ports.AdminAffiliateConversionRecord)
 		CommissionMinor:  record.CommissionMinor,
 		Status:           record.Status,
 		AttributionModel: record.AttributionModel,
+		HoldReason:       record.HoldReason,
+		PreHoldStatus:    record.PreHoldStatus,
 		CreatedAt:        record.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:        record.UpdatedAt.Format(time.RFC3339),
 	}
 	if record.HoldUntil != nil {
 		response.HoldUntil = record.HoldUntil.Format(time.RFC3339)
+	}
+	if record.HoldPlacedAt != nil {
+		response.HoldPlacedAt = record.HoldPlacedAt.Format(time.RFC3339)
+	}
+	if record.HoldReleasedAt != nil {
+		response.HoldReleasedAt = record.HoldReleasedAt.Format(time.RFC3339)
 	}
 	return response
 }

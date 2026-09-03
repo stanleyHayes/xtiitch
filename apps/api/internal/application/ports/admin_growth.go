@@ -436,6 +436,10 @@ type AdminAffiliateConversionRecord struct {
 	Status           string
 	AttributionModel string
 	HoldUntil        *time.Time
+	HoldReason       string
+	PreHoldStatus    string
+	HoldPlacedAt     *time.Time
+	HoldReleasedAt   *time.Time
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 }

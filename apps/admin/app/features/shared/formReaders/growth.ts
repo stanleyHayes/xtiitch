@@ -10,7 +10,7 @@ import type {
   AdminAffiliateCommissionModel,
   AdminAffiliatePayoutMode,
   AdminAffiliateStatus,
-  AdminAffiliateConversion,
+  AdminAffiliateConversionAction,
   AdminReferralAudience,
   AdminReferralRewardKind,
   AdminReferralRefereeRewardKind,
@@ -117,9 +117,14 @@ export function readAffiliateEditableStatus(
 
 export function readAffiliateConversionStatus(
   value: FormDataEntryValue | null,
-): Exclude<AdminAffiliateConversion["status"], "pending"> {
+): AdminAffiliateConversionAction {
   const status = String(value ?? "");
-  if (status === "settled" || status === "reversed") {
+  if (
+    status === "settled" ||
+    status === "reversed" ||
+    status === "held" ||
+    status === "released"
+  ) {
     return status;
   }
   return "approved";

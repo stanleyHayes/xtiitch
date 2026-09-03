@@ -347,7 +347,39 @@ func (repo AdminAuthRepository) UpdateAdminAffiliateConversionStatus(
 
 	if _, err := tx.Exec(ctx, `
 		update affiliate_conversions
-		set status = $2,
+		set status = case
+				when $2 = 'held' then 'held'
+				when $2 = 'released' then coalesce(pre_hold_status, 'pending')
+				else $2
+			end,
+			pre_hold_status = case
+				when $2 = 'held' then status
+				when $2 = 'released' then null
+				else pre_hold_status
+			end,
+			hold_reason = case
+				when $2 = 'held' then $3
+				when $2 = 'released' then ''
+				else hold_reason
+			end,
+			hold_placed_at = case
+				when $2 = 'held' then now()
+				when $2 = 'released' then null
+				else hold_placed_at
+			end,
+			hold_released_at = case
+				when $2 = 'released' then now()
+				else hold_released_at
+			end,
+			held_by_admin_user_id = case
+				when $2 = 'held' then $4::uuid
+				when $2 = 'released' then null
+				else held_by_admin_user_id
+			end,
+			hold_released_by_admin_user_id = case
+				when $2 = 'released' then $4::uuid
+				else hold_released_by_admin_user_id
+			end,
 			approved_at = case
 				when $2 = 'approved' then coalesce(approved_at, now())
 				else approved_at

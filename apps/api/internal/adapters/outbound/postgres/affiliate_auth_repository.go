@@ -548,10 +548,10 @@ func (repo AffiliateAuthRepository) GetAffiliateDashboard(
 					where conversion_type = 'purchase'
 				), 0)::bigint as gross_minor,
 				coalesce(sum(commission_minor) filter (
-					where status = 'pending' and (hold_until > now() or exists (
+					where status = 'held' or (status = 'pending' and (hold_until > now() or exists (
 						select 1 from admin_settlement_review_holds hold
 						where hold.business_id = affiliate_conversions.business_id and hold.is_active
-					))
+					)))
 				), 0)::bigint as pending_minor,
 				coalesce(sum(commission_minor) filter (
 					where (status = 'approved' or (status = 'pending' and hold_until <= now()))
@@ -571,7 +571,7 @@ func (repo AffiliateAuthRepository) GetAffiliateDashboard(
 		),
 		lifetime as (
 			select coalesce(sum(commission_minor) filter (
-				where status in ('pending', 'approved', 'settled')
+				where status in ('pending', 'approved', 'settled', 'held')
 			), 0)::bigint as earnings_minor
 			from affiliate_conversions
 			where affiliate_id = $1::uuid

@@ -78,6 +78,10 @@ func listAdminAffiliateConversions(
 			r.status,
 			r.attribution_model,
 			r.hold_until,
+			r.hold_reason,
+			coalesce(r.pre_hold_status, ''),
+			r.hold_placed_at,
+			r.hold_released_at,
 			r.created_at,
 			r.updated_at
 		from affiliate_conversions r
@@ -92,7 +96,7 @@ func listAdminAffiliateConversions(
 	out := map[common.ID][]ports.AdminAffiliateConversionRecord{}
 	for rows.Next() {
 		var record ports.AdminAffiliateConversionRecord
-		var holdUntil pgtype.Timestamptz
+		var holdUntil, holdPlacedAt, holdReleasedAt pgtype.Timestamptz
 		if err := rows.Scan(
 			&record.ConversionID,
 			&record.AffiliateID,
@@ -109,12 +113,18 @@ func listAdminAffiliateConversions(
 			&record.Status,
 			&record.AttributionModel,
 			&holdUntil,
+			&record.HoldReason,
+			&record.PreHoldStatus,
+			&holdPlacedAt,
+			&holdReleasedAt,
 			&record.CreatedAt,
 			&record.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
 		record.HoldUntil = timestamptzPtr(holdUntil)
+		record.HoldPlacedAt = timestamptzPtr(holdPlacedAt)
+		record.HoldReleasedAt = timestamptzPtr(holdReleasedAt)
 		out[record.AffiliateID] = append(out[record.AffiliateID], record)
 	}
 	if err := rows.Err(); err != nil {
@@ -188,6 +198,10 @@ func queryAdminAffiliateConversion(
 			ac.status,
 			ac.attribution_model,
 			ac.hold_until,
+			ac.hold_reason,
+			coalesce(ac.pre_hold_status, ''),
+			ac.hold_placed_at,
+			ac.hold_released_at,
 			ac.created_at,
 			ac.updated_at
 		from affiliate_conversions ac
@@ -198,7 +212,7 @@ func queryAdminAffiliateConversion(
 
 func scanAdminAffiliateConversionRecord(row pgx.Row) (ports.AdminAffiliateConversionRecord, error) {
 	var record ports.AdminAffiliateConversionRecord
-	var holdUntil pgtype.Timestamptz
+	var holdUntil, holdPlacedAt, holdReleasedAt pgtype.Timestamptz
 	if err := row.Scan(
 		&record.ConversionID,
 		&record.AffiliateID,
@@ -215,6 +229,10 @@ func scanAdminAffiliateConversionRecord(row pgx.Row) (ports.AdminAffiliateConver
 		&record.Status,
 		&record.AttributionModel,
 		&holdUntil,
+		&record.HoldReason,
+		&record.PreHoldStatus,
+		&holdPlacedAt,
+		&holdReleasedAt,
 		&record.CreatedAt,
 		&record.UpdatedAt,
 	); err != nil {
@@ -224,6 +242,8 @@ func scanAdminAffiliateConversionRecord(row pgx.Row) (ports.AdminAffiliateConver
 		return ports.AdminAffiliateConversionRecord{}, err
 	}
 	record.HoldUntil = timestamptzPtr(holdUntil)
+	record.HoldPlacedAt = timestamptzPtr(holdPlacedAt)
+	record.HoldReleasedAt = timestamptzPtr(holdReleasedAt)
 	return record, nil
 }
 
@@ -257,11 +277,15 @@ func validAffiliateConversionTransition(from string, to string) bool {
 	}
 	switch from {
 	case "pending":
-		return to == "approved" || to == "reversed"
+		return to == "approved" || to == "reversed" || to == "held"
 	case "approved":
-		return to == "settled" || to == "reversed"
+		return to == "settled" || to == "reversed" || to == "held"
 	case "settled":
 		return to == "reversed"
+	case "held":
+		// A held commission can only be released back to the status it carried
+		// before the hold, or reversed outright once the review concludes.
+		return to == "released" || to == "reversed"
 	default:
 		return false
 	}

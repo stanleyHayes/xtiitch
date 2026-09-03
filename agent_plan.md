@@ -1964,3 +1964,13 @@ Status: `[x] implemented and locally verified`
 - `[x]` Migration 000147 passed application, populated-price, and down/up validation. Live API acceptance returned `actual_price_minor=50000`, `discounted_price_minor=40000`, and active `price_minor=40000`.
 - `[x]` Browser acceptance proved required registration contacts, login guidance, marketing login navigation, and a storefront design rendering GHS 500 actual / GHS 400 discounted with the GHS 400 size selected for purchase.
 - `[x]` Verification passed: focused and full Go tests, `go vet ./...`, `go build ./...`, dashboard/storefront/marketing checks and production builds, worker tests/typecheck, and `git diff --check`.
+
+### Admin brief item 4 — per-commission hold and release — 2026-09-03
+
+- `[x]` Company Admin can place one suspicious commission on Hold and release it later; `held` is a real status on `affiliate_conversions`, not a business-wide settlement hold.
+- `[x]` A hold preserves the status the commission carried beforehand (`pre_hold_status`), so Release restores it exactly rather than guessing Pending.
+- `[x]` Hold and Release both require an operator reason and record who acted and when; the audit trail names them as distinct actions from approve/settle/reverse.
+- `[x]` Held commissions are excluded from manual payouts, automatic payout claims and maturity sweeps, and are never deleted or rewritten.
+- `[x]` The Affiliate portal still counts a held commission in its Pending and lifetime totals, so an administrative hold never makes an Affiliate's money silently disappear.
+- `[x]` Admin commission history gains a Held filter, a Held chip, and the hold reason plus the status it will release to.
+- `[x]` Verification: migration 157 fresh chain and down/up round trip, real-PostgreSQL hold/release/payout test, full Go suite, Admin type-check, targeted ESLint, and production build.

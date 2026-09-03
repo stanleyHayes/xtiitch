@@ -1,6 +1,7 @@
 import {
   AdminApiError,
   type AdminAffiliateConversion,
+  type AdminAffiliateConversionAction,
   type AdminReferralRewardIssue,
   type AdminSupportAssignment,
   type AdminSupportTicketStatus,
@@ -227,13 +228,19 @@ export function adminAffiliateActionError(error: unknown): string {
 }
 
 export function affiliateConversionActionMessage(
-  status: Exclude<AdminAffiliateConversion["status"], "pending">,
+  status: AdminAffiliateConversionAction,
 ): string {
   if (status === "settled") {
     return "Affiliate conversion marked settled.";
   }
   if (status === "reversed") {
     return "Affiliate conversion reversed.";
+  }
+  if (status === "held") {
+    return "Affiliate commission placed on hold.";
+  }
+  if (status === "released") {
+    return "Affiliate commission hold released.";
   }
   return "Affiliate conversion approved.";
 }
@@ -242,18 +249,28 @@ export function affiliateConversionActions(
   status: AdminAffiliateConversion["status"],
   conversionType?: AdminAffiliateConversion["conversionType"],
 ): {
-  status: Exclude<AdminAffiliateConversion["status"], "pending">;
+  status: AdminAffiliateConversionAction;
   label: string;
 }[] {
   if (status === "pending") {
     return [
       { status: "approved", label: "Approve" },
+      { status: "held", label: "Hold" },
       { status: "reversed", label: "Reverse" },
     ];
   }
   if (status === "approved") {
     return [
       { status: "settled", label: "Settle" },
+      { status: "held", label: "Hold" },
+      { status: "reversed", label: "Reverse" },
+    ];
+  }
+  // A held commission is paused mid-ladder: releasing restores the status it
+  // carried before the hold, so no financial history is rewritten.
+  if (status === "held") {
+    return [
+      { status: "released", label: "Release hold" },
       { status: "reversed", label: "Reverse" },
     ];
   }
