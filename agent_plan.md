@@ -1856,6 +1856,13 @@ Status: `[x] implemented and locally verified`
 - `[x]` Preserved operator clarity and safety through tooltips, accessible labels, semantic colors, and mandatory reason dialogs for all lifecycle changes; block maps to the existing paused state and deactivate maps to archival so financial and referral history is retained.
 - `[x]` Verification: Admin type-check, all 12 Admin tests, production build, targeted ESLint, action-label source sweep, and `git diff --check`.
 
+### Affiliate list production repair — 2026-09-03
+
+- `[x]` Reproduced the Admin warning against production and isolated it to `GET /v1/admin/affiliates` (`500`); the programme-settings, applications, and attribution endpoints remained healthy (`200`), so the warning was genuine rather than redundant UI.
+- `[x]` Fixed the Affiliate list query by qualifying the joined `status` and `updated_at` sort columns with the Affiliate table alias, eliminating PostgreSQL's ambiguous-column failure.
+- `[x]` Added real-PostgreSQL regression coverage for listing the seeded Affiliate through the joined Admin query.
+- `[x]` Verification: focused repository, Admin HTTP, and Admin service tests; `go vet ./...`; `go build ./...`; direct production-schema reproduction; and `git diff --check`.
+
 ### Updated-spec delta (Xtiitch-Updates-Refined v2, 2026-07-10 22:29) — apply these
 
 Diff vs the version above:

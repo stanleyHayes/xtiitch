@@ -15,6 +15,24 @@ import (
 const itAdminAffAutomaticPayout = "ffffffff-9999-4999-8999-999999999983"
 const itAdminAffAdjustment = "eeeeeeee-9999-4999-8999-999999999984"
 
+func TestListAdminAffiliatesQualifiesJoinedSortColumns(t *testing.T) {
+	pool := openIntegrationPool(t)
+	defer pool.Close()
+	seedAdminAffiliateConversionFixture(t, pool)
+	defer cleanupAdminAffiliateConversionFixture(t, pool)
+
+	records, err := NewAdminAuthRepository(pool).ListAdminAffiliates(context.Background())
+	if err != nil {
+		t.Fatalf("list admin affiliates: %v", err)
+	}
+	for _, record := range records {
+		if record.AffiliateID == common.ID(itAdminAffAffiliate) {
+			return
+		}
+	}
+	t.Fatalf("expected seeded affiliate %s in admin list", itAdminAffAffiliate)
+}
+
 func TestUpdateAdminAffiliateConversionStatusPersistsTransition(t *testing.T) {
 	pool := openIntegrationPool(t)
 	defer pool.Close()

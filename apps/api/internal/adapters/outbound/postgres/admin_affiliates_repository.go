@@ -25,8 +25,8 @@ func (repo AdminAuthRepository) ListAdminAffiliates(ctx context.Context) ([]port
 
 	rows, err := tx.Query(ctx, adminAffiliatesQuery()+`
 		order by
-			case status when 'pending_review' then 1 when 'active' then 2 when 'paused' then 3 else 4 end,
-			updated_at desc
+			case a.status when 'pending_review' then 1 when 'active' then 2 when 'paused' then 3 else 4 end,
+			a.updated_at desc
 	`)
 	if err != nil {
 		return nil, err
