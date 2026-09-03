@@ -52,6 +52,12 @@ const internalSweeps = [
     path: "/settlements/sync",
     intervalMs: config.settlementSyncIntervalMs,
   },
+	// Every 6 hours: transfer commissions whose 14-day hold has matured.
+	{
+		name: "run-affiliate-payout-sweep",
+		path: "/affiliate-payouts/run",
+		intervalMs: config.affiliatePayoutSweepIntervalMs,
+	},
 ] as const;
 
 const store = new PostgresOutboxStore(config.databaseUrl);
@@ -119,7 +125,8 @@ const worker = new Worker(
       case "run-renewal-reminders-sweep":
       case "run-verification-nudges-sweep":
       case "run-scheduled-reports":
-      case "run-settlement-sync": {
+      case "run-settlement-sync":
+      case "run-affiliate-payout-sweep": {
         const sweep = internalSweeps.find((entry) => entry.name === job.name);
         if (!internalClient || !sweep) {
           console.log(

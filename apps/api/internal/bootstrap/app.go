@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -175,13 +176,19 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 
 	authenticator := authhttp.NewAuthenticator(jwtIssuer)
 	adminAuthRepository := postgres.NewAdminAuthRepository(db)
+	affiliatePayoutProvider, ok := paymentProvider.(ports.AffiliateTransferProvider)
+	if !ok {
+		db.Close()
+		return App{}, fmt.Errorf("configured payment provider does not support affiliate transfers")
+	}
 
 	paymentService := paymentsapp.NewService(paymentsapp.Dependencies{
-		Provider:       paymentProvider,
-		Payments:       postgres.NewPaymentRepository(db),
-		Businesses:     postgres.NewBusinessChargeRepository(db),
-		IDs:            ids.UUIDGenerator{},
-		PlanAffiliates: postgres.NewAffiliateRepository(db),
+		Provider:         paymentProvider,
+		Payments:         postgres.NewPaymentRepository(db),
+		Businesses:       postgres.NewBusinessChargeRepository(db),
+		IDs:              ids.UUIDGenerator{},
+		PlanAffiliates:   postgres.NewAffiliateRepository(db),
+		AffiliatePayouts: adminAuthRepository,
 		// VAT on the Xtiitch fee for store sales (§4.2): the live admin-editable
 		// rate (§4.1), with the env value as fallback only.
 		VATRates:   platformSettingsReader,
@@ -214,20 +221,22 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		// Operator invites go out by email, and by SMS too when a number was
 		// given. AdminConsoleURL is where the one-time link points; without it
 		// the invite is not sent rather than sending a link to nowhere.
-		SMS:             buildSMSSender(cfg, logger),
-		AdminConsoleURL: cfg.AdminConsoleBaseURL,
-		Users:           adminAuthRepository,
-		Sessions:        adminAuthRepository,
-		Audits:          adminAuthRepository,
-		Businesses:      adminAuthRepository,
-		Media:           mediaStore,
-		Payments:        paymentProvider,
-		Passwords:       authadapter.NewBcryptPasswordHasher(0),
-		AccessTokens:    jwtIssuer,
-		RefreshTokens:   authadapter.NewRefreshTokenIssuer(),
-		IDs:             ids.UUIDGenerator{},
-		Clock:           clock.SystemClock{},
-		Readiness:       adminLaunchReadinessConfig(cfg),
+		SMS:                     buildSMSSender(cfg, logger),
+		AdminConsoleURL:         cfg.AdminConsoleBaseURL,
+		Users:                   adminAuthRepository,
+		Sessions:                adminAuthRepository,
+		Audits:                  adminAuthRepository,
+		Businesses:              adminAuthRepository,
+		Media:                   mediaStore,
+		Payments:                paymentProvider,
+		AffiliatePayoutProvider: affiliatePayoutProvider,
+		AffiliatePayouts:        adminAuthRepository,
+		Passwords:               authadapter.NewBcryptPasswordHasher(0),
+		AccessTokens:            jwtIssuer,
+		RefreshTokens:           authadapter.NewRefreshTokenIssuer(),
+		IDs:                     ids.UUIDGenerator{},
+		Clock:                   clock.SystemClock{},
+		Readiness:               adminLaunchReadinessConfig(cfg),
 		// True IFF WhatsApp Cloud creds are configured to actually SEND customer
 		// OTPs (same condition as buildCustomerOTPDelivery). The public branding
 		// endpoint surfaces this so storefronts can gate the WhatsApp sign-in tab.

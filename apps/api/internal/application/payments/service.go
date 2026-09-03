@@ -49,12 +49,13 @@ type MoMoOTP interface {
 }
 
 type Service struct {
-	provider       ports.PaymentProvider
-	payments       ports.PaymentRepository
-	businesses     ports.BusinessChargeRepository
-	ids            ports.IDGenerator
-	otp            MoMoOTP
-	planAffiliates ports.SubscriptionAffiliateAttributionRepository
+	provider         ports.PaymentProvider
+	payments         ports.PaymentRepository
+	businesses       ports.BusinessChargeRepository
+	ids              ports.IDGenerator
+	otp              MoMoOTP
+	planAffiliates   ports.SubscriptionAffiliateAttributionRepository
+	affiliatePayouts ports.AffiliatePayoutAutomationRepository
 	// vatRates reads the live admin-editable VAT rate (§4.1) at charge time;
 	// vatRateBps is the configured seed/fallback used when no reader is wired
 	// or the read fails. 0 disables VAT on the Xtiitch fee.
@@ -75,12 +76,13 @@ type Dependencies struct {
 	Emails ports.EmailSender
 	// DashboardURL is the business dashboard origin, used for the order link in
 	// that email.
-	DashboardURL   string
-	Provider       ports.PaymentProvider
-	Payments       ports.PaymentRepository
-	Businesses     ports.BusinessChargeRepository
-	IDs            ports.IDGenerator
-	PlanAffiliates ports.SubscriptionAffiliateAttributionRepository
+	DashboardURL     string
+	Provider         ports.PaymentProvider
+	Payments         ports.PaymentRepository
+	Businesses       ports.BusinessChargeRepository
+	IDs              ports.IDGenerator
+	PlanAffiliates   ports.SubscriptionAffiliateAttributionRepository
+	AffiliatePayouts ports.AffiliatePayoutAutomationRepository
 	// OTP verifies the payout number before payout details are saved. Unlike the
 	// other optional dependencies in this codebase, a nil OTP does NOT disable the
 	// step — VerifyBusiness rejects with ErrOTPUnavailable. A misconfiguration must
@@ -96,16 +98,17 @@ type Dependencies struct {
 
 func NewService(deps Dependencies) Service {
 	return Service{
-		provider:       deps.Provider,
-		payments:       deps.Payments,
-		businesses:     deps.Businesses,
-		ids:            deps.IDs,
-		otp:            deps.OTP,
-		planAffiliates: deps.PlanAffiliates,
-		vatRates:       deps.VATRates,
-		vatRateBps:     deps.VATRateBps,
-		emails:         deps.Emails,
-		dashboardURL:   strings.TrimRight(strings.TrimSpace(deps.DashboardURL), "/"),
+		provider:         deps.Provider,
+		payments:         deps.Payments,
+		businesses:       deps.Businesses,
+		ids:              deps.IDs,
+		otp:              deps.OTP,
+		planAffiliates:   deps.PlanAffiliates,
+		affiliatePayouts: deps.AffiliatePayouts,
+		vatRates:         deps.VATRates,
+		vatRateBps:       deps.VATRateBps,
+		emails:           deps.Emails,
+		dashboardURL:     strings.TrimRight(strings.TrimSpace(deps.DashboardURL), "/"),
 	}
 }
 
@@ -528,7 +531,19 @@ func (s Service) handleTransferEvent(ctx context.Context, payload []byte) error 
 	if err != nil {
 		return err
 	}
-	if !isNew || event.SubaccountCode == "" {
+	if !isNew {
+		return nil
+	}
+	if s.affiliatePayouts != nil {
+		handled, applyErr := s.affiliatePayouts.ApplyAffiliateTransferEvent(ctx, event.ProviderReference, event.EventType, event.Status)
+		if applyErr != nil {
+			return applyErr
+		}
+		if handled {
+			return nil
+		}
+	}
+	if event.SubaccountCode == "" {
 		return nil
 	}
 

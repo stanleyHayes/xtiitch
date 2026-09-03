@@ -76,6 +76,10 @@ func (p DevProvider) CreateAffiliateTransferRecipient(
 	}, nil
 }
 
+func (p DevProvider) InitiateAffiliateTransfer(_ context.Context, input ports.InitiateAffiliateTransferInput) (ports.InitiateAffiliateTransferResult, error) {
+	return ports.InitiateAffiliateTransferResult{TransferCode: "TRF_dev_" + input.Reference, Status: "success"}, nil
+}
+
 // UpdateBusinessSubaccount accepts any repoint. The stub keeps no subaccount
 // state, so there is nothing to mutate — the caller's own row is the record.
 func (p DevProvider) UpdateBusinessSubaccount(_ context.Context, _ ports.UpdateBusinessSubaccountInput) error {

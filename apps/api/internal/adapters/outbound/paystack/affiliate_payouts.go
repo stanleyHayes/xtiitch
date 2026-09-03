@@ -32,3 +32,24 @@ func (c Client) CreateAffiliateTransferRecipient(
 		RecipientCode: response.Data.RecipientCode,
 	}, nil
 }
+
+func (c Client) InitiateAffiliateTransfer(ctx context.Context, input ports.InitiateAffiliateTransferInput) (ports.InitiateAffiliateTransferResult, error) {
+	var response struct {
+		Status bool `json:"status"`
+		Data   struct {
+			TransferCode string `json:"transfer_code"`
+			Status       string `json:"status"`
+		} `json:"data"`
+	}
+	if err := c.post(ctx, "/transfer", map[string]any{
+		"source": "balance", "amount": input.AmountMinor,
+		"recipient": input.RecipientCode, "reference": input.Reference,
+		"reason": input.Reason, "currency": "GHS",
+	}, &response); err != nil {
+		return ports.InitiateAffiliateTransferResult{}, err
+	}
+	if strings.TrimSpace(response.Data.TransferCode) == "" {
+		return ports.InitiateAffiliateTransferResult{}, errors.New("paystack transfer response omitted transfer code")
+	}
+	return ports.InitiateAffiliateTransferResult{TransferCode: response.Data.TransferCode, Status: response.Data.Status}, nil
+}

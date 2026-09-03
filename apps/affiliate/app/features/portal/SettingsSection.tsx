@@ -282,29 +282,26 @@ function ProviderAutocomplete({
 }) {
   const mobileMoney = method === "mobile_money";
   const options = mobileMoney ? MOBILE_MONEY_PROVIDERS : BANK_PROVIDERS;
-  const listID = mobileMoney ? "mobile-money-providers" : "bank-providers";
 
   return (
     <label>
       {mobileMoney ? "Mobile money provider" : "Bank"}
-      <input
+      <select
         name="provider_name"
-        type="text"
-        list={listID}
         defaultValue={defaultValue}
-        placeholder={
-          mobileMoney ? "Search mobile money providers" : "Search banks"
-        }
-        autoComplete="off"
         required
-      />
-      <datalist id={listID}>
+      >
+        <option value="" disabled>
+          {mobileMoney ? "Choose mobile money provider" : "Choose bank"}
+        </option>
         {options.map((provider) => (
-          <option value={provider} key={provider} />
+          <option value={provider} key={provider}>
+            {provider}
+          </option>
         ))}
-      </datalist>
+      </select>
       <span className="field-hint">
-        Start typing, then choose a provider from the list.
+        Choose the provider that owns this payout account.
       </span>
     </label>
   );

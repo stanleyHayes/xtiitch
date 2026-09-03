@@ -50,6 +50,7 @@ type AdminSweepService interface {
 		ctx context.Context,
 		command adminauthapp.RunVerificationNudgeSweepCommand,
 	) (ports.AdminVerificationNudgeSweepRecord, error)
+	RunAffiliatePayoutSweep(context.Context, adminauthapp.RunAffiliatePayoutSweepCommand) (adminauthapp.AffiliatePayoutSweepResult, error)
 }
 
 // ReportsSweepService is the reports service surface the internal trigger
@@ -82,7 +83,17 @@ func (handler Handler) Register(router chi.Router) {
 		internal.Post("/internal/sweeps/verification-nudges", handler.verificationNudges)
 		internal.Post("/internal/reports/run-scheduled", handler.runScheduledReports)
 		internal.Post("/internal/settlements/sync", handler.settlementSync)
+		internal.Post("/internal/affiliate-payouts/run", handler.affiliatePayouts)
 	})
+}
+
+func (handler Handler) affiliatePayouts(w http.ResponseWriter, r *http.Request) {
+	result, err := handler.admin.RunAffiliatePayoutSweep(r.Context(), adminauthapp.RunAffiliatePayoutSweepCommand{ActorUserID: adminauthapp.SystemActorUserID, ActorRole: admindomain.RoleOwner, Reason: "Scheduled automatic affiliate payout sweep.", UserAgent: r.UserAgent(), IPAddress: remoteIP(r)})
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"claimed": result.Claimed, "initiated": result.Initiated, "settled": result.Settled, "pending": result.Pending, "failed": result.Failed, "ran_at": result.RanAt})
 }
 
 // requireInternalToken compares the X-Internal-Token header against the

@@ -40,18 +40,20 @@ const (
 const SystemActorUserID = common.ID("00000000-0000-0000-0000-000000000001")
 
 type Service struct {
-	users         ports.AdminUserRepository
-	sessions      ports.AdminSessionRepository
-	audits        ports.AdminAuditRepository
-	businesses    ports.AdminBusinessRepository
-	media         ports.MediaStore
-	payments      ports.PaymentProvider
-	passwords     ports.PasswordHasher
-	accessTokens  ports.AdminTokenIssuer
-	refreshTokens ports.RefreshTokenIssuer
-	ids           ports.IDGenerator
-	clock         ports.Clock
-	readiness     AdminLaunchReadinessConfig
+	users                   ports.AdminUserRepository
+	sessions                ports.AdminSessionRepository
+	audits                  ports.AdminAuditRepository
+	businesses              ports.AdminBusinessRepository
+	media                   ports.MediaStore
+	payments                ports.PaymentProvider
+	affiliatePayoutProvider ports.AffiliateTransferProvider
+	affiliatePayouts        ports.AffiliatePayoutAutomationRepository
+	passwords               ports.PasswordHasher
+	accessTokens            ports.AdminTokenIssuer
+	refreshTokens           ports.RefreshTokenIssuer
+	ids                     ports.IDGenerator
+	clock                   ports.Clock
+	readiness               AdminLaunchReadinessConfig
 	// whatsAppEnabled is true only when the WhatsApp Cloud credentials required to
 	// actually SEND customer OTPs are configured (mirrors buildCustomerOTPDelivery).
 	whatsAppEnabled bool
@@ -103,18 +105,20 @@ type PlanChangeApplier interface {
 }
 
 type Dependencies struct {
-	Users         ports.AdminUserRepository
-	Sessions      ports.AdminSessionRepository
-	Audits        ports.AdminAuditRepository
-	Businesses    ports.AdminBusinessRepository
-	Media         ports.MediaStore
-	Payments      ports.PaymentProvider
-	Passwords     ports.PasswordHasher
-	AccessTokens  ports.AdminTokenIssuer
-	RefreshTokens ports.RefreshTokenIssuer
-	IDs           ports.IDGenerator
-	Clock         ports.Clock
-	Readiness     AdminLaunchReadinessConfig
+	Users                   ports.AdminUserRepository
+	Sessions                ports.AdminSessionRepository
+	Audits                  ports.AdminAuditRepository
+	Businesses              ports.AdminBusinessRepository
+	Media                   ports.MediaStore
+	Payments                ports.PaymentProvider
+	AffiliatePayoutProvider ports.AffiliateTransferProvider
+	AffiliatePayouts        ports.AffiliatePayoutAutomationRepository
+	Passwords               ports.PasswordHasher
+	AccessTokens            ports.AdminTokenIssuer
+	RefreshTokens           ports.RefreshTokenIssuer
+	IDs                     ports.IDGenerator
+	Clock                   ports.Clock
+	Readiness               AdminLaunchReadinessConfig
 	// WhatsAppEnabled reflects whether WhatsApp Cloud credentials are configured
 	// to actually send customer OTPs (see buildCustomerOTPDelivery).
 	WhatsAppEnabled bool
@@ -158,30 +162,32 @@ func NewService(deps Dependencies) Service {
 		renewalRepayURL = defaultRenewalRepayURL
 	}
 	return Service{
-		users:            deps.Users,
-		sessions:         deps.Sessions,
-		audits:           deps.Audits,
-		businesses:       deps.Businesses,
-		media:            deps.Media,
-		payments:         deps.Payments,
-		passwords:        deps.Passwords,
-		accessTokens:     deps.AccessTokens,
-		refreshTokens:    deps.RefreshTokens,
-		ids:              deps.IDs,
-		clock:            deps.Clock,
-		readiness:        deps.Readiness,
-		whatsAppEnabled:  deps.WhatsAppEnabled,
-		smsEnabled:       deps.SMSEnabled,
-		renewalRepayURL:  renewalRepayURL,
-		planChanges:      deps.PlanChanges,
-		settlementSyncer: deps.SettlementSyncer,
-		emails:           deps.Emails,
-		sms:              deps.SMS,
-		adminConsoleURL:  strings.TrimRight(strings.TrimSpace(deps.AdminConsoleURL), "/"),
-		dashboardURL:     strings.TrimRight(strings.TrimSpace(deps.DashboardURL), "/"),
-		vatRates:         deps.VATRates,
-		vatRateBps:       deps.VATRateBps,
-		vatInclusive:     deps.VATInclusive,
+		users:                   deps.Users,
+		sessions:                deps.Sessions,
+		audits:                  deps.Audits,
+		businesses:              deps.Businesses,
+		media:                   deps.Media,
+		payments:                deps.Payments,
+		affiliatePayoutProvider: deps.AffiliatePayoutProvider,
+		affiliatePayouts:        deps.AffiliatePayouts,
+		passwords:               deps.Passwords,
+		accessTokens:            deps.AccessTokens,
+		refreshTokens:           deps.RefreshTokens,
+		ids:                     deps.IDs,
+		clock:                   deps.Clock,
+		readiness:               deps.Readiness,
+		whatsAppEnabled:         deps.WhatsAppEnabled,
+		smsEnabled:              deps.SMSEnabled,
+		renewalRepayURL:         renewalRepayURL,
+		planChanges:             deps.PlanChanges,
+		settlementSyncer:        deps.SettlementSyncer,
+		emails:                  deps.Emails,
+		sms:                     deps.SMS,
+		adminConsoleURL:         strings.TrimRight(strings.TrimSpace(deps.AdminConsoleURL), "/"),
+		dashboardURL:            strings.TrimRight(strings.TrimSpace(deps.DashboardURL), "/"),
+		vatRates:                deps.VATRates,
+		vatRateBps:              deps.VATRateBps,
+		vatInclusive:            deps.VATInclusive,
 	}
 }
 

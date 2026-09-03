@@ -114,6 +114,7 @@ test("loadConfig parses internal sweep settings; disabled without the token", ()
     RENEWAL_REMINDERS_SWEEP_INTERVAL_MS: "3600000",
     SCHEDULED_REPORTS_INTERVAL_MS: "7200000",
     SETTLEMENT_SYNC_INTERVAL_MS: "300000",
+		AFFILIATE_PAYOUT_SWEEP_INTERVAL_MS: "600000",
   });
   assert.deepEqual(config.internalApi, {
     apiUrl: "https://api.xtiitch.com",
@@ -124,6 +125,7 @@ test("loadConfig parses internal sweep settings; disabled without the token", ()
   assert.equal(config.renewalRemindersSweepIntervalMs, 3_600_000);
   assert.equal(config.scheduledReportsIntervalMs, 7_200_000);
   assert.equal(config.settlementSyncIntervalMs, 300_000);
+	assert.equal(config.affiliatePayoutSweepIntervalMs, 600_000);
 
   // Sane defaults: daily sweeps, settlement sync every 15 minutes.
   const defaults = loadConfig({ XTIITCH_INTERNAL_TOKEN: "shared-secret" });
@@ -132,4 +134,5 @@ test("loadConfig parses internal sweep settings; disabled without the token", ()
   assert.equal(defaults.renewalRemindersSweepIntervalMs, 86_400_000);
   assert.equal(defaults.scheduledReportsIntervalMs, 86_400_000);
   assert.equal(defaults.settlementSyncIntervalMs, 900_000);
+	assert.equal(defaults.affiliatePayoutSweepIntervalMs, 21_600_000);
 });

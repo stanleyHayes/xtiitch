@@ -70,6 +70,7 @@ export type WorkerConfig = {
   verificationNudgesSweepIntervalMs: number;
   scheduledReportsIntervalMs: number;
   settlementSyncIntervalMs: number;
+  affiliatePayoutSweepIntervalMs: number;
   notificationTransport: NotificationTransportName;
   notificationHttp?: NotificationHttpConfig;
   whatsappCloud?: WhatsAppCloudConfig;
@@ -133,6 +134,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
     settlementSyncIntervalMs: parsePositiveInteger(
       env.SETTLEMENT_SYNC_INTERVAL_MS,
       900_000, // 15 min: keeps Money Desk payout reflection near-real-time (§3.3)
+    ),
+    affiliatePayoutSweepIntervalMs: parsePositiveInteger(
+      env.AFFILIATE_PAYOUT_SWEEP_INTERVAL_MS,
+      21_600_000,
     ),
     notificationTransport,
     notificationHttp: parseNotificationHttpConfig(notificationTransport, env),

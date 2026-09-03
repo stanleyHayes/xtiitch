@@ -16,11 +16,17 @@ import (
 )
 
 type fakeAdminSweeps struct {
-	recurringCmd  adminauthapp.RunSubscriptionRecurringSweepCommand
-	reminderCmd   adminauthapp.RunSubscriptionReminderSweepCommand
-	settlementCmd adminauthapp.RunSettlementSyncCommand
-	nudgeCmd      adminauthapp.RunVerificationNudgeSweepCommand
-	err           error
+	recurringCmd       adminauthapp.RunSubscriptionRecurringSweepCommand
+	reminderCmd        adminauthapp.RunSubscriptionReminderSweepCommand
+	settlementCmd      adminauthapp.RunSettlementSyncCommand
+	nudgeCmd           adminauthapp.RunVerificationNudgeSweepCommand
+	affiliatePayoutCmd adminauthapp.RunAffiliatePayoutSweepCommand
+	err                error
+}
+
+func (fake *fakeAdminSweeps) RunAffiliatePayoutSweep(_ context.Context, cmd adminauthapp.RunAffiliatePayoutSweepCommand) (adminauthapp.AffiliatePayoutSweepResult, error) {
+	fake.affiliatePayoutCmd = cmd
+	return adminauthapp.AffiliatePayoutSweepResult{Claimed: 1, Settled: 1}, fake.err
 }
 
 func (fake *fakeAdminSweeps) RunSubscriptionRecurringSweep(
@@ -118,6 +124,9 @@ func TestInternalEndpointsCallThroughAsSystemActor(t *testing.T) {
 		{"/v1/internal/settlements/sync", func() bool {
 			return admin.settlementCmd.ActorUserID == adminauthapp.SystemActorUserID &&
 				admin.settlementCmd.ActorRole == admindomain.RoleOwner
+		}},
+		{"/v1/internal/affiliate-payouts/run", func() bool {
+			return admin.affiliatePayoutCmd.ActorUserID == adminauthapp.SystemActorUserID && admin.affiliatePayoutCmd.ActorRole == admindomain.RoleOwner
 		}},
 		{"/v1/internal/reports/run-scheduled", func() bool { return reports.ran }},
 	}
