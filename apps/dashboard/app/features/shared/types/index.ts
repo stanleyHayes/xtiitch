@@ -138,7 +138,6 @@ export type DashboardSection =
   | "customers"
   | "orders"
   | "money"
-  | "affiliates"
   | "visits"
   | "handovers"
   | "catalogue"

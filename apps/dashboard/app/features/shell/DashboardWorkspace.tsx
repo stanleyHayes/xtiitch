@@ -365,7 +365,6 @@ export function DashboardWorkspace({ // eslint-disable-line max-lines-per-functi
               waitlistEntries={waitlistEntries}
               deliveryZones={deliveryZones}
               designs={designs}
-              affiliates={loaderData.affiliates}
               currentUser={currentUser}
               orderFilter={orderFilter}
               action={action}

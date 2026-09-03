@@ -1673,6 +1673,14 @@ Status: `[x] implemented and locally verified`
 - `[x]` Browser acceptance proved signup validation, immediate enrollment, login, dashboard totals, and a referral view exposing only `@handle` plus Active/Inactive/Not Activated status.
 - `[x]` Verification passed: `go test ./internal/...`, `go vet ./...`, `go build ./...`, focused Go tests, affiliate/marketing/dashboard checks and production builds, affected-file lint, and `git diff --check`.
 
+### Item 1 gap closure — 2026-09-03
+
+- `[x]` Added authenticated affiliate-dashboard email invitations with email-bound signup links on `affiliate.xtiitch.com` (explicit domain exception to the PDF).
+- `[x]` Invitation acceptance records only the invited affiliate and carries no commission, reward, parent-affiliate, or downstream relationship.
+- `[x]` Re-sending reuses a single pending invitation per inviter/email; accepted invitations feed the existing non-financial invited count.
+- `[x]` Parked merchant-product affiliate UI and mutation dispatch were removed from the business dashboard while historical APIs/data and database-enforced paused/zero-commission state remain preserved.
+- `[x]` Verification: full Go suite, focused real-Postgres invitation creation/acceptance tests, migration 150 fresh-chain and down/up checks, affiliate/dashboard type-checks and production builds, affected-file ESLint, and `git diff --check`.
+
 ### Updated-spec delta (Xtiitch-Updates-Refined v2, 2026-07-10 22:29) — apply these
 
 Diff vs the version above:

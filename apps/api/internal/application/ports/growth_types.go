@@ -42,6 +42,7 @@ type SubmitAffiliateApplicationInput struct {
 	ConsentAt                time.Time
 	IPHash                   string
 	UserAgent                string
+	InviteCode               string
 }
 
 type AffiliateApplicationRecord struct {

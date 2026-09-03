@@ -20,6 +20,7 @@ type affiliateApplicationRequest struct {
 	AudienceSummary   string   `json:"audience_summary"`
 	PromotionChannels []string `json:"promotion_channels"`
 	Consent           bool     `json:"consent"`
+	InviteCode        string   `json:"invite_code"`
 }
 
 type affiliateApplicationResponse struct {
@@ -63,6 +64,7 @@ func (handler Handler) submitAffiliateApplication(w http.ResponseWriter, r *http
 			Consent:           request.Consent,
 			UserAgent:         r.UserAgent(),
 			IPAddress:         requestIP(r),
+			InviteCode:        request.InviteCode,
 		},
 	)
 	if err != nil {
@@ -82,6 +84,8 @@ func affiliateApplicationError(err error) (int, string) {
 		return http.StatusConflict, "affiliate_code_taken"
 	case errors.Is(err, growthapp.ErrAffiliateEmailTaken):
 		return http.StatusConflict, "affiliate_email_taken"
+	case errors.Is(err, growthapp.ErrInvalidPartnerInvitation):
+		return http.StatusBadRequest, "invalid_partner_invitation"
 	default:
 		return http.StatusInternalServerError, "internal_error"
 	}

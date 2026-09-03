@@ -30,6 +30,24 @@ type AffiliatePortalRepository interface {
 	ListPartnerReferrals(context.Context, common.ID) ([]PartnerReferralRecord, error)
 }
 
+type PartnerInvitationRepository interface {
+	CreatePartnerInvitation(context.Context, CreatePartnerInvitationInput) (PartnerInvitationRecord, error)
+}
+
+type CreatePartnerInvitationInput struct {
+	InvitationID       common.ID
+	InviterAffiliateID common.ID
+	InviteCode         string
+	InviteeEmail       string
+}
+
+type PartnerInvitationRecord struct {
+	InvitationID common.ID `json:"invitation_id"`
+	InviteeEmail string    `json:"invitee_email"`
+	InviteCode   string    `json:"invite_code"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
 type AffiliateCampaignLinkRecord struct {
 	CampaignLinkID common.ID `json:"campaign_link_id"`
 	AffiliateID    common.ID `json:"affiliate_id"`

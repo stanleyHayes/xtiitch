@@ -186,11 +186,6 @@ export const dashboardActionIntents = new Set([
   "update_size_band",
   "delete_size_band",
   "set_design_price",
-  "create_affiliate_programme",
-  "update_affiliate_programme",
-  "create_business_affiliate",
-  "update_business_affiliate",
-  "pause_business_affiliate",
   // §14 scheduled reports + §15 CRM annotations (owner/admin only; staff are
   // refused by canUseDashboardIntent before the handler runs).
   "save_report_schedule",

@@ -113,7 +113,7 @@ func TestSubmitAffiliateApplicationReturnsApprovedAccount(t *testing.T) {
 		strings.NewReader(`{"applicant_type":"person","display_name":"Ama Creates",`+
 			`"contact_name":"Ama Mensah","email":"ama@example.com","phone":"+233200000000",`+
 			`"website_url":"https://example.com","requested_code":"AMACREATES",`+
-			`"audience_summary":"Fashion shoppers in Ghana","promotion_channels":["instagram"],"consent":true}`),
+			`"audience_summary":"Fashion shoppers in Ghana","promotion_channels":["instagram"],"consent":true,"invite_code":"invite-1"}`),
 	)
 	request.RemoteAddr = "198.51.100.10:4444"
 	response := httptest.NewRecorder()
@@ -125,7 +125,8 @@ func TestSubmitAffiliateApplicationReturnsApprovedAccount(t *testing.T) {
 	}
 	if service.applicationCommand.Email != "ama@example.com" ||
 		service.applicationCommand.RequestedCode != "AMACREATES" ||
-		service.applicationCommand.IPAddress != "198.51.100.10" {
+		service.applicationCommand.IPAddress != "198.51.100.10" ||
+		service.applicationCommand.InviteCode != "invite-1" {
 		t.Fatalf("unexpected application command: %+v", service.applicationCommand)
 	}
 	if !strings.Contains(response.Body.String(), `"application_id":"application-1"`) ||

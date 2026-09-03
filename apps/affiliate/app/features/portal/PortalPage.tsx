@@ -86,7 +86,7 @@ export function PortalPage({
           />
         ) : null}
 				{active === "referrals" ? (
-					<ReferralsSection referrals={data.referrals} dashboard={data.dashboard} />
+					<ReferralsSection referrals={data.referrals} dashboard={data.dashboard} result={actionData} />
 				) : null}
         {active === "earnings" ? (
           <EarningsSection

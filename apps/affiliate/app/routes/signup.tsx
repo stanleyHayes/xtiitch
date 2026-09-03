@@ -17,6 +17,7 @@ import {
   redirect,
   useActionData,
   useNavigation,
+	useSearchParams,
   type ActionFunctionArgs,
   type MetaFunction,
 } from "react-router";
@@ -110,6 +111,7 @@ export async function action({ request }: ActionFunctionArgs) {
         requested_code: String(form.get("requested_code") ?? "").trim(),
         audience_summary: String(form.get("audience_summary") ?? "").trim(),
         promotion_channels: channels,
+		invite_code: String(form.get("invite_code") ?? "").trim(),
         consent,
       }),
     });
@@ -128,6 +130,9 @@ export async function action({ request }: ActionFunctionArgs) {
 export default function Signup() {
   const result = useActionData<typeof action>();
   const navigation = useNavigation();
+	const [searchParams] = useSearchParams();
+	const invitedEmail = searchParams.get("email") ?? "";
+	const inviteCode = searchParams.get("invite") ?? "";
   const submitting = navigation.state === "submitting";
 
   const formRef = useRef<HTMLFormElement | null>(null);
@@ -271,6 +276,7 @@ export default function Signup() {
         ref={formRef}
         onSubmit={onSubmit}
       >
+		<input type="hidden" name="invite_code" value={inviteCode} />
         <div className="form-head">
 					<h2>Create your Partner account</h2>
           <p className="muted">
@@ -353,6 +359,7 @@ export default function Signup() {
                 type="email"
                 placeholder="you@example.com"
                 autoComplete="email"
+				defaultValue={invitedEmail}
               />
             </label>
             <PhoneField />

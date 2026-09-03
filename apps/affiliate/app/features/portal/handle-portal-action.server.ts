@@ -31,6 +31,14 @@ function mutationForIntent(
       }
     };
   }
+	if (intent === "invite") {
+		return {
+			path: "/affiliate/invitations",
+			method: "POST",
+			success: `Invitation sent to ${String(form.get("invitee_email") ?? "").trim()}.`,
+			body: { email: form.get("invitee_email") }
+		};
+	}
   if (intent === "payout") {
     return {
       path: "/affiliate/payout-profile",

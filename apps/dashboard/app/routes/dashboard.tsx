@@ -22,7 +22,7 @@ export async function loader(args: Route.LoaderArgs) {
   return loadDashboardData(args);
 }
 
-export async function action({ request }: Route.ActionArgs) { // eslint-disable-line complexity -- action delegates to feature-specific intent handlers
+export async function action({ request }: Route.ActionArgs) {
   const form = await request.formData();
   const intent = String(form.get("intent") ?? "");
 
@@ -63,9 +63,6 @@ export async function action({ request }: Route.ActionArgs) { // eslint-disable-
     "../features/analytics/handleActions"
   );
   const { handleCrmActions } = await import("../features/crm/handleActions");
-  const { handleAffiliateActions } = await import(
-    "../features/affiliates/handleActions"
-  );
 
   return (
     (await handleOrdersActions(request, form, intent)) ??
@@ -78,7 +75,6 @@ export async function action({ request }: Route.ActionArgs) { // eslint-disable-
     (await handleStudioActions(request, form, intent)) ??
     (await handleAnalyticsActions(request, form, intent)) ??
     (await handleCrmActions(request, form, intent)) ??
-    (await handleAffiliateActions(request, form, intent)) ??
     null
   );
 }

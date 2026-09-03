@@ -46,6 +46,15 @@ func (repo AffiliateRepository) SubmitAffiliateApplication(
 	if err := setTenantBypass(ctx, tx); err != nil {
 		return ports.AffiliateApplicationRecord{}, err
 	}
+	if input.InviteCode != "" {
+		var valid bool
+		if err := tx.QueryRow(ctx, `select exists(select 1 from partner_invitations where invite_code=$1 and lower(invitee_email)=lower($2) and accepted_at is null)`, input.InviteCode, input.Email).Scan(&valid); err != nil {
+			return ports.AffiliateApplicationRecord{}, err
+		}
+		if !valid {
+			return ports.AffiliateApplicationRecord{}, ports.ErrInvalidPartnerInvitation
+		}
+	}
 
 	var record ports.AffiliateApplicationRecord
 	row := tx.QueryRow(ctx, `
@@ -208,6 +217,15 @@ func (repo AffiliateRepository) SubmitAffiliateApplication(
 		return ports.AffiliateApplicationRecord{}, pgx.ErrNoRows
 	}
 	record.Status = "approved"
+	if input.InviteCode != "" {
+		tag, updateErr := tx.Exec(ctx, `update partner_invitations set accepted_affiliate_id=$2::uuid, accepted_at=now() where invite_code=$1 and accepted_at is null`, input.InviteCode, affiliateID)
+		if updateErr != nil {
+			return ports.AffiliateApplicationRecord{}, updateErr
+		}
+		if tag.RowsAffected() != 1 {
+			return ports.AffiliateApplicationRecord{}, ports.ErrInvalidPartnerInvitation
+		}
+	}
 
 	if err := tx.Commit(ctx); err != nil {
 		return ports.AffiliateApplicationRecord{}, err

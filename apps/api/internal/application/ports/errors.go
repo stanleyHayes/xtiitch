@@ -43,6 +43,7 @@ var ErrAffiliateCodeTaken = errors.New("affiliate code already exists")
 // ErrAffiliateEmailTaken is returned when the email already belongs to an
 // affiliate portal account. It is distinct from the public referral code.
 var ErrAffiliateEmailTaken = errors.New("affiliate email already exists")
+var ErrInvalidPartnerInvitation = errors.New("invalid partner invitation")
 
 // ErrSubscriptionBillingUnavailable is returned when an admin billing action is
 // attempted for a free, canceled, or otherwise non-billable subscription.

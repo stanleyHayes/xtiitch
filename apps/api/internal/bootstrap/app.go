@@ -422,6 +422,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		ShareBaseURL:    cfg.BusinessDashboardBaseURL,
 		SensitiveCipher: totpManager,
 		Payouts:         paymentProvider.(ports.AffiliatePayoutProvider),
+		Invitations:     postgres.NewAffiliateAuthRepository(db),
 	})
 
 	aiSearchService := buildAISearchService(cfg, logger, db)

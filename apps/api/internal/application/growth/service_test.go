@@ -102,6 +102,7 @@ func TestSubmitAffiliateApplicationNormalizesInput(t *testing.T) {
 			Consent:           true,
 			IPAddress:         "203.0.113.50",
 			UserAgent:         "Test browser",
+			InviteCode:        "invitation-token",
 		},
 	)
 	if err != nil {
@@ -115,6 +116,9 @@ func TestSubmitAffiliateApplicationNormalizesInput(t *testing.T) {
 		repo.input.IPHash == "203.0.113.50" ||
 		repo.input.ConsentAt.IsZero() {
 		t.Fatalf("unexpected normalized application: %+v", repo.input)
+	}
+	if repo.input.InviteCode != "invitation-token" {
+		t.Fatalf("invitation code was not preserved: %+v", repo.input)
 	}
 	if len(emails.sent) != 1 ||
 		emails.sent[0].To != "ama@example.com" ||

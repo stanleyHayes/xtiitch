@@ -1,4 +1,6 @@
-import type { Dashboard, PartnerReferral } from "./types";
+import { Form, useNavigation } from "react-router";
+import { FormStatus } from "./FormStatus";
+import type { Dashboard, PartnerReferral, PortalActionResult } from "./types";
 
 const labels = {
   active: "Active",
@@ -9,9 +11,11 @@ const labels = {
 export function ReferralsSection({
   referrals,
   dashboard,
+	result,
 }: {
   referrals: PartnerReferral[];
   dashboard: Dashboard;
+	result?: PortalActionResult;
 }) {
   return (
     <div className="section">
@@ -46,6 +50,24 @@ export function ReferralsSection({
           </div>
         )}
       </section>
+		<section className="card">
+			<div className="card-head">
+				<div><h2>Invite affiliates</h2><p className="muted">Invite someone by email to create their own affiliate account. Invitations never create downstream commission.</p></div>
+			</div>
+			<InviteAffiliateForm result={result} />
+			<p className="field-hint">{dashboard.partners_invited} invitation{dashboard.partners_invited === 1 ? "" : "s"} accepted.</p>
+		</section>
     </div>
   );
+}
+
+function InviteAffiliateForm({ result }: { result?: PortalActionResult }) {
+	const navigation=useNavigation();
+	const submitting=navigation.state==="submitting" && navigation.formData?.get("intent")==="invite";
+	return <Form method="post" className="compact-form">
+		<input type="hidden" name="intent" value="invite" />
+		<label>Email address<input type="email" name="invitee_email" placeholder="friend@example.com" autoComplete="email" required /></label>
+		<FormStatus intent="invite" result={result} />
+		<button className="button" type="submit" disabled={submitting}>{submitting ? "Sending..." : "Send invitation"}</button>
+	</Form>;
 }

@@ -13,8 +13,9 @@ import (
 )
 
 var (
-	ErrAffiliateCodeTaken  = errors.New("affiliate code already exists")
-	ErrAffiliateEmailTaken = errors.New("affiliate email already exists")
+	ErrAffiliateCodeTaken       = errors.New("affiliate code already exists")
+	ErrAffiliateEmailTaken      = errors.New("affiliate email already exists")
+	ErrInvalidPartnerInvitation = errors.New("invalid partner invitation")
 )
 
 type AffiliateCodeAvailability struct {
@@ -57,6 +58,7 @@ type SubmitAffiliateApplicationCommand struct {
 	Consent           bool
 	UserAgent         string
 	IPAddress         string
+	InviteCode        string
 }
 
 func (s Service) SubmitAffiliateApplication(
@@ -84,6 +86,7 @@ func (s Service) SubmitAffiliateApplication(
 	input.ActivationTokenExpiresAt = input.ConsentAt.Add(48 * time.Hour)
 	input.IPHash = hashIPAddress("xtiitch-affiliate-application:", cmd.IPAddress)
 	input.UserAgent = limitText(cmd.UserAgent, 512)
+	input.InviteCode = strings.TrimSpace(cmd.InviteCode)
 
 	record, err := s.applications.SubmitAffiliateApplication(ctx, input)
 	if errors.Is(err, ports.ErrAffiliateCodeTaken) {
@@ -91,6 +94,9 @@ func (s Service) SubmitAffiliateApplication(
 	}
 	if errors.Is(err, ports.ErrAffiliateEmailTaken) {
 		return ports.AffiliateApplicationRecord{}, ErrAffiliateEmailTaken
+	}
+	if errors.Is(err, ports.ErrInvalidPartnerInvitation) {
+		return ports.AffiliateApplicationRecord{}, ErrInvalidPartnerInvitation
 	}
 	if err != nil {
 		return ports.AffiliateApplicationRecord{}, err

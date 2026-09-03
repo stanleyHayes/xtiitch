@@ -59,6 +59,7 @@ type Service interface {
 		string,
 	) (affiliateauthapp.PayoutPage, error)
 	Referrals(context.Context, common.ID) ([]ports.PartnerReferralRecord, error)
+	InvitePartner(context.Context, common.ID, string) (ports.PartnerInvitationRecord, error)
 	ShareLinks(context.Context, common.ID) (string, string, int, error)
 	CampaignLinks(context.Context, common.ID) ([]ports.AffiliateCampaignLinkRecord, error)
 	CreateCampaignLink(context.Context, common.ID, common.ID, string, string, string) (ports.AffiliateCampaignLinkRecord, error)
@@ -91,6 +92,7 @@ func (handler Handler) Register(router chi.Router) {
 	router.With(handler.authenticate).Get("/affiliate/conversions", handler.conversions)
 	router.With(handler.authenticate).Get("/affiliate/payouts", handler.payouts)
 	router.With(handler.authenticate).Get("/affiliate/referrals", handler.referrals)
+	router.With(handler.authenticate).Post("/affiliate/invitations", handler.invitePartner)
 	router.With(handler.authenticate).Get("/affiliate/share-links", handler.shareLinks)
 	router.With(handler.authenticate).Get("/affiliate/share-links/qr.png", handler.shareLinkQR)
 	router.With(handler.authenticate).Get("/affiliate/campaign-links", handler.campaignLinks)
@@ -117,6 +119,10 @@ type tokenRequest struct {
 }
 
 type recoveryRequest struct {
+	Email string `json:"email"`
+}
+
+type partnerInvitationRequest struct {
 	Email string `json:"email"`
 }
 
@@ -429,6 +435,26 @@ func (handler Handler) referrals(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"referrals": records})
+}
+
+func (handler Handler) invitePartner(w http.ResponseWriter, r *http.Request) {
+	principal, ok := principalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+	var request partnerInvitationRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	record, err := handler.service.InvitePartner(r.Context(), principal.AffiliateID, request.Email)
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"invitation_id": record.InvitationID.String(), "invitee_email": record.InviteeEmail, "created_at": record.CreatedAt.Format(time.RFC3339)})
 }
 
 func (handler Handler) shareLinks(w http.ResponseWriter, r *http.Request) {

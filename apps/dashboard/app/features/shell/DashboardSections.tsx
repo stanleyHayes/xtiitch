@@ -16,8 +16,6 @@ import { MeasurementsSection } from "../settings/MeasurementsSection";
 import { SettingsSection } from "../settings/SettingsSection";
 import { PlanSections, type PlanSectionData } from "./PlanSections";
 import { DashboardMetrics } from "./DashboardMetrics";
-import { AffiliatePanel } from "../affiliates/AffiliatePanel";
-import type { BusinessAffiliateData } from "../affiliates/types";
 import type {
   AvailabilityWindow,
   BookingSummary,
@@ -71,7 +69,6 @@ export function DashboardSections({
   waitlistEntries,
   deliveryZones,
   designs,
-  affiliates,
   currentUser,
   orderFilter,
   action,
@@ -133,7 +130,6 @@ export function DashboardSections({
   waitlistEntries: WaitlistEntry[];
   deliveryZones: DeliveryZone[];
   designs: Design[];
-  affiliates: BusinessAffiliateData;
   currentUser: CurrentUser;
   orderFilter: string;
   action: DashboardActionData;
@@ -243,16 +239,6 @@ export function DashboardSections({
                 orders={orders}
                 payouts={payouts}
                 error={action.moneyError}
-              />
-            )}
-
-            {canManage && section === "affiliates" && (
-              <AffiliatePanel
-                data={affiliates}
-                collections={collections}
-                designs={designs}
-                storeHandle={profile.handle}
-                action={action}
               />
             )}
 
