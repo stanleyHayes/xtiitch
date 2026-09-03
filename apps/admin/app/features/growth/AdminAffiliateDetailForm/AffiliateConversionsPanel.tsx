@@ -7,7 +7,6 @@ import MenuItem from "@mui/material/MenuItem";
 import Chip from "@mui/material/Chip";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
 import PaymentsRounded from "@mui/icons-material/PaymentsRounded";
-import SwapHorizRounded from "@mui/icons-material/SwapHorizRounded";
 import UndoRounded from "@mui/icons-material/UndoRounded";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
@@ -45,11 +44,9 @@ function conversionStatusLabel(
 export function AffiliateConversionsPanel({
   affiliate,
   performance,
-  affiliates,
 }: {
   affiliate: AdminAffiliate;
   performance?: AdminAffiliateAttribution;
-  affiliates: AdminAffiliate[];
 }) {
 	const [statusFilter, setStatusFilter] = useState("all");
 	const [query, setQuery] = useState("");
@@ -99,7 +96,7 @@ export function AffiliateConversionsPanel({
             <TextField size="small" type="date" label="From date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
           </Stack>
           <Stack spacing={0.75} sx={{ mt: 1 }}>
-            {conversions.map((conversion) => { // eslint-disable-line max-lines-per-function -- conversion workflow renderer; refactor in follow-up
+            {conversions.map((conversion) => {
               const actions = affiliateConversionActions(
                 conversion.status,
                 conversion.conversionType,
@@ -202,58 +199,6 @@ export function AffiliateConversionsPanel({
                             </IconButton></Tooltip>
                           ))}
                         </Stack>
-                      </Stack>
-                    </Form>
-                  ) : null}
-                  {conversion.businessId ? (
-                    <Form method="post">
-                      <input
-                        type="hidden"
-                        name="intent"
-                        value="admin-affiliate-attribution:correct"
-                      />
-                      <input
-                        type="hidden"
-                        name="business_id"
-                        value={conversion.businessId}
-                      />
-                      <Stack
-                        direction={{ xs: "column", sm: "row" }}
-                        spacing={1}
-                      >
-                        <TextField
-                          select
-                          required
-                          label="Correct attribution to"
-                          name="affiliate_id"
-                          size="small"
-                          sx={{ minWidth: 220 }}
-                        >
-                          {affiliates
-                            .filter((item) => item.status === "active")
-                            .map((item) => (
-                              <MenuItem
-                                key={item.affiliateId}
-                                value={item.affiliateId}
-                              >
-                                {item.displayName} ({item.code})
-                              </MenuItem>
-                            ))}
-                        </TextField>
-                        <TextField
-                          required
-                          label="Correction reason"
-                          name="reason"
-                          size="small"
-                          sx={{ flex: 1 }}
-                        />
-                        <Tooltip title="Correct attribution"><IconButton
-                          type="submit"
-                          color="warning"
-                          aria-label="Correct attribution"
-                        >
-                          <SwapHorizRounded />
-                        </IconButton></Tooltip>
                       </Stack>
                     </Form>
                   ) : null}

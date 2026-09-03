@@ -2034,3 +2034,11 @@ Status: `[x] implemented and locally verified`
 - `[x]` Payout history spans all Affiliates, showing the batch reference, status, the number of commissions it settled and its date; commission rows already carry their payout batch ID, connecting a payout to the commissions underneath it.
 - `[x]` Adjustments continue to net off future payouts rather than rewriting a settled batch.
 - `[x]` Verification: Admin type-check, 12 Admin tests, targeted ESLint, production build, and the full Go suite against a real PostgreSQL.
+
+### Admin brief follow-up — one home for attribution correction — 2026-09-03
+
+- `[x]` Removed the duplicate attribution-correction form from each commission row; correcting attribution now happens only on the referral it corrects.
+- `[x]` A commission row is a payment, not an attribution, so offering reassignment there implied the correction applied to that one payment rather than to the business's future attribution.
+- `[x]` The correction path itself is unchanged: same intent, same mandatory target and reason, same audit event carrying the previous Affiliate.
+- `[x]` The commissions panel no longer needs the Affiliate list, so the prop, its icon import and a stale lint suppression went with it.
+- `[x]` Verification: Admin type-check, 12 Admin tests, ESLint across the detail form, and production build.

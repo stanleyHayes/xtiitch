@@ -40,7 +40,6 @@ export function AdminAffiliateDetailForm({
       <AffiliateConversionsPanel
         affiliate={affiliate}
         performance={performance}
-        affiliates={affiliates}
       />
       <AffiliatePayoutsPanel affiliate={affiliate} performance={performance} />
       <AffiliateInvitationsPanel performance={performance} />
