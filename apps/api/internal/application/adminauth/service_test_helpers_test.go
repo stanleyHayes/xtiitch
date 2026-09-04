@@ -426,8 +426,13 @@ type fakeAdminSessions struct {
 }
 
 type fakeAdminAudits struct {
-	created []ports.CreateAdminAuditEventInput
-	events  []ports.AdminAuditEventRecord
+	created   []ports.CreateAdminAuditEventInput
+	events    []ports.AdminAuditEventRecord
+	sweepRuns []ports.SweepRunRecord
+}
+
+func (repo *fakeAdminAudits) ListLatestSweepRuns(_ context.Context) ([]ports.SweepRunRecord, error) {
+	return repo.sweepRuns, nil
 }
 
 func (repo *fakeAdminAudits) CreateAdminAuditEvent(

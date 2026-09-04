@@ -46,6 +46,7 @@ type AdminUserRepository interface {
 type AdminAuditRepository interface {
 	CreateAdminAuditEvent(ctx context.Context, input CreateAdminAuditEventInput) (AdminAuditEventRecord, error)
 	ListAdminAuditEvents(ctx context.Context, input ListAdminAuditEventsInput) ([]AdminAuditEventRecord, error)
+	ListLatestSweepRuns(ctx context.Context) ([]SweepRunRecord, error)
 }
 
 type AdminSessionRepository interface {

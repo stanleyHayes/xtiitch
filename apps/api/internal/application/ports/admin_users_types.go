@@ -128,6 +128,18 @@ type CreateAdminAuditEventInput struct {
 	UserAgent    string
 }
 
+// SweepRunRecord is the freshness of one scheduled worker sweep.
+//
+// LastSucceededAt is tracked separately from LastRunAt because a sweep that runs
+// every hour and fails every time looks alive by run time alone.
+type SweepRunRecord struct {
+	SweepName       string
+	LastRunAt       time.Time
+	LastSucceededAt time.Time
+	LastSucceeded   bool
+	LastError       string
+}
+
 type ListAdminAuditEventsInput struct {
 	Limit    int
 	Offset   int

@@ -438,6 +438,42 @@ func (s Service) GetOperationsHealth(
 		})
 	}
 
+	// Scheduled sweeps. The worker logs failures rather than throwing so a
+	// flapping API cannot retry-storm the queue, which means a sweep that stops
+	// firing produces no error anywhere — recurring charges could stop for a week
+	// and the console would look healthy. Staleness is the only symptom, so it is
+	// what gets reported.
+	if allowed[admindomain.PermissionManageSettings] && s.audits != nil {
+		runs, sweepErr := s.audits.ListLatestSweepRuns(ctx)
+		if sweepErr == nil {
+			now := s.clock.Now()
+			for _, run := range runs {
+				stale := run.LastSucceededAt.IsZero() ||
+					now.Sub(run.LastSucceededAt) > sweepStaleAfter
+				if !stale && run.LastSucceeded {
+					continue
+				}
+				value := "never succeeded"
+				if !run.LastSucceededAt.IsZero() {
+					value = "last succeeded " + humanAgo(now.Sub(run.LastSucceededAt))
+				}
+				helper := "Scheduled sweep has not completed successfully."
+				if run.LastError != "" {
+					helper = "Last failure: " + run.LastError
+				}
+				addHealthSignal(&result, OperationsHealthSignal{
+					ID:          "sweep-" + run.SweepName,
+					Label:       run.SweepName,
+					Value:       value,
+					Helper:      helper,
+					Status:      healthStatus(stale, !run.LastSucceeded),
+					Target:      "health",
+					TargetLabel: "Scheduled work",
+				})
+			}
+		}
+	}
+
 	if len(result.Signals) == 0 {
 		return OperationsHealthResult{}, authdomain.ErrForbidden
 	}
@@ -562,4 +598,24 @@ func operationsHealthNeedsBusinessRepo(allowed map[admindomain.Permission]bool) 
 		allowed[admindomain.PermissionManageGrowth] ||
 		allowed[admindomain.PermissionManageRisk] ||
 		allowed[admindomain.PermissionManageSupport]
+}
+
+// sweepStaleAfter is how long a scheduled sweep may go without a success before
+// the console calls it out.
+//
+// The slowest sweep on the schedule runs daily, so a day and a half tolerates one
+// missed run plus clock drift without crying wolf, while still surfacing a sweep
+// that has genuinely stopped long before anyone notices the money stopped moving.
+const sweepStaleAfter = 36 * time.Hour
+
+// humanAgo renders a duration the way an operator reads it.
+func humanAgo(d time.Duration) string {
+	switch {
+	case d < time.Hour:
+		return intString(int(d.Minutes())) + "m ago"
+	case d < 48*time.Hour:
+		return intString(int(d.Hours())) + "h ago"
+	default:
+		return intString(int(d.Hours()/24)) + "d ago"
+	}
 }

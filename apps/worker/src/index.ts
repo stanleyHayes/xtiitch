@@ -60,7 +60,10 @@ const internalSweeps = [
 	},
 ] as const;
 
+import { PostgresSweepRunStore, recordSweepRun } from "./sweep-runs.js";
+
 const store = new PostgresOutboxStore(config.databaseUrl);
+const sweepRunStore = new PostgresSweepRunStore(config.databaseUrl);
 const billingStore = new PostgresSubscriptionBillingSweepStore(
   config.databaseUrl,
 );
@@ -137,9 +140,21 @@ const worker = new Worker(
         }
         // Failures are logged, not thrown: a flapping API must not retry-storm
         // the queue — the next scheduled run fires the sweep again.
+        const startedAt = new Date();
         const result = await runInternalSweep({
           client: internalClient,
           path: sweep.path,
+        });
+        // Written down whether it worked or not. A sweep that silently stops is
+        // visible here by the absence of recent rows, which is the failure the
+        // log alone could never surface.
+        await recordSweepRun(sweepRunStore, {
+          sweepName: sweep.name,
+          startedAt,
+          finishedAt: new Date(),
+          succeeded: result.ok,
+          responseStatus: result.status,
+          error: result.error,
         });
         if (result.ok) {
           console.log(

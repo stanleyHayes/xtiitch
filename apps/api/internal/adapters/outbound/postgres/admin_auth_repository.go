@@ -503,3 +503,43 @@ func adminEmailTaken(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation && pgErr.ConstraintName == "admin_users_email_unique_idx"
 }
+
+// ListLatestSweepRuns reports the freshness of each scheduled worker sweep.
+//
+// One row per sweep name: when it last ran, when it last SUCCEEDED, and why it
+// failed if it did. The two timestamps are separate on purpose — a sweep that
+// fires hourly and fails every time is alive by run time and dead by outcome.
+func (repo AdminAuthRepository) ListLatestSweepRuns(ctx context.Context) ([]ports.SweepRunRecord, error) {
+	const query = `
+		select
+			sweep_name,
+			max(started_at)                                        as last_run_at,
+			coalesce(max(started_at) filter (where succeeded), 'epoch'::timestamptz) as last_succeeded_at,
+			(array_agg(succeeded order by started_at desc))[1]      as last_succeeded,
+			coalesce((array_agg(coalesce(error, '') order by started_at desc))[1], '') as last_error
+		from worker_sweep_runs
+		group by sweep_name
+		order by sweep_name
+	`
+	rows, err := repo.pool.Query(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	records := []ports.SweepRunRecord{}
+	for rows.Next() {
+		var record ports.SweepRunRecord
+		if err := rows.Scan(
+			&record.SweepName,
+			&record.LastRunAt,
+			&record.LastSucceededAt,
+			&record.LastSucceeded,
+			&record.LastError,
+		); err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	return records, rows.Err()
+}
