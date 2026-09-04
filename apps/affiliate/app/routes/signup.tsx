@@ -35,7 +35,7 @@ export const meta: MetaFunction = () => [
   },
 ];
 
-// Signup provisions an affiliate under the active default programme and sends
+// Signup provisions an affiliate under the active default program and sends
 // an activation link. Commission remains configurable centrally by admins.
 const CHANNELS = [
   { value: "instagram", label: "Instagram", icon: InstagramLogo },
@@ -90,7 +90,7 @@ export async function action({ request }: ActionFunctionArgs) {
   const form = await request.formData();
   const consent = form.get("consent") === "on";
   if (!consent) {
-    return { error: "Please accept the programme terms to join." };
+    return { error: "Please accept the Program terms to join." };
   }
 
   const channels = form
@@ -253,7 +253,7 @@ export default function Signup() {
     const data = new FormData(event.currentTarget);
     if (data.get("consent") !== "on") {
       event.preventDefault();
-      setStepError("Please accept the programme terms to join.");
+      setStepError("Please accept the Program terms to join.");
     }
   };
 
@@ -451,7 +451,7 @@ export default function Signup() {
               <Link to="/terms" target="_blank" rel="noopener noreferrer">
 								Affiliate Program terms
               </Link>
-              , and agree to receive programme and account messages.
+              , and agree to receive Program and account messages.
             </span>
           </label>
         </div>

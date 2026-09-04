@@ -1154,6 +1154,49 @@ input[type="radio"]:checked::before {
   font-size: 1.02rem;
 }
 
+/* The plain-language summary above the legal terms. Visually separated so it
+   reads as orientation rather than as one more clause an Affiliate can skim
+   past — it is the only part most people will actually read. */
+.doc-summary {
+  margin-bottom: 2.5rem;
+  padding: 1.35rem 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.doc-summary h2 {
+  margin-bottom: 0.8rem;
+  font-size: 1.2rem;
+  letter-spacing: -0.02em;
+}
+
+.doc-summary p {
+  margin-bottom: 0.8rem;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.doc-summary p:last-child {
+  margin-bottom: 0;
+}
+
+.doc-summary-note {
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+.doc-list {
+  margin: 0 0 0.9rem;
+  padding-left: 1.15rem;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.doc-list li {
+  margin-bottom: 0.3rem;
+}
+
 .doc-section {
   margin-bottom: 1.75rem;
 }
