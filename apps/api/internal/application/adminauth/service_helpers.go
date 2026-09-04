@@ -47,6 +47,20 @@ func normalizeEmail(value string) (string, error) {
 	return strings.ToLower(parsed.Address), nil
 }
 
+// HasPermission reports whether a role holds a permission, resolved live from the
+// database like every other check here, so a role edit takes effect immediately.
+//
+// Exported for surfaces that live outside this package but must answer to the same
+// role model: without it they can only ask "is this a valid admin token", which is
+// authentication, not authorisation.
+func (s Service) HasPermission(
+	ctx context.Context,
+	role admindomain.Role,
+	permission admindomain.Permission,
+) error {
+	return s.authorizePermission(ctx, role, permission)
+}
+
 func (s Service) authorizePermission(
 	ctx context.Context,
 	role admindomain.Role,

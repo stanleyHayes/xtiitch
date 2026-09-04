@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	adminauthhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/adminauth"
+	admindomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/admin"
 	marketingapp "github.com/xcreativs/xtiitch/apps/api/internal/application/marketingwaitlist"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 )
@@ -26,13 +28,23 @@ type AdminAuthenticator interface {
 	Middleware(next http.Handler) http.Handler
 }
 
+// AdminAuthorizer answers whether the caller's role may see marketing leads.
+//
+// Authentication alone is not enough here: a lead carries a person's name,
+// business, phone, email and free-text message, which is the same class of data
+// the customer directory gates on a permission.
+type AdminAuthorizer interface {
+	HasPermission(ctx context.Context, role admindomain.Role, permission admindomain.Permission) error
+}
+
 type Handler struct {
 	service    Service
 	adminAuthn AdminAuthenticator
+	adminAuthz AdminAuthorizer
 }
 
-func NewHandler(service Service, adminAuthn AdminAuthenticator) Handler {
-	return Handler{service: service, adminAuthn: adminAuthn}
+func NewHandler(service Service, adminAuthn AdminAuthenticator, adminAuthz AdminAuthorizer) Handler {
+	return Handler{service: service, adminAuthn: adminAuthn, adminAuthz: adminAuthz}
 }
 
 func (handler Handler) Register(router chi.Router) {
@@ -98,6 +110,18 @@ func (handler Handler) submit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (handler Handler) leads(w http.ResponseWriter, r *http.Request) {
+	// A valid admin token is not authority to read marketing leads. Support holds
+	// manage_support and view_audit only, and must not see this.
+	principal, ok := adminauthhttp.PrincipalFromContext(r.Context())
+	if !ok || handler.adminAuthz == nil {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	if err := handler.adminAuthz.HasPermission(r.Context(), principal.Role, admindomain.PermissionManageGrowth); err != nil {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+
 	records, err := handler.service.ListLeads(r.Context(), 0)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error")

@@ -452,7 +452,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		},
 		adminauthhttp.NewHandler(adminAuthService, adminAuthenticator),
 		affiliateauthhttp.NewHandler(affiliateAuthService, jwtIssuer),
-		marketinghttp.NewHandler(marketingWaitlistService, adminAuthenticator),
+		marketinghttp.NewHandler(marketingWaitlistService, adminAuthenticator, adminAuthService),
 		authhttp.NewHandler(authService, authenticator),
 		customerauthhttp.NewHandler(customerAuthService, jwtIssuer),
 		aisearchhttp.NewHandler(aiSearchService, jwtIssuer, cfg.JWTSigningKey),
