@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -267,12 +269,38 @@ func (repo AdminAuthRepository) ListAdminAuditEvents(
 			created_at
 		from admin_audit_events
 	`
-	args := []any{limit}
-	if input.Severity.Valid() {
-		query += " where severity = $2"
-		args = append(args, string(input.Severity))
+	offset := input.Offset
+	if offset < 0 {
+		offset = 0
 	}
-	query += " order by created_at desc limit $1"
+
+	// Placeholders are numbered as the arguments are appended, so adding a filter
+	// cannot silently renumber the ones already there.
+	args := []any{}
+	conditions := []string{}
+	condition := func(clause string, value any) {
+		args = append(args, value)
+		conditions = append(conditions, fmt.Sprintf(clause, len(args)))
+	}
+	if input.Severity.Valid() {
+		condition("severity = $%d", string(input.Severity))
+	}
+	if strings.TrimSpace(input.ActorEmail) != "" {
+		condition("actor_email = $%d", strings.ToLower(strings.TrimSpace(input.ActorEmail)))
+	}
+	if !input.From.IsZero() {
+		condition("created_at >= $%d", input.From)
+	}
+	if !input.To.IsZero() {
+		condition("created_at <= $%d", input.To)
+	}
+	if len(conditions) > 0 {
+		query += " where " + strings.Join(conditions, " and ")
+	}
+	args = append(args, limit)
+	query += fmt.Sprintf(" order by created_at desc limit $%d", len(args))
+	args = append(args, offset)
+	query += fmt.Sprintf(" offset $%d", len(args))
 
 	rows, err := repo.pool.Query(ctx, query, args...)
 	if err != nil {

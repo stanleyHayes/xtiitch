@@ -130,7 +130,14 @@ type CreateAdminAuditEventInput struct {
 
 type ListAdminAuditEventsInput struct {
 	Limit    int
+	Offset   int
 	Severity admindomain.AuditSeverity
+	// ActorEmail narrows the trail to one operator, which is the question asked
+	// during an investigation.
+	ActorEmail string
+	// From and To bound the window. Zero means unbounded on that side.
+	From time.Time
+	To   time.Time
 }
 
 type CreateAdminSessionInput struct {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	admindomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/admin"
@@ -16,9 +17,13 @@ type ListUsersCommand struct {
 }
 
 type ListAuditEventsCommand struct {
-	ActorRole admindomain.Role
-	Severity  admindomain.AuditSeverity
-	Limit     int
+	ActorRole  admindomain.Role
+	Severity   admindomain.AuditSeverity
+	Limit      int
+	Offset     int
+	ActorEmail string
+	From       time.Time
+	To         time.Time
 }
 
 type UpdateProfileCommand struct {
@@ -104,9 +109,17 @@ func (s Service) ListAuditEvents(ctx context.Context, cmd ListAuditEventsCommand
 		return nil, authdomain.ErrInvalidInput
 	}
 
+	if !cmd.From.IsZero() && !cmd.To.IsZero() && cmd.To.Before(cmd.From) {
+		return nil, authdomain.ErrInvalidInput
+	}
+
 	return s.audits.ListAdminAuditEvents(ctx, ports.ListAdminAuditEventsInput{
-		Limit:    cmd.Limit,
-		Severity: cmd.Severity,
+		Limit:      cmd.Limit,
+		Offset:     cmd.Offset,
+		Severity:   cmd.Severity,
+		ActorEmail: cmd.ActorEmail,
+		From:       cmd.From,
+		To:         cmd.To,
 	})
 }
 

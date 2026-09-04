@@ -2,6 +2,7 @@ package adminauthhttp
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -202,9 +203,22 @@ func (handler Handler) auditEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	query := r.URL.Query()
+	from, okFrom := parseAuditTime(query.Get("from"))
+	to, okTo := parseAuditTime(query.Get("to"))
+	if !okFrom || !okTo {
+		writeError(w, http.StatusBadRequest, "invalid_date")
+		return
+	}
+
 	events, err := handler.service.ListAuditEvents(r.Context(), adminauthapp.ListAuditEventsCommand{
-		ActorRole: principal.Role,
-		Severity:  admindomain.AuditSeverity(strings.TrimSpace(r.URL.Query().Get("severity"))),
+		ActorRole:  principal.Role,
+		Severity:   admindomain.AuditSeverity(strings.TrimSpace(query.Get("severity"))),
+		Limit:      atoiOr(query.Get("limit"), 0),
+		Offset:     atoiOr(query.Get("offset"), 0),
+		ActorEmail: strings.TrimSpace(query.Get("actor")),
+		From:       from,
+		To:         to,
 	})
 	if err != nil {
 		status, code := authError(err)
@@ -282,4 +296,32 @@ func businessRiskLevel(record ports.AdminBusinessRecord) string {
 		return "medium"
 	}
 	return "low"
+}
+
+// atoiOr reads a positive integer query parameter, falling back when it is absent
+// or unreadable. A malformed limit should not fail the request; it should mean
+// "use the default".
+func atoiOr(raw string, fallback int) int {
+	value, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || value < 0 {
+		return fallback
+	}
+	return value
+}
+
+// parseAuditTime accepts an RFC3339 timestamp or a plain date. An unparseable
+// value is reported rather than ignored, so a mistyped bound cannot silently
+// widen the window an investigator thinks they are looking at.
+func parseAuditTime(raw string) (time.Time, bool) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return time.Time{}, true
+	}
+	if parsed, err := time.Parse(time.RFC3339, trimmed); err == nil {
+		return parsed, true
+	}
+	if parsed, err := time.Parse("2006-01-02", trimmed); err == nil {
+		return parsed, true
+	}
+	return time.Time{}, false
 }
