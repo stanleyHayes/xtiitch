@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router";
 import {
   CheckIcon,
   CopyIcon,
@@ -17,6 +18,16 @@ export function ShareCard({
 }) {
   const [copied, setCopied] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [search] = useSearchParams();
+
+  // The QR route sends the affiliate back here with ?qr=unavailable when it
+  // cannot produce the code, rather than replacing the portal with a
+  // full-screen error page. Keep them on the tab they were using.
+  const qrUnavailable = search.get("qr") === "unavailable";
+  const tab = search.get("tab") ?? "";
+  const qrHref = tab
+    ? `/portal/qr.png?tab=${encodeURIComponent(tab)}`
+    : "/portal/qr.png";
 
   // "Copied" used to latch on forever. Reset it so a second copy reads as a
   // second copy rather than a button that did nothing.
@@ -81,11 +92,18 @@ export function ShareCard({
           <ShareIcon />
           Share
         </button>
-        <a className="small-button secondary" href="/portal/qr.png" download>
+        <a className="small-button secondary" href={qrHref} download>
           <DownloadIcon />
           Download QR
         </a>
       </div>
+      {qrUnavailable ? (
+        <p className="share-note error-text" role="alert">
+          We couldn't build your QR code just then. Your link above still works
+          — try the download again in a moment, and contact support if it keeps
+          failing.
+        </p>
+      ) : null}
       {failed ? (
         <p className="share-note error-text" role="alert">
           Couldn't copy automatically — select the link above and copy it.

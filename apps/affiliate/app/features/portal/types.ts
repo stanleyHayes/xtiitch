@@ -97,8 +97,11 @@ export type PortalData = {
   payouts: Payout[];
   share: ShareLinks;
   campaigns: CampaignLink[];
-  profile: PayoutProfile;
-  preferences: NotificationPreferences;
+  // Null when the endpoint failed on this load. Settings must say so rather
+  // than render an empty form that reads as "nothing on file" — see
+  // load-portal.server.ts.
+  profile: PayoutProfile | null;
+  preferences: NotificationPreferences | null;
   account: Account | null;
   referrals: PartnerReferral[];
   displayName: string | undefined;

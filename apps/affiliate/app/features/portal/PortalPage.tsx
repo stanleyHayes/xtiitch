@@ -86,7 +86,12 @@ export function PortalPage({
           achievements={data.dashboard.milestone_achievements ?? []}
           onView={() => selectTab("milestones")}
         />
-        {!data.profile.masked_identifier && active !== "settings" ? (
+        {/* profile === null means the lookup failed, not that there is no
+            payout account — nagging someone to "set up payouts" they already
+            set up is worse than showing nothing. */}
+        {data.profile !== null &&
+        !data.profile.masked_identifier &&
+        active !== "settings" ? (
           <button
             className="payout-setup-banner"
             type="button"

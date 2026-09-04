@@ -1,3 +1,4 @@
+import { useSearchParams } from "react-router";
 import { DownloadIcon, WalletIcon } from "../../components/Icons";
 import { formatDate, formatMoney } from "./format";
 import type { Conversion, Dashboard, Payout } from "./types";
@@ -35,6 +36,12 @@ export function EarningsSection({
   conversions: Conversion[];
   payouts: Payout[];
 }) {
+  // The CSV route sends the affiliate back here with ?export=unavailable when
+  // it cannot build the file, rather than replacing the portal with a
+  // full-screen error page. See routes/report.tsx.
+  const [search] = useSearchParams();
+  const exportUnavailable = search.get("export") === "unavailable";
+
   return (
     <div className="section">
       <div className="section-head">
@@ -54,6 +61,14 @@ export function EarningsSection({
           Export CSV
         </a>
       </div>
+
+      {exportUnavailable ? (
+        <p className="section-note error-text" role="alert">
+          We couldn't build your CSV export just then. Your earnings below are
+          unaffected — try again in a moment, and contact support if it keeps
+          failing.
+        </p>
+      ) : null}
 
       <section className="balance-grid" aria-label="Commission balance">
         <article className="balance balance-positive">

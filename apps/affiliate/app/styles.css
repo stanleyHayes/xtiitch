@@ -1765,9 +1765,17 @@ input[type="radio"]:checked::before {
   overflow-wrap: anywhere;
 }
 
+/* Stacked, full-width actions. Side by side, the three labels ("Copy link",
+   "Share", "Download QR") wrapped to two lines each inside cramped boxes on a
+   phone; one per row keeps every label on a single line at any width. */
 .share-actions {
-  display: flex;
+  display: grid;
   gap: 0.5rem;
+}
+
+.share-actions .small-button {
+  justify-content: center;
+  padding-block: 0.7rem;
 }
 
 .share-note {
@@ -1775,6 +1783,34 @@ input[type="radio"]:checked::before {
   color: var(--muted);
   font-size: 0.78rem;
   line-height: 1.45;
+}
+
+/* `.error-text` is declared far earlier in this file, so at equal specificity
+   `.share-note`'s muted colour won and every failure in this card — the copy
+   fallback, and now the QR one — was painted the same grey as the ordinary
+   help text below it. An alert that looks like a footnote is not an alert. */
+.share-note.error-text {
+  color: var(--negative);
+}
+
+/* Same source-order fix again, for the Settings cards: a load failure shown
+   with role="alert" must not be painted the same grey as ordinary help text. */
+.current-value.error-text {
+  color: var(--negative);
+}
+
+/* Section-level notice (e.g. a failed CSV export on Earnings). Same reasoning
+   as .share-note.error-text: declared after `.error-text`, so it restates the
+   colour rather than losing to source order. */
+.section-note {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+
+.section-note.error-text {
+  color: var(--negative);
 }
 
 .stat-row {

@@ -67,14 +67,14 @@ export function SettingsSection({
   account,
   result,
 }: {
-  profile: PayoutProfile;
-  preferences: NotificationPreferences;
+  profile: PayoutProfile | null;
+  preferences: NotificationPreferences | null;
   account: Account | null;
   result?: PortalActionResult;
 }) {
   const navigation = useNavigation();
   const [payoutMethod, setPayoutMethod] = useState(
-    profile.payout_method || "mobile_money",
+    profile?.payout_method || "mobile_money",
   );
   const submittingIntent =
     navigation.state === "submitting"
@@ -125,16 +125,27 @@ export function SettingsSection({
             </div>
           </div>
 
-          {profile.masked_identifier ? (
-            <p className="current-value">
-              Currently paying to <strong>{profile.masked_identifier}</strong>
-              {profile.provider_name ? ` · ${profile.provider_name}` : ""}
+          {/* profile === null means the endpoint failed on this load, NOT that
+              the affiliate has no payout account. Saying "none on file" there
+              would invite someone to re-enter bank details that were never
+              lost, so the form is withheld until we actually know. */}
+          {profile === null ? (
+            <p className="current-value error-text" role="alert">
+              We couldn't load your payout details just then. Nothing has
+              changed — refresh in a moment to edit them.
             </p>
           ) : (
-            <p className="current-value muted">
-              No payout account on file yet — add one to get paid.
-            </p>
-          )}
+            <>
+              {profile.masked_identifier ? (
+                <p className="current-value">
+                  Currently paying to <strong>{profile.masked_identifier}</strong>
+                  {profile.provider_name ? ` · ${profile.provider_name}` : ""}
+                </p>
+              ) : (
+                <p className="current-value muted">
+                  No payout account on file yet — add one to get paid.
+                </p>
+              )}
 
           <Form method="post" className="compact-form">
             <input type="hidden" name="intent" value="payout" />
@@ -187,6 +198,8 @@ export function SettingsSection({
                 : "Save payout details"}
             </button>
           </Form>
+            </>
+          )}
         </section>
 
         <div className="settings-column">
@@ -200,6 +213,12 @@ export function SettingsSection({
                 <p className="muted">Choose what we email you about.</p>
               </div>
             </div>
+            {preferences === null ? (
+              <p className="current-value error-text" role="alert">
+                We couldn't load your notification settings just then. Nothing
+                has changed — refresh in a moment to edit them.
+              </p>
+            ) : (
             <Form method="post" className="compact-form">
               <input type="hidden" name="intent" value="notifications" />
               {NOTIFICATIONS.map((item) => (
@@ -226,6 +245,7 @@ export function SettingsSection({
                   : "Save preferences"}
               </button>
             </Form>
+            )}
           </section>
 
           <section className="card">
