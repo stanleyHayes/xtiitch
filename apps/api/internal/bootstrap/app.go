@@ -457,7 +457,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		customerauthhttp.NewHandler(customerAuthService, jwtIssuer),
 		aisearchhttp.NewHandler(aiSearchService, jwtIssuer, cfg.JWTSigningKey),
 		aiassisthttp.NewHandler(aiAssistService, authenticator),
-		aiassisthttp.NewAdminHandler(aiAssistService, adminAuthenticator),
+		aiassisthttp.NewAdminHandler(aiAssistService, adminAuthenticator, adminAuthService),
 		whatsapphttp.NewHandler(whatsAppBotService, cfg.WhatsAppVerifyToken, cfg.WhatsAppAppSecret, logger),
 		paymentshttp.NewHandler(paymentService, authenticator),
 		cataloguehttp.NewHandler(catalogueService, authenticator),

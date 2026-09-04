@@ -25,13 +25,44 @@ type AdminService interface {
 // middleware (same as the rest of /v1/admin) and is gated on the
 // review_businesses permission, matching how admin already mutates a business by
 // id (suspend/verify).
+// AdminAuthorizer resolves a role's permissions live from the database, so the
+// roles editor governs these endpoints too.
+type AdminAuthorizer interface {
+	HasPermission(ctx context.Context, role admindomain.Role, permission admindomain.Permission) error
+}
+
 type AdminHandler struct {
 	service       AdminService
 	authenticator adminauthhttp.Authenticator
+	authorizer    AdminAuthorizer
 }
 
-func NewAdminHandler(service AdminService, authenticator adminauthhttp.Authenticator) AdminHandler {
-	return AdminHandler{service: service, authenticator: authenticator}
+func NewAdminHandler(
+	service AdminService,
+	authenticator adminauthhttp.Authenticator,
+	authorizer AdminAuthorizer,
+) AdminHandler {
+	return AdminHandler{service: service, authenticator: authenticator, authorizer: authorizer}
+}
+
+// can reports whether the caller may act, asking the same live role model the
+// rest of /admin uses.
+//
+// This used to consult the static role catalogue, which meant PATCH
+// /admin/roles/{role} did not govern these two endpoints in either direction: a
+// permission revoked in the roles editor still allowed an add-on flip, and one of
+// these endpoints charges a card. An authorisation model that the authorisation
+// editor cannot reach is a second model, and the dangerous direction is the one
+// where an administrator believes they have taken access away.
+func (handler AdminHandler) can(
+	ctx context.Context, role admindomain.Role, permission admindomain.Permission,
+) bool {
+	if handler.authorizer == nil {
+		// Fail closed. A missing authorizer is a wiring mistake, and defaulting
+		// to the static catalogue here is how the second model survived.
+		return false
+	}
+	return handler.authorizer.HasPermission(ctx, role, permission) == nil
 }
 
 func (handler AdminHandler) Register(router chi.Router) {
@@ -55,7 +86,7 @@ func (handler AdminHandler) setAddon(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "invalid_token")
 		return
 	}
-	if !roleCan(principal.Role, admindomain.PermissionReviewBusinesses) {
+	if !handler.can(r.Context(), principal.Role, admindomain.PermissionReviewBusinesses) {
 		writeError(w, http.StatusForbidden, "forbidden")
 		return
 	}
@@ -93,7 +124,7 @@ func (handler AdminHandler) runRenewalSweep(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusUnauthorized, "invalid_token")
 		return
 	}
-	if !roleCan(principal.Role, admindomain.PermissionReviewBusinesses) {
+	if !handler.can(r.Context(), principal.Role, admindomain.PermissionReviewBusinesses) {
 		writeError(w, http.StatusForbidden, "forbidden")
 		return
 	}
@@ -108,16 +139,4 @@ func (handler AdminHandler) runRenewalSweep(w http.ResponseWriter, r *http.Reque
 		"charged":   result.Charged,
 		"failed":    result.Failed,
 	})
-}
-
-// roleCan reports whether an admin role holds a permission using the static role
-// catalogue. Add-on flips are not yet role-overridable, so the domain default
-// (owner + operator can review/mutate businesses; support cannot) is authoritative.
-func roleCan(role admindomain.Role, permission admindomain.Permission) bool {
-	for _, candidate := range role.Permissions() {
-		if candidate == permission {
-			return true
-		}
-	}
-	return false
 }
