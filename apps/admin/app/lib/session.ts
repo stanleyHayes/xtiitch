@@ -15,6 +15,25 @@ type SessionData = {
 export type AdminSession = Pick<SessionData, "adminUserId" | "adminEmail" | "adminDisplayName" | "adminRole">;
 export type AdminContext = { admin: AdminSession; accessToken: string };
 
+// A development fallback is used when SESSION_SECRET is unset, but production
+// refuses to boot without a strong one. These cookies carry operator identity —
+// the highest privilege in the product — and the previous fallback was a literal
+// string committed to this repository, so any deploy missing the variable signed
+// admin sessions with a value anyone could read.
+//
+// This is the same guard the affiliate portal already applies to a lower-privilege
+// session (apps/affiliate/app/lib/session.server.ts).
+function sessionSecret(): string {
+  const value = process.env.SESSION_SECRET;
+  if (value && value.length >= 32) {
+    return value;
+  }
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("SESSION_SECRET must contain at least 32 characters");
+  }
+  return "dev-admin-session-secret-change-me";
+}
+
 const storage = createCookieSessionStorage<SessionData>({
   cookie: {
     name: "xt_admin",
@@ -22,7 +41,7 @@ const storage = createCookieSessionStorage<SessionData>({
     sameSite: "lax",
     path: "/",
     secure: process.env.NODE_ENV === "production",
-    secrets: [process.env.SESSION_SECRET ?? "dev-admin-session-secret-change-me"],
+    secrets: [sessionSecret()],
     maxAge: 60 * 60 * 12,
   },
 });
