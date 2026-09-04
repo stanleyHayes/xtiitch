@@ -31,6 +31,7 @@ type Service interface {
 	UpdatePreferences(ctx context.Context, command adminauthapp.UpdatePreferencesCommand) (ports.AdminPreferencesRecord, error)
 	GetPlatformSettings(ctx context.Context, actorRole admindomain.Role) (ports.AdminPlatformSettingsRecord, error)
 	GetPublicBranding(ctx context.Context) (adminauthapp.PublicBranding, error)
+	RecordDatasetExport(ctx context.Context, cmd adminauthapp.RecordDatasetExportCommand)
 	WhatsAppEnabled() bool
 	SMSEnabled() bool
 	PhoneOTPEnabled() bool

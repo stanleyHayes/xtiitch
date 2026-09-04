@@ -30,6 +30,15 @@ func (handler Handler) exportDatasetCSV(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	handler.service.RecordDatasetExport(r.Context(), adminauthapp.RecordDatasetExportCommand{
+		ActorUserID: principal.AdminUserID,
+		ActorRole:   principal.Role,
+		Dataset:     dataset,
+		RowCount:    len(rows) - 1, // the first row is the header
+		IPAddress:   requestIP(r),
+		UserAgent:   r.UserAgent(),
+	})
+
 	writeCSV(w, "xtiitch-admin-"+safeExportName(dataset)+".csv", rows)
 }
 

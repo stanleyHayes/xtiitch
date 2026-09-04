@@ -3,6 +3,7 @@ package adminauth
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
@@ -53,8 +54,11 @@ func (s Service) ListCustomers(ctx context.Context, cmd ListCustomersCommand) ([
 }
 
 type ExportCustomerDataCommand struct {
-	ActorRole  admindomain.Role
-	CustomerID common.ID
+	ActorUserID common.ID
+	ActorRole   admindomain.Role
+	CustomerID  common.ID
+	IPAddress   string
+	UserAgent   string
 }
 
 // ExportCustomerData assembles a Data Protection Act (Act 843) subject-access
@@ -71,7 +75,79 @@ func (s Service) ExportCustomerData(ctx context.Context, cmd ExportCustomerDataC
 		return ports.AdminCustomerExportRecord{}, authdomain.ErrInvalidInput
 	}
 
-	return s.businesses.ExportAdminCustomer(ctx, cmd.CustomerID)
+	record, err := s.businesses.ExportAdminCustomer(ctx, cmd.CustomerID)
+	if err != nil {
+		return ports.AdminCustomerExportRecord{}, err
+	}
+
+	// Reading one person's complete record is the same act as erasing it, seen
+	// from the other side, and the erasure below has always been recorded. An
+	// Act 843 subject-access export that leaves no trace cannot answer the
+	// question the Act exists to make answerable: who looked.
+	_ = s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   cmd.ActorRole,
+		Action:      "Exported customer data",
+		TargetType:  "customer",
+		TargetID:    cmd.CustomerID.String(),
+		TargetLabel: "Customer (Act 843 subject access)",
+		Summary:     "Assembled a subject-access export of one customer's personal data.",
+		Severity:    admindomain.AuditSeverityWarning,
+		Metadata:    map[string]string{"customer_id": cmd.CustomerID.String()},
+		IPAddress:   cmd.IPAddress,
+		UserAgent:   cmd.UserAgent,
+	})
+
+	return record, nil
+}
+
+// RecordDatasetExportCommand describes a bulk CSV export that has just been served.
+type RecordDatasetExportCommand struct {
+	ActorUserID common.ID
+	ActorRole   admindomain.Role
+	Dataset     string
+	RowCount    int
+	IPAddress   string
+	UserAgent   string
+}
+
+// datasetsCarryingPersonalData are the bulk exports that emit identifiable people.
+//
+// They are recorded at warning rather than info: taking every customer's email
+// and phone off the platform in one file is a different act from exporting a
+// price list, and an investigator scanning severities should see the difference.
+var datasetsCarryingPersonalData = map[string]bool{
+	"customers":  true,
+	"businesses": true,
+	"affiliates": true,
+	"users":      true,
+}
+
+// RecordDatasetExport writes a bulk export to the audit trail.
+//
+// The rows have already been assembled and authorised by the caller; this records
+// that they left. Bulk CSV was the widest unaudited read in the console — the
+// customers dataset alone emits an email and phone for every customer — and
+// without this the trail could say who changed a record but not who took a copy
+// of all of them.
+func (s Service) RecordDatasetExport(ctx context.Context, cmd RecordDatasetExportCommand) {
+	severity := admindomain.AuditSeverityInfo
+	if datasetsCarryingPersonalData[strings.ToLower(strings.TrimSpace(cmd.Dataset))] {
+		severity = admindomain.AuditSeverityWarning
+	}
+	_ = s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   cmd.ActorRole,
+		Action:      "Exported dataset",
+		TargetType:  "dataset",
+		TargetID:    cmd.Dataset,
+		TargetLabel: cmd.Dataset,
+		Summary:     fmt.Sprintf("Downloaded the %s dataset as CSV (%d row(s)).", cmd.Dataset, cmd.RowCount),
+		Severity:    severity,
+		Metadata:    map[string]string{"dataset": cmd.Dataset, "rows": strconv.Itoa(cmd.RowCount)},
+		IPAddress:   cmd.IPAddress,
+		UserAgent:   cmd.UserAgent,
+	})
 }
 
 // customerErasureConfirmation must be typed verbatim to authorise an erasure,

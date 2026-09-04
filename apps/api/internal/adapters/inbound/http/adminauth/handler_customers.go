@@ -95,8 +95,11 @@ func (handler Handler) exportCustomer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	record, err := handler.service.ExportCustomerData(r.Context(), adminauthapp.ExportCustomerDataCommand{
-		ActorRole:  principal.Role,
-		CustomerID: common.ID(chi.URLParam(r, "id")),
+		ActorUserID: principal.AdminUserID,
+		ActorRole:   principal.Role,
+		CustomerID:  common.ID(chi.URLParam(r, "id")),
+		IPAddress:   requestIP(r),
+		UserAgent:   r.UserAgent(),
 	})
 	if err != nil {
 		status, code := authError(err)
