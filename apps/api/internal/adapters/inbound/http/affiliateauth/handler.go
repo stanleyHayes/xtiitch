@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -488,13 +489,41 @@ func (handler Handler) shareLinkQR(w http.ResponseWriter, r *http.Request) {
 	}
 	_, canonicalURL, _, err := handler.service.ShareLinks(r.Context(), principal.AccountID)
 	if err != nil {
+		slog.ErrorContext(
+			r.Context(),
+			"affiliate share-link lookup failed for QR",
+			"account_id", principal.AccountID.String(),
+			"error", err,
+		)
 		status, code := authError(err)
 		writeError(w, status, code)
 		return
 	}
+	// go-qrcode rejects empty content outright ("no data to encode"). ShareLinks
+	// always appends /register?affiliate_code=…, so this should be unreachable —
+	// but unguarded it surfaces as a bare 500, and the affiliate portal renders
+	// any 500 here as a full-page error. Name it so the log says which it was.
+	if strings.TrimSpace(canonicalURL) == "" {
+		slog.ErrorContext(
+			r.Context(),
+			"affiliate QR skipped: empty share URL",
+			"account_id", principal.AccountID.String(),
+		)
+		writeError(w, http.StatusInternalServerError, "share_link_unavailable")
+		return
+	}
 	png, err := qrcode.Encode(canonicalURL, qrcode.Medium, 768)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error")
+		// Without this the only trace of a QR failure in production was an
+		// anonymous 500 in the request log, with nothing saying why.
+		slog.ErrorContext(
+			r.Context(),
+			"affiliate QR encoding failed",
+			"account_id", principal.AccountID.String(),
+			"url_length", len(canonicalURL),
+			"error", err,
+		)
+		writeError(w, http.StatusInternalServerError, "qr_encoding_failed")
 		return
 	}
 	w.Header().Set("Content-Type", "image/png")
