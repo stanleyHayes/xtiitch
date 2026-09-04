@@ -43,7 +43,45 @@ type UpdateMarketingFlagsCommand struct {
 
 // SignBrandingUploadCommand authorises an owner to obtain a signed Cloudinary
 // payload for a direct browser upload of the platform brand logo.
-func (s Service) GetPlatformSettings(ctx context.Context) (ports.AdminPlatformSettingsRecord, error) {
+// PublicBranding is the subset of platform settings a signed-out visitor may see:
+// what the platform is called, its logo, and which marketing surfaces are live.
+type PublicBranding struct {
+	PlatformName   string
+	BrandLogoURL   string
+	MarketingFlags ports.MarketingFlags
+}
+
+// GetPublicBranding reads that subset for the unauthenticated branding endpoint.
+//
+// Deliberately separate from GetPlatformSettings, which is now gated: the
+// marketing site and storefronts need the logo, and routing them through the
+// admin read is what left the VAT rate and payout threshold reachable by any
+// staff token. Naming the public path makes it a decision rather than a
+// side effect.
+func (s Service) GetPublicBranding(ctx context.Context) (PublicBranding, error) {
+	settings, err := s.users.GetAdminPlatformSettings(ctx)
+	if err != nil {
+		return PublicBranding{}, err
+	}
+	return PublicBranding{
+		PlatformName:   settings.PlatformName,
+		BrandLogoURL:   settings.BrandLogoURL,
+		MarketingFlags: settings.MarketingFlags,
+	}, nil
+}
+
+// GetPlatformSettings reads the platform configuration.
+//
+// Authorised on the same permission as writing it. These values — the VAT rate,
+// the payout review threshold — describe how the business runs, and its write
+// counterpart has always been gated; only the read was open to any staff token.
+func (s Service) GetPlatformSettings(
+	ctx context.Context,
+	actorRole admindomain.Role,
+) (ports.AdminPlatformSettingsRecord, error) {
+	if err := s.authorizePermission(ctx, actorRole, admindomain.PermissionManageSettings); err != nil {
+		return ports.AdminPlatformSettingsRecord{}, err
+	}
 	return s.users.GetAdminPlatformSettings(ctx)
 }
 

@@ -47,7 +47,7 @@ func (handler Handler) exportDatasetRows(
 		if err != nil {
 			return nil, err
 		}
-		settings, err := handler.service.GetPlatformSettings(ctx)
+		settings, err := handler.service.GetPlatformSettings(ctx, principal.Role)
 		if err != nil {
 			return nil, err
 		}
@@ -273,7 +273,7 @@ func (handler Handler) exportDatasetRows(
 		}
 		return rows, nil
 	case "roles":
-		records, err := handler.service.ListRolePermissions(ctx)
+		records, err := handler.service.ListRolePermissions(ctx, principal.Role)
 		if err != nil {
 			return nil, err
 		}
@@ -296,7 +296,7 @@ func (handler Handler) exportDatasetRows(
 		if err != nil {
 			return nil, err
 		}
-		settings, err := handler.service.GetPlatformSettings(ctx)
+		settings, err := handler.service.GetPlatformSettings(ctx, principal.Role)
 		if err != nil {
 			return nil, err
 		}

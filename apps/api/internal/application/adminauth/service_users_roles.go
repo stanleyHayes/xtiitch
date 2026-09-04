@@ -247,7 +247,29 @@ func (s Service) SignBrandingUpload(
 	return s.media.SignUpload(ctx, common.TenantScope{}, brandingUploadFolder)
 }
 
-func (s Service) ListRolePermissions(ctx context.Context) ([]ports.AdminRolePermissionsRecord, error) {
+// ListRolePermissions reads the role to permission map.
+//
+// Gated on manage_roles like its write counterpart: the map is the shape of the
+// authorisation model itself, and handing it to any staff token tells a reader
+// exactly which role to go after.
+func (s Service) ListRolePermissions(
+	ctx context.Context,
+	actorRole admindomain.Role,
+) ([]ports.AdminRolePermissionsRecord, error) {
+	if err := s.authorizePermission(ctx, actorRole, admindomain.PermissionManageRoles); err != nil {
+		return nil, err
+	}
+	return s.listRolePermissions(ctx)
+}
+
+// listRolePermissions reads the map without an authorisation check.
+//
+// It has to exist separately: authorizePermission resolves a role through this
+// map, so routing the internal read through the exported, authorised method would
+// recurse until the stack gave out. Callers inside this package are the
+// authorisation machinery itself and are already trusted; every caller outside it
+// goes through ListRolePermissions.
+func (s Service) listRolePermissions(ctx context.Context) ([]ports.AdminRolePermissionsRecord, error) {
 	records, err := s.users.ListAdminRolePermissions(ctx)
 	if err != nil {
 		return nil, err

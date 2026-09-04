@@ -100,7 +100,12 @@ func (handler Handler) updatePreferences(w http.ResponseWriter, r *http.Request)
 }
 
 func (handler Handler) roles(w http.ResponseWriter, r *http.Request) {
-	records, err := handler.service.ListRolePermissions(r.Context())
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+	records, err := handler.service.ListRolePermissions(r.Context(), principal.Role)
 	if err != nil {
 		status, code := authError(err)
 		writeError(w, status, code)

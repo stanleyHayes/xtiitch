@@ -29,7 +29,8 @@ type Service interface {
 	GetProfileSettings(ctx context.Context, adminUserID common.ID) (adminauthapp.ProfileSettingsResult, error)
 	UpdateProfile(ctx context.Context, command adminauthapp.UpdateProfileCommand) (ports.AdminUserRecord, error)
 	UpdatePreferences(ctx context.Context, command adminauthapp.UpdatePreferencesCommand) (ports.AdminPreferencesRecord, error)
-	GetPlatformSettings(ctx context.Context) (ports.AdminPlatformSettingsRecord, error)
+	GetPlatformSettings(ctx context.Context, actorRole admindomain.Role) (ports.AdminPlatformSettingsRecord, error)
+	GetPublicBranding(ctx context.Context) (adminauthapp.PublicBranding, error)
 	WhatsAppEnabled() bool
 	SMSEnabled() bool
 	PhoneOTPEnabled() bool
@@ -205,7 +206,7 @@ type Service interface {
 	ListSupportTickets(ctx context.Context, command adminauthapp.ListSupportTicketsCommand) ([]ports.AdminSupportTicketRecord, error)
 	UpdateSupportTicket(ctx context.Context, command adminauthapp.UpdateSupportTicketCommand) (ports.AdminSupportTicketRecord, error)
 	ListAuditEvents(ctx context.Context, command adminauthapp.ListAuditEventsCommand) ([]ports.AdminAuditEventRecord, error)
-	ListRolePermissions(ctx context.Context) ([]ports.AdminRolePermissionsRecord, error)
+	ListRolePermissions(ctx context.Context, actorRole admindomain.Role) ([]ports.AdminRolePermissionsRecord, error)
 	UpdateRolePermissions(ctx context.Context, command adminauthapp.UpdateRolePermissionsCommand) (ports.AdminRolePermissionsRecord, error)
 	ListUsers(ctx context.Context, command adminauthapp.ListUsersCommand) ([]ports.AdminUserRecord, error)
 	CreateUser(ctx context.Context, command adminauthapp.CreateUserCommand) (ports.AdminUserRecord, error)

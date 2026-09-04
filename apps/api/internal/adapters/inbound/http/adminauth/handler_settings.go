@@ -9,7 +9,12 @@ import (
 )
 
 func (handler Handler) platformSettings(w http.ResponseWriter, r *http.Request) {
-	settings, err := handler.service.GetPlatformSettings(r.Context())
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+	settings, err := handler.service.GetPlatformSettings(r.Context(), principal.Role)
 	if err != nil {
 		status, code := authError(err)
 		writeError(w, status, code)
@@ -117,7 +122,7 @@ func (handler Handler) signBrandingUpload(w http.ResponseWriter, r *http.Request
 // branding is a public, unauthenticated endpoint so the marketing site,
 // business dashboard, and storefronts can render the current platform logo.
 func (handler Handler) branding(w http.ResponseWriter, r *http.Request) {
-	settings, err := handler.service.GetPlatformSettings(r.Context())
+	settings, err := handler.service.GetPublicBranding(r.Context())
 	if err != nil {
 		status, code := authError(err)
 		writeError(w, status, code)

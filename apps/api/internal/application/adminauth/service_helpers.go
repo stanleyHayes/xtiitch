@@ -79,7 +79,7 @@ func (s Service) authorizePermission(
 }
 
 func (s Service) permissionsForRole(ctx context.Context, role admindomain.Role) ([]admindomain.Permission, error) {
-	records, err := s.ListRolePermissions(ctx)
+	records, err := s.listRolePermissions(ctx)
 	if err != nil {
 		return nil, err
 	}
