@@ -48,7 +48,17 @@ export async function requestJSON<T>(path: string, init: RequestInit): Promise<T
     return undefined as T;
   }
 
-  return (await response.json()) as T;
+  // Parsing is inside the guard on purpose. A truncated body, or an
+  // interstitial page from something in front of the API, throws a raw
+  // SyntaxError here — and loadAdminResource deliberately re-throws anything
+  // that is not an AdminApiError, so one malformed response reached the root
+  // ErrorBoundary and blanked the entire console. Every section has its own
+  // fallback; a bad body should cost one of them, not all of them.
+  try {
+    return (await response.json()) as T;
+  } catch {
+    throw new AdminApiError(response.status, "invalid_response");
+  }
 }
 
 export async function requestText(path: string, init: RequestInit): Promise<string> {
