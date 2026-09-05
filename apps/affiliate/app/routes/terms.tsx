@@ -16,6 +16,11 @@ export const meta: MetaFunction = () => [
 // customer purchases of a business's products) is BUILT BUT PARKED. It is
 // deliberately described here only as something Xtiitch may introduce later,
 // never as a current earning opportunity — see the closing section.
+//
+// There is no callout box above the summary. The Beta Launch notice this page
+// needs is section 15; a boxed banner in that slot read as a disclaimer about
+// the document itself, which is what the placeholder version was and what had
+// to go.
 const LAST_UPDATED = "4 September 2026";
 
 // The plain-language summary that sits above the legal terms, so an Affiliate
@@ -184,13 +189,6 @@ export default function Terms() {
         <p className="eyebrow">Xtiitch Affiliate Program</p>
         <h1>Terms and conditions</h1>
         <p className="muted doc-meta">Last updated {LAST_UPDATED}</p>
-
-        <div className="doc-banner" role="note">
-          <strong>Beta Launch.</strong> Xtiitch and the Affiliate Program may
-          operate during a Beta Launch period while we validate and improve the
-          product under real-world usage. Features and workflows may be refined
-          during Beta — see section 15.
-        </div>
 
         <section className="doc-summary" aria-labelledby="how-it-works">
           <h2 id="how-it-works">How the Xtiitch Affiliate Program works</h2>
